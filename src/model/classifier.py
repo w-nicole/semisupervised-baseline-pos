@@ -1,9 +1,16 @@
+
+# Taken from Shijie Wu's crosslingual-nlp repository.
+# See LICENSE in this codebase for license information.
+
+# Changes made relative to original:
+# Removed irrelevant imports.
+
 from typing import List, Optional, Type
 
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dataset import Dataset, LanguageID, MLDoc, PawsX, Xnli
+from dataset import Dataset
 from enumeration import Split, Task
 from metric import AccuracyMetric
 from model.base import Model

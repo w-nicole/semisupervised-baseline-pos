@@ -1,13 +1,35 @@
 
+This codebase was first built off a copy of Shijie Wu's crosslingual-nlp repository, found here:
+
+https://github.com/shijie-wu/crosslingual-nlp
+
+# Added text
+
+# Setup
+
+`conda install transformers conllu datasets pandas matplotlib scikit-learn`
+
+Also, as taken from here (5/22/22):
+
+https://pytorch-lightning.readthedocs.io/en/stable/starter/installation.html
+
+`conda install pytorch-lightning -c conda-forge`
+
+If you are using Satori and encounter an error `cannot import name 'create_repo' from 'huggingface_hub'`, you will have to run:
+
+`conda uninstall huggingface_hub` 
+
+`conda install huggingface_hub=0.2.1 transformers` 
+
 # Added text: as of semisupervised-baseline-pos repository
 
-For further changes, see below.
-
-The general following edits were applied, in addition to the ones described below:
-
-- Code was added to remove sliding window behavior, and instead sentences were considered individually.
+Edits are described in their individual files.
 
 Note that notes on license were not yet added to every file from original repository as many files will be deleted before final state. Ones that are retained are marked as project progresses.
+
+For license information of original repository please see LICENSE file as directed in the leading comments of each file taken from the original. For brevity the entire LICENSE is reproduced only there.
+
+In the final version of this codebase (i.e. not intermediate commits), files that were added later will NOT have an original repository license information comment, but files taken from the original repository will. This is NOT true of intermediate or latest codebase versions, preceding finalization.
 
 # Added text: as of crosslingual-private repository
 
@@ -29,7 +51,9 @@ For the state of the repository before changes, see commit c029e10e909039946a755
 
 For the state of the repository used for replication numbers before UD change, see commit b1a9af51796f62b9436f2860e44b86891b77be5b in that repository.
 
-# Crosslingual NLP
+# Original text
+
+## Crosslingual NLP
 
 This repo supports various cross-lingual transfer learning & multilingual NLP models. It powers the following papars.
 

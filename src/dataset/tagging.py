@@ -1,3 +1,11 @@
+
+# Taken from Shijie Wu's crosslingual-nlp repository.
+# See LICENSE in this codebase for license information.
+
+# Changes made relative to original:
+# Changed truncation to be simply off the end of the example,
+# Removed sliding window logic.
+
 import glob
 from collections import defaultdict
 from copy import deepcopy
@@ -14,7 +22,7 @@ from metric import convert_bio_to_spans
 class TaggingDataset(Dataset):
     def before_load(self):
         self.max_len = min(self.max_len, self.tokenizer.max_len_single_sentence)
-        self.shift = self.max_len // 2
+        # Removed self.shift
         self.labels = self.get_labels()
         self.label2id = {label: idx for idx, label in enumerate(self.labels)}
         self.label2id[DUMMY_LABEL] = LABEL_PAD_ID
@@ -41,6 +49,10 @@ class TaggingDataset(Dataset):
         self, sent: List, labels: List
     ) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
 
+        # Changed this entire section:
+        # to truncate at the max non-CLS/SEP tokens dictated by the tokenizer,
+        # to not use any sliding window.
+        
         token_ids: List[int] = []
         label_ids: List[int] = []
 
@@ -52,10 +64,7 @@ class TaggingDataset(Dataset):
 
             if len(token_ids) + len(sub_tokens) >= self.max_len:
                 # don't add more token
-                yield self.add_special_tokens(token_ids, label_ids)
-
-                token_ids = token_ids[-self.shift :]
-                label_ids = [LABEL_PAD_ID] * len(token_ids)
+                break
 
             for i, sub_token in enumerate(sub_tokens):
                 token_ids.append(sub_token)
@@ -63,6 +72,8 @@ class TaggingDataset(Dataset):
                 label_ids.append(label_id)
 
         yield self.add_special_tokens(token_ids, label_ids)
+        
+        # end changes
 
     def process_example(self, example: Dict) -> List[Dict]:
         sent: List = example["sent"]
