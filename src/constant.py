@@ -1,3 +1,10 @@
+
+# Taken from Shijie Wu's crosslingual-nlp repository.
+# See LICENSE in this codebase for license information.
+
+# Changes made relative to original:
+# Changed label name to get labels to run with older UD.
+
 LANGUAGE_TO_ISO639 = {
     # NER
     "zh-word": "zh",

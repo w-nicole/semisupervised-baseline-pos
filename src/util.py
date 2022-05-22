@@ -1,3 +1,10 @@
+
+# Taken from Shijie Wu's crosslingual-nlp repository.
+# See LICENSE in this codebase for license information.
+
+# Changes made relative to original:
+# Changed some types to fix compile/inability to run errors.
+
 import argparse
 import json
 import os
@@ -13,6 +20,7 @@ from pytorch_lightning.callbacks.base import Callback
 # Changed the lines below
 import collections.abc as container_abcs 
 from torch._six import string_classes
+# end changes
 
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import ConcatDataset, RandomSampler, Sampler
