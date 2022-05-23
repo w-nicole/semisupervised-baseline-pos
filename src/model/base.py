@@ -536,8 +536,9 @@ class Model(pl.LightningModule):
         parser.add_argument("--projector_trm_hidden_size", default=3072, type=int)
         parser.add_argument("--projector_trm_num_heads", default=12, type=int)
         parser.add_argument("--projector_trm_num_layers", default=4, type=int)
-        parser.add_argument("--projector_dropout", default=0.2, type=float)
-        parser.add_argument("--input_dropout", default=0.2, type=float)
+        # Changed to remove all types of dropout that are specified separate from BERT (i.e. set them to zero)
+        parser.add_argument("--projector_dropout", default=0, type=float)
+        parser.add_argument("--input_dropout", default=0, type=float)
         parser.add_argument("--mapping", default="", type=str)
         # misc
         parser.add_argument("--seed", default=42, type=int)
