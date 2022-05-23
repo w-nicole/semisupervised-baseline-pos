@@ -15,6 +15,8 @@ https://pytorch-lightning.readthedocs.io/en/stable/starter/installation.html
 
 `conda install pytorch-lightning -c conda-forge`
 
+Note that pytorch-lightning needs to be 1.4.4 for things to work -- the above command won't install 1.4.4.
+
 If you are using Satori and encounter an error `cannot import name 'create_repo' from 'huggingface_hub'`, you will have to run:
 
 `conda uninstall huggingface_hub` 

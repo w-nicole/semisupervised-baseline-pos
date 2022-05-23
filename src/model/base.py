@@ -1,3 +1,10 @@
+
+# Taken from Shijie Wu's crosslingual-nlp repository.
+# See LICENSE in this codebase for license information.
+
+# Changes made relative to original:
+# Changed hyperparameters to match those in the paper.
+
 import hashlib
 import json
 import os
@@ -535,13 +542,16 @@ class Model(pl.LightningModule):
         # misc
         parser.add_argument("--seed", default=42, type=int)
         parser.add_argument("--learning_rate", default=5e-5, type=float)
-        parser.add_argument("--adam_beta2", default=0.99, type=float)
+        # Changed below beta2 parameter to match the paper
+        parser.add_argument("--adam_beta2", default=0.999, type=float)
         parser.add_argument("--adam_eps", default=1e-8, type=float)
-        parser.add_argument("--weight_decay", default=0.0, type=float)
+        # Changed below weight_decay parameter to match the paper
+        parser.add_argument("--weight_decay", default=0.01, type=float)
         parser.add_argument("--batch_size", default=32, type=int)
         parser.add_argument("--eval_batch_size", default=32, type=int)
         parser.add_argument("--schedule", default=Schedule.linear, choices=Schedule().choices(), type=str)
         parser.add_argument("--warmup_steps", default=-1, type=int)
-        parser.add_argument("--warmup_portion", default=-1, type=float)
+        # Changed below warmup portion to match the paper.
+        parser.add_argument("--warmup_portion", default=0.1, type=float)
         # fmt: on
         return parser
