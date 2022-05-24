@@ -1,3 +1,12 @@
+
+# Taken from Shijie Wu's crosslingual-nlp repository.
+# See LICENSE in this codebase for license information.
+
+# Changes made relative to original:
+# Added averaging behavior,
+#   which makes dimensions be according to tokens, not sentences,
+#   and changed "forward" accordingly.
+
 from copy import deepcopy
 from typing import List, Optional, Type
 
@@ -65,73 +74,34 @@ class Tagger(Model):
     def preprocess_batch(self, batch):
         return batch
 
-    def predict(self, batch):
-        sent = batch["sent"]
-        lang = batch["lang"]
-        first_subword_mask = batch["first_subword_mask"]
-
-        hs = self.encode_sent(sent, lang)
-        if self.hparams.tagger_use_crf:
-            mask = first_subword_mask.float()
-            energy = self.crf(hs, mask=mask)
-            predicted_labels = self.crf.decode(energy, mask=mask)
-        else:
-            logits = self.classifier(hs)
-            log_probs = F.log_softmax(logits, dim=-1)
-            _, predicted_labels = torch.max(log_probs, dim=-1)
-
-        predicted_labels = predicted_labels * first_subword_mask
-
-        predicted_labels = predicted_labels.cpu().numpy()
-        first_subword_mask = first_subword_mask.cpu().numpy()
-
-        prediction = []
-        for i in range(len(sent)):
-            labels = []
-            for j in range(len(sent[i])):
-                if first_subword_mask[i, j] != 1:
-                    continue
-                labels.append(self.id2label[predicted_labels[i, j]])
-            if self.hparams.task in [Task.conllner, Task.wikiner]:
-                clean_labels: List[str] = deepcopy(labels)
-                clean_spans = convert_bio_to_spans(labels)
-                for entity, start, end in clean_spans:
-                    for k, pos in enumerate(range(start, end)):
-                        if k == 0:
-                            clean_labels[pos] = f"B-{entity}"
-                        else:
-                            clean_labels[pos] = f"I-{entity}"
-                labels = clean_labels
-            assert len(batch["orig_sent"][i]) == len(labels)
-            prediction.append(
-                {
-                    "sent": batch["orig_sent"][i],
-                    "labels": labels,
-                }
-            )
-        return prediction
+    # Removed `predict` due to no support for first subword mask.
 
     def forward(self, batch):
+        
+        # Edited this function to accept averaged representations
+        # and outputs indexed by token, not sentence.
+        # Removed crf support.
+        
         batch = self.preprocess_batch(batch)
-        hs = self.encode_sent(batch["sent"], batch["lang"])
-        if self.hparams.tagger_use_crf:
-            mask = (batch["labels"] != LABEL_PAD_ID).float()
-            energy = self.crf(hs, mask=mask)
-            target = batch["labels"].masked_fill(
-                batch["labels"] == LABEL_PAD_ID, self.nb_labels
-            )
-            loss = self.crf.loss(energy, target, mask=mask)
-            log_probs = energy
-        else:
-            logits = self.classifier(hs)
-            log_probs = F.log_softmax(logits, dim=-1)
+        averaged_hs = self.encode_sent(batch["sent"], batch["averaging_indices"], batch["lang"])
+        assert not self.hparams.tagger_use_crf, "Code was not adapted for crf use."
 
-            loss = F.nll_loss(
-                log_probs.view(-1, self.nb_labels),
-                batch["labels"].view(-1),
-                ignore_index=LABEL_PAD_ID,
-            )
+        assert len(averaged_hs.shape) == 2, f"Averaged representations should be shape (tokens, BERT hidden size). Real shape: {averaged_hs.shape}"
+        assert averaged_hs.shape[0] ==  batch['labels'].shape[0], f"Averaged representations should be shape (tokens, BERT hidden size). Real shape: {averaged_hs.shape}"
+        
+        logits = self.classifier(averaged_hs)
+  
+        log_probs = F.log_softmax(logits, dim=-1)
+
+        loss = F.nll_loss(
+            log_probs.view(-1, self.nb_labels),
+            batch["labels"].view(-1),
+            ignore_index=LABEL_PAD_ID,
+        )
+        
+        # Note that log_probs are now (tokens, classes)
         return loss, log_probs
+        # end changes
 
     def training_step(self, batch, batch_idx):
         loss, _ = self.forward(batch)

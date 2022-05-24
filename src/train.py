@@ -1,3 +1,10 @@
+
+# Taken from Shijie Wu's crosslingual-nlp repository.
+# See LICENSE in this codebase for license information.
+
+# Changes made relative to original:
+# Changed amp_level to be dependent on CPU to permit running on CPU.
+
 import os
 from argparse import ArgumentParser
 
@@ -7,6 +14,7 @@ import util
 from enumeration import Task
 from model import Aligner, Classifier, DependencyParser, Model, Tagger
 
+import torch # Added this
 
 def main(hparams):
     if hparams.cache_dataset:
@@ -142,7 +150,8 @@ if __name__ == "__main__":
     parser.add_argument("--resume_from_checkpoint", default=None, type=str)
     parser.add_argument("--amp_backend", default="native", type=str)
     # only used for non-native amp
-    parser.add_argument("--amp_level", default="01", type=str)
+    # Changed to below to permit running on CPU
+    parser.add_argument("--amp_level", default="01" if torch.cuda.is_available() else None, type=str)
     ############################################################################
     parser = Model.add_model_specific_args(parser)
     parser = Tagger.add_model_specific_args(parser)
