@@ -1,3 +1,12 @@
+
+# Taken from Shijie Wu's crosslingual-nlp repository.
+# See LICENSE in this codebase for license information.
+
+# Changes made relative to original:
+# Added averaging behavior,
+#   which makes dimensions be according to tokens, not sentences,
+#   and changed "forward" accordingly.
+
 from copy import deepcopy
 from typing import List, Optional, Type
 
@@ -64,52 +73,6 @@ class Tagger(Model):
 
     def preprocess_batch(self, batch):
         return batch
-
-    def predict(self, batch):
-        sent = batch["sent"]
-        lang = batch["lang"]
-        first_subword_mask = batch["first_subword_mask"]
-
-        hs = self.encode_sent(sent, lang)
-        if self.hparams.tagger_use_crf:
-            mask = first_subword_mask.float()
-            energy = self.crf(hs, mask=mask)
-            predicted_labels = self.crf.decode(energy, mask=mask)
-        else:
-            logits = self.classifier(hs)
-            log_probs = F.log_softmax(logits, dim=-1)
-            _, predicted_labels = torch.max(log_probs, dim=-1)
-
-        predicted_labels = predicted_labels * first_subword_mask
-
-        predicted_labels = predicted_labels.cpu().numpy()
-        first_subword_mask = first_subword_mask.cpu().numpy()
-
-        prediction = []
-        for i in range(len(sent)):
-            labels = []
-            for j in range(len(sent[i])):
-                if first_subword_mask[i, j] != 1:
-                    continue
-                labels.append(self.id2label[predicted_labels[i, j]])
-            if self.hparams.task in [Task.conllner, Task.wikiner]:
-                clean_labels: List[str] = deepcopy(labels)
-                clean_spans = convert_bio_to_spans(labels)
-                for entity, start, end in clean_spans:
-                    for k, pos in enumerate(range(start, end)):
-                        if k == 0:
-                            clean_labels[pos] = f"B-{entity}"
-                        else:
-                            clean_labels[pos] = f"I-{entity}"
-                labels = clean_labels
-            assert len(batch["orig_sent"][i]) == len(labels)
-            prediction.append(
-                {
-                    "sent": batch["orig_sent"][i],
-                    "labels": labels,
-                }
-            )
-        return prediction
 
     def forward(self, batch):
         batch = self.preprocess_batch(batch)
