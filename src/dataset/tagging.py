@@ -39,8 +39,7 @@ class TaggingDataset(Dataset):
         raise NotImplementedError
 
     # Changed this function to not consider labels.
-    #def add_special_tokens(self, sent, labels):
-    def add_special_tokens(self, sent, labels):
+    def add_special_tokens(self, sent):
         sent = self.tokenizer.build_inputs_with_special_tokens(sent)
         return np.array(sent)
     # end changes
@@ -79,7 +78,7 @@ class TaggingDataset(Dataset):
             
             current_index += len(sub_tokens)
 
-        token_ids = self.add_special_tokens(token_ids, label_ids)
+        token_ids = self.add_special_tokens(token_ids)
         label_ids = np.array(label_ids)
 
         start_index = np.array(start_indices)
