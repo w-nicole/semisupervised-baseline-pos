@@ -21,6 +21,7 @@ from metric import NERMetric, POSMetric, convert_bio_to_spans
 from model.base import Model
 from model.crf import ChainCRF
 
+import constant # added
 
 class Tagger(Model):
     def __init__(self, hparams):
@@ -61,8 +62,10 @@ class Tagger(Model):
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
-            # Added below line. CANNOT be changed, critical to logic
-            "averaging_indices": 0, 
+            # Added below. MUST match START_END_INDEX_PADDING for logic to hold.
+            "start_indices": constant.START_END_INDEX_PADDING,
+            "end_indices": constant.START_END_INDEX_PADDING,
+            # end changes
             "labels": LABEL_PAD_ID,
         }
 
@@ -77,9 +80,14 @@ class Tagger(Model):
         return batch
 
     def forward(self, batch):
-        print(self.batch_per_epoch)
+        
+        # Edited this function to accept averaged representations
+        # and outputs indexed by token, not sentence.
+
         batch = self.preprocess_batch(batch)
-        hs = self.encode_sent(batch["sent"], batch["lang"])
+        # Updated call arguments
+        hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
+        # end updates
         if self.hparams.tagger_use_crf:
             mask = (batch["labels"] != LABEL_PAD_ID).float()
             energy = self.crf(hs, mask=mask)
@@ -98,6 +106,8 @@ class Tagger(Model):
                 ignore_index=LABEL_PAD_ID,
             )
         return loss, log_probs
+    
+        # end changes
 
     def training_step(self, batch, batch_idx):
         loss, _ = self.forward(batch)

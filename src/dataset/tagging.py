@@ -6,7 +6,7 @@
 # Changed truncation to be simply off the end of the example,
 # Removed sliding window logic.
 # Changed labels to not use first subtoken marking via padding, but just to be labels.
-# Changed to return averaging indices for subtokens.
+# Changed to return start/end indices.
 
 import glob
 from collections import defaultdict
@@ -48,16 +48,18 @@ class TaggingDataset(Dataset):
     # to truncate at the max non-CLS/SEP tokens dictated by the tokenizer,
     # to not use any sliding window,
     # to add labels per token directly, rather than using subtokens,
-    # to create an averaging index tensor.
+    # to create start/end indices.
     def _process_example_helper(
         self, sent: List, labels: List
     ) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         
+        # start_index, end_index include CLS/SEP (i.e. the first subtoken is index 1)
         token_ids: List[int] = []
         label_ids: List[int] = []
-        averaging_indices : List[int] = []
+        start_indices: List[int] = []
+        end_indices: List[int] = []
             
-        token_index = 1
+        current_index = 1
 
         for token, label in zip(sent, labels):
             sub_tokens = self.tokenize(token)
@@ -71,20 +73,27 @@ class TaggingDataset(Dataset):
 
             label_ids.append(self.label2id[label])
             
-            for sub_token in sub_tokens:
-                token_ids.append(sub_token)
-                averaging_indices.append(token_index)
-             
-            token_index += 1
+            token_ids.extend(sub_tokens)
+            start_indices.append(current_index)
+            end_indices.append(current_index + len(sub_tokens))
+            
+            current_index += len(sub_tokens)
 
         token_ids = self.add_special_tokens(token_ids)
         label_ids = np.array(label_ids)
 
-        # because averaging will average all unwanted representations (padding, CLS, SEP) to index 0,
-        # so averaging uses 0 as the padding value.
-        averaging_indices = np.array([0] + averaging_indices + [0])
+        # averaging will average all unwanted representations (padding, CLS, SEP) to index constant.START_END_INDEX_PADDING.
         
-        yield (token_ids, label_ids, averaging_indices)
+        pad_indices = lambda indices : np.array(
+            [constant.START_END_INDEX_PADDING]
+            + indices
+            + [constant.START_END_INDEX_PADDING]
+        )
+        
+        start_indices = pad_indices(start_indices)
+        end_indices = pad_indices(end_indices)
+        
+        yield (token_ids, label_ids, start_indices, end_indices)
         
         # end changes
         
@@ -96,10 +105,10 @@ class TaggingDataset(Dataset):
         if not sent:
             return data
         # Changed below to accomodate averaging_indices
-        for src, tgt, averaging_indices in self._process_example_helper(sent, labels):
+        for src, tgt, start_indices, end_indices in self._process_example_helper(sent, labels):
             data.append({
                 "sent": src, "labels": tgt, "lang": self.lang,
-                "averaging_indices" : averaging_indices
+                "start_indices" : start_indices, "end_indices" : end_indices
             })
         # end changes
         return data
