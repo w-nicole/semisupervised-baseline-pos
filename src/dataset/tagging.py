@@ -45,14 +45,14 @@ class TaggingDataset(Dataset):
         label = labels * (1 - mask) + LABEL_PAD_ID * mask
         return sent, label
 
+    # Changed this entire section:
+    # to truncate at the max non-CLS/SEP tokens dictated by the tokenizer,
+    # to not use any sliding window.
+    
     def _process_example_helper(
         self, sent: List, labels: List
-    ) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
+    ) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
 
-        # Changed this entire section:
-        # to truncate at the max non-CLS/SEP tokens dictated by the tokenizer,
-        # to not use any sliding window.
-        
         token_ids: List[int] = []
         label_ids: List[int] = []
 
@@ -71,7 +71,7 @@ class TaggingDataset(Dataset):
                 label_id = self.label2id[label] if i == 0 else LABEL_PAD_ID
                 label_ids.append(label_id)
 
-        yield self.add_special_tokens(token_ids, label_ids)
+        yield self.add_special_tokens(token_ids, label_ids) + (token_ids,)
         
         # end changes
 
@@ -82,8 +82,13 @@ class TaggingDataset(Dataset):
         data: List[Dict] = []
         if not sent:
             return data
-        for src, tgt in self._process_example_helper(sent, labels):
-            data.append({"sent": src, "labels": tgt, "lang": self.lang})
+        # Changed below to accomodate averaging_indices
+        for src, tgt, averaging_indices in self._process_example_helper(sent, labels):
+            data.append({
+                "sent": src, "labels": tgt, "lang": self.lang,
+                "averaging_indices" : averaging_indices
+            })
+        # end changes
         return data
 
 

@@ -61,6 +61,8 @@ class Tagger(Model):
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
+            # Added below line. CANNOT be changed, critical to logic
+            "averaging_indices": 0, 
             "labels": LABEL_PAD_ID,
         }
 
