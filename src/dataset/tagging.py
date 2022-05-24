@@ -75,6 +75,7 @@ class TaggingDataset(Dataset):
             label_ids.append(self.label2id[label])
             start_indices.append(current_index)
             end_indices.append(current_index + len(sub_tokens))
+            # NEED TO UPDATE TOKEN IDS here.
             
             current_index += len(sub_tokens)
 
@@ -84,7 +85,16 @@ class TaggingDataset(Dataset):
         start_index = np.array(start_indices)
         end_index = np.array(end_indices)
         
-        yield (token_ids, label_ids, token_ids)
+        # because averaging will average all unwanted representations (padding, CLS, SEP) to index 0,
+        # so averaging uses 0 as the padding value.
+
+        token_averaging_indices = torch.repeat_interleave(
+            torch.arange(start_index.shape[0]) + 1, # Average to 1, ..., n
+            torch.from_numpy(end_index - start_index).int()
+        )
+        averaging_indices = torch.cat([torch.zeros(1,), token_averaging_indices, torch.zeros(1,)])
+        
+        yield (token_ids, label_ids, averaging_indices)
         
         # end changes
         
