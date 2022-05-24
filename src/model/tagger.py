@@ -4,7 +4,6 @@
 
 # Changes made relative to original:
 # Added averaging behavior,
-#   which makes dimensions be according to tokens, not sentences,
 #   and changed "forward" accordingly.
 
 from copy import deepcopy
@@ -80,10 +79,6 @@ class Tagger(Model):
         return batch
 
     def forward(self, batch):
-        
-        # Edited this function to accept averaged representations
-        # and outputs indexed by token, not sentence.
-
         batch = self.preprocess_batch(batch)
         # Updated call arguments
         hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
@@ -106,8 +101,6 @@ class Tagger(Model):
                 ignore_index=LABEL_PAD_ID,
             )
         return loss, log_probs
-    
-        # end changes
 
     def training_step(self, batch, batch_idx):
         loss, _ = self.forward(batch)

@@ -4,8 +4,7 @@
 
 # Changes made relative to original:
 # Changed hyperparameters to match those in the paper,
-# Added averaging behavior,
-#   which makes dimensions be according to tokens, not sentences.
+# Added averaging behavior.
 
 import hashlib
 import json
@@ -245,7 +244,7 @@ class Model(pl.LightningModule):
         hs = self.dropout(hs)
         hs = self.projector(hs, mask)
         
-        # Below: added averaging and reshape to be per-token, not per sentence.
+        # Below: added averaging.
         averaged_hs = collate.average_embeddings(hs, start_indices, end_indices)
         return averaged_hs
         # end changes

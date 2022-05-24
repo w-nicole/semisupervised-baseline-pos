@@ -2,9 +2,6 @@
 # Taken from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
 
-# Changes made relative to original:
-# Changed POSMetric to calculate over tokens as first index, not position in sentence.
-
 import re
 from typing import Dict, List
 
@@ -148,17 +145,15 @@ class POSMetric(Metric):
         """
         gold, prediction = self.unpack(gold, prediction)
         _, prediction = torch.max(prediction, dim=-1)
-        # Changed to accept (token, classes)-shaped predictions
         bs, seq_len = prediction.shape
-        assert len(prediction.shape) == 1, f"Prediction should be flattened to token indexing. Actual shape: {prediction.shape}"
-        for ii in range(prediction.shape[0]):
-            gold_label, pred_label = gold[ii], prediction[ii]
-            if gold_label == LABEL_PAD_ID:
-                continue
-            if gold_label == pred_label:
-                self.num_correct += 1
-            self.num_tokens += 1
-        # end changes
+        for ii in range(bs):
+            for jj in range(seq_len):
+                gold_label, pred_label = gold[ii, jj], prediction[ii, jj]
+                if gold_label == LABEL_PAD_ID:
+                    continue
+                if gold_label == pred_label:
+                    self.num_correct += 1
+                self.num_tokens += 1
 
     @to_tensor
     def get_metric(self):
