@@ -5,6 +5,8 @@
 # Changes made relative to original:
 # Changed truncation to be simply off the end of the example,
 # Removed sliding window logic.
+# Changed labels to not use first subtoken marking via padding, but just to be labels.
+# Changed to return averaging indices for subtokens.
 
 import glob
 from collections import defaultdict
@@ -18,6 +20,7 @@ from dataset.base import DUMMY_LABEL, LABEL_PAD_ID, Dataset
 from enumeration import Split
 from metric import convert_bio_to_spans
 
+import torch # added this
 
 class TaggingDataset(Dataset):
     def before_load(self):
@@ -35,26 +38,30 @@ class TaggingDataset(Dataset):
     def get_labels(cls) -> List[str]:
         raise NotImplementedError
 
+    # Changed this function to not consider labels.
+    #def add_special_tokens(self, sent, labels):
     def add_special_tokens(self, sent, labels):
         sent = self.tokenizer.build_inputs_with_special_tokens(sent)
-        labels = self.tokenizer.build_inputs_with_special_tokens(labels)
-        mask = self.tokenizer.get_special_tokens_mask(
-            sent, already_has_special_tokens=True
-        )
-        sent, labels, mask = np.array(sent), np.array(labels), np.array(mask)
-        label = labels * (1 - mask) + LABEL_PAD_ID * mask
-        return sent, label
+        return np.array(sent)
+    # end changes
 
     # Changed this entire section:
     # to truncate at the max non-CLS/SEP tokens dictated by the tokenizer,
-    # to not use any sliding window.
-    
+    # to not use any sliding window,
+    # to add labels per token directly, rather than using subtokens,
+    # to create an averaging index tensor.
     def _process_example_helper(
         self, sent: List, labels: List
     ) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
 
+        # start_index, end_index include CLS/SEP (i.e. the first subtoken is index 1)
+        
         token_ids: List[int] = []
         label_ids: List[int] = []
+        start_indices: List[int] = []
+        end_indices: List[int] = []
+            
+        current_index = 1
 
         for token, label in zip(sent, labels):
             sub_tokens = self.tokenize(token)
@@ -66,15 +73,22 @@ class TaggingDataset(Dataset):
                 # don't add more token
                 break
 
-            for i, sub_token in enumerate(sub_tokens):
-                token_ids.append(sub_token)
-                label_id = self.label2id[label] if i == 0 else LABEL_PAD_ID
-                label_ids.append(label_id)
+            label_ids.append(self.label2id[label])
+            start_indices.append(current_index)
+            end_indices.append(current_index + len(sub_tokens))
+            
+            current_index += len(sub_tokens)
 
-        yield self.add_special_tokens(token_ids, label_ids) + (token_ids,)
+        token_ids = self.add_special_tokens(token_ids, label_ids)
+        label_ids = np.array(label_ids)
+
+        start_index = np.array(start_indices)
+        end_index = np.array(end_indices)
+        
+        yield (token_ids, label_ids, token_ids)
         
         # end changes
-
+        
     def process_example(self, example: Dict) -> List[Dict]:
         sent: List = example["sent"]
         labels: List = example["labels"]

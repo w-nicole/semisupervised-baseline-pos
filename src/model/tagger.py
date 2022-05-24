@@ -77,6 +77,7 @@ class Tagger(Model):
         return batch
 
     def forward(self, batch):
+        print(self.batch_per_epoch)
         batch = self.preprocess_batch(batch)
         hs = self.encode_sent(batch["sent"], batch["lang"])
         if self.hparams.tagger_use_crf:
