@@ -4,8 +4,6 @@
 
 # Changes made relative to original:
 # Changed hyperparameters to match those in the paper.
-# Added averaging behavior,
-#   which makes dimensions be according to tokens, not sentences.
 
 import hashlib
 import json
@@ -32,10 +30,6 @@ from dataset.base import Dataset
 from enumeration import Schedule, Split, Task
 from metric import Metric
 from model.module import Identity, InputVariationalDropout, MeanPooling, Transformer
-
-# Below: added imports
-from dataset import collate
-# end imports
 
 
 class Model(pl.LightningModule):
@@ -199,9 +193,6 @@ class Model(pl.LightningModule):
     def encode_sent(
         self,
         sent: Tensor,
-        # added below
-        averaging_indices : Tensor,
-        # end changes
         langs: Optional[List[str]] = None,
         segment: Optional[Tensor] = None,
         model: Optional[transformers.PreTrainedModel] = None,
@@ -244,12 +235,8 @@ class Model(pl.LightningModule):
         hs = self.process_feature(hs)
         hs = self.dropout(hs)
         hs = self.projector(hs, mask)
-        
-        # Below: added averaging and reshape to be per-token, not per sentence.
-        averaged_hs = collate.decollate_embeddings_encoder(hs, averaging_indices)
-        return averaged_hs
-        # end changes
-    
+        return hs
+
     def map_feature(self, hidden_states: List[Tensor], langs):
         if self.mapping is None:
             return hidden_states

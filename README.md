@@ -23,10 +23,6 @@ If you are using Satori and encounter an error `cannot import name 'create_repo'
 
 `conda install huggingface_hub=0.2.1 transformers` 
 
-# Run
-
-Run everything from the repository root.
-
 # Added text: as of semisupervised-baseline-pos repository
 
 Edits are described in their individual files.
