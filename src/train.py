@@ -7,6 +7,7 @@ import util
 from enumeration import Task
 from model import Aligner, Classifier, DependencyParser, Model, Tagger
 
+import torch # added
 
 def main(hparams):
     if hparams.cache_dataset:
@@ -142,7 +143,8 @@ if __name__ == "__main__":
     parser.add_argument("--resume_from_checkpoint", default=None, type=str)
     parser.add_argument("--amp_backend", default="native", type=str)
     # only used for non-native amp
-    parser.add_argument("--amp_level", default="01", type=str)
+    # changed below to account for cpu
+    parser.add_argument("--amp_level", default="01" if torch.cuda.is_available() else None, type=str)
     ############################################################################
     parser = Model.add_model_specific_args(parser)
     parser = Tagger.add_model_specific_args(parser)
