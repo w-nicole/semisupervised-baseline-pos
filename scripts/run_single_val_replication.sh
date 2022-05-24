@@ -4,6 +4,7 @@
 # See LICENSE in this codebase for license information.
 
 # Changes made relative to original:
+# Changed to python3
 # Simplified `example/surprising-mbert/evaluate.sh` script due to no need for non-POS evaluation by removing irrelevant code, options, etc.
 # Removal of grid search.
 # Substitution of parameters that yield best val English on seed 42.
@@ -27,7 +28,7 @@ ep=1
 #ep=4
 lr=3e-5
 
-python src/train.py \
+python3 src/train.py \
     --seed "$seed" \
     --task "$task" \
     --data_dir "$data_path" \
