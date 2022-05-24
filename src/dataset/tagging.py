@@ -52,15 +52,12 @@ class TaggingDataset(Dataset):
     def _process_example_helper(
         self, sent: List, labels: List
     ) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-
-        # start_index, end_index include CLS/SEP (i.e. the first subtoken is index 1)
         
         token_ids: List[int] = []
         label_ids: List[int] = []
-        start_indices: List[int] = []
-        end_indices: List[int] = []
+        averaging_indices : List[int] = []
             
-        current_index = 1
+        token_index = 1
 
         for token, label in zip(sent, labels):
             sub_tokens = self.tokenize(token)
@@ -73,26 +70,19 @@ class TaggingDataset(Dataset):
                 break
 
             label_ids.append(self.label2id[label])
-            start_indices.append(current_index)
-            end_indices.append(current_index + len(sub_tokens))
-            # NEED TO UPDATE TOKEN IDS here.
             
-            current_index += len(sub_tokens)
+            for sub_token in sub_tokens:
+                token_ids.append(sub_token)
+                averaging_indices.append(token_index)
+             
+            token_index += 1
 
         token_ids = self.add_special_tokens(token_ids)
         label_ids = np.array(label_ids)
 
-        start_index = np.array(start_indices)
-        end_index = np.array(end_indices)
-        
         # because averaging will average all unwanted representations (padding, CLS, SEP) to index 0,
         # so averaging uses 0 as the padding value.
-
-        token_averaging_indices = torch.repeat_interleave(
-            torch.arange(start_index.shape[0]) + 1, # Average to 1, ..., n
-            torch.from_numpy(end_index - start_index).int()
-        )
-        averaging_indices = torch.cat([torch.zeros(1,), token_averaging_indices, torch.zeros(1,)])
+        averaging_indices = np.array([0] + averaging_indices + [0])
         
         yield (token_ids, label_ids, averaging_indices)
         
