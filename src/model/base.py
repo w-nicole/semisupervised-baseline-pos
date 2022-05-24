@@ -3,9 +3,8 @@
 # See LICENSE in this codebase for license information.
 
 # Changes made relative to original:
-# Changed hyperparameters to match those in the paper.
-# Added averaging behavior,
-#   which makes dimensions be according to tokens, not sentences.
+# Changed hyperparameters to match those in the paper,
+# Added averaging behavior.
 
 import hashlib
 import json
@@ -36,7 +35,6 @@ from model.module import Identity, InputVariationalDropout, MeanPooling, Transfo
 # Below: added imports
 from dataset import collate
 # end imports
-
 
 class Model(pl.LightningModule):
     def __init__(self, hparams):
@@ -200,7 +198,8 @@ class Model(pl.LightningModule):
         self,
         sent: Tensor,
         # added below
-        averaging_indices : Tensor,
+        start_indices : Tensor,
+        end_indices : Tensor,
         # end changes
         langs: Optional[List[str]] = None,
         segment: Optional[Tensor] = None,
@@ -245,11 +244,11 @@ class Model(pl.LightningModule):
         hs = self.dropout(hs)
         hs = self.projector(hs, mask)
         
-        # Below: added averaging and reshape to be per-token, not per sentence.
-        averaged_hs = collate.decollate_embeddings_encoder(hs, averaging_indices)
+        # Below: added averaging.
+        averaged_hs = collate.average_embeddings(hs, start_indices, end_indices)
         return averaged_hs
         # end changes
-    
+
     def map_feature(self, hidden_states: List[Tensor], langs):
         if self.mapping is None:
             return hidden_states

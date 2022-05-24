@@ -8,8 +8,7 @@
 # Simplified `example/surprising-mbert/evaluate.sh` script due to no need for non-POS evaluation by removing irrelevant code, options, etc.
 # Removal of grid search.
 # Substitution of parameters that yield best val English on seed 42.
-# Addition of (sometimes commented out) parameters for faster development, such as subset ratio,
-#  or temporary removal of GPU.
+# Addition of (sometimes commented out) parameters for faster development, such as subset ratio.
 
 seed=${1:-42}
 model=${2:-"bert-base-multilingual-cased"}
@@ -46,5 +45,5 @@ python3 src/train.py \
     --exp_name bs$bs-lr$lr-ep$ep \
     --subset_ratio=0.01 \
     
-    #--gpus 1 \
+#    --gpus 1 \
     

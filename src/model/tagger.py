@@ -4,7 +4,6 @@
 
 # Changes made relative to original:
 # Added averaging behavior,
-#   which makes dimensions be according to tokens, not sentences,
 #   and changed "forward" accordingly.
 
 from copy import deepcopy
@@ -21,6 +20,7 @@ from metric import NERMetric, POSMetric, convert_bio_to_spans
 from model.base import Model
 from model.crf import ChainCRF
 
+import constant # added
 
 class Tagger(Model):
     def __init__(self, hparams):
@@ -61,6 +61,10 @@ class Tagger(Model):
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
+            # Added below. MUST match START_END_INDEX_PADDING for logic to hold.
+            "start_indices": constant.START_END_INDEX_PADDING,
+            "end_indices": constant.START_END_INDEX_PADDING,
+            # end changes
             "labels": LABEL_PAD_ID,
         }
 
@@ -74,34 +78,29 @@ class Tagger(Model):
     def preprocess_batch(self, batch):
         return batch
 
-    # Removed `predict` due to no support for first subword mask.
-
     def forward(self, batch):
-        
-        # Edited this function to accept averaged representations
-        # and outputs indexed by token, not sentence.
-        # Removed crf support.
-        
         batch = self.preprocess_batch(batch)
-        averaged_hs = self.encode_sent(batch["sent"], batch["averaging_indices"], batch["lang"])
-        assert not self.hparams.tagger_use_crf, "Code was not adapted for crf use."
+        # Updated call arguments
+        hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
+        # end updates
+        if self.hparams.tagger_use_crf:
+            mask = (batch["labels"] != LABEL_PAD_ID).float()
+            energy = self.crf(hs, mask=mask)
+            target = batch["labels"].masked_fill(
+                batch["labels"] == LABEL_PAD_ID, self.nb_labels
+            )
+            loss = self.crf.loss(energy, target, mask=mask)
+            log_probs = energy
+        else:
+            logits = self.classifier(hs)
+            log_probs = F.log_softmax(logits, dim=-1)
 
-        assert len(averaged_hs.shape) == 2, f"Averaged representations should be shape (tokens, BERT hidden size). Real shape: {averaged_hs.shape}"
-        assert averaged_hs.shape[0] ==  batch['labels'].shape[0], f"Averaged representations should be shape (tokens, BERT hidden size). Real shape: {averaged_hs.shape}"
-        
-        logits = self.classifier(averaged_hs)
-  
-        log_probs = F.log_softmax(logits, dim=-1)
-
-        loss = F.nll_loss(
-            log_probs.view(-1, self.nb_labels),
-            batch["labels"].view(-1),
-            ignore_index=LABEL_PAD_ID,
-        )
-        
-        # Note that log_probs are now (tokens, classes)
+            loss = F.nll_loss(
+                log_probs.view(-1, self.nb_labels),
+                batch["labels"].view(-1),
+                ignore_index=LABEL_PAD_ID,
+            )
         return loss, log_probs
-        # end changes
 
     def training_step(self, batch, batch_idx):
         loss, _ = self.forward(batch)
