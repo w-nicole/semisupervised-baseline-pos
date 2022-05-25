@@ -4,6 +4,7 @@
 
 # Changes made relative to original:
 # Changed some types to fix compile/inability to run errors.
+# Added cast and assert to avoid runtime error regarding type casting.
 
 import argparse
 import json
@@ -186,6 +187,10 @@ def default_collate(batch, padding):
             numel = sum([x.numel() for x in batch])
             storage = elem.storage()._new_shared(numel)
             out = elem.new(storage)
+        # Added assert and cast
+        assert all([ torch.all(elem.long() == elem) for elem in batch ])
+        return torch.stack([ elem.long() for elem in batch ] , 0, out=out)
+        # end additions
         return torch.stack(batch, 0, out=out)
     elif (
         elem_type.__module__ == "numpy"
