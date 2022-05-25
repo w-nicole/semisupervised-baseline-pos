@@ -25,7 +25,7 @@ If you are using Satori and encounter an error `cannot import name 'create_repo'
 
 # Run
 
-Run everything from the repository root.
+Run everything from the `src` directory.
 
 # Added text: as of semisupervised-baseline-pos repository
 

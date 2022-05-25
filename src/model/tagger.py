@@ -56,6 +56,13 @@ class Tagger(Model):
 
         if self.hparams.tagger_use_crf:
             self.crf = ChainCRF(self.hidden_size, self.nb_labels, bigram=True)
+        # Added/edited
+        elif self.hparams.use_hidden_layer:
+            self.classifier = nn.Sequential([
+                nn.Linear(self.embedding_size, self.hidden_size)
+                nn.Linear(self.hidden_size, self.nb_labels)
+            ])
+        # end additions
         else:
             self.classifier = nn.Linear(self.hidden_size, self.nb_labels)
         self.padding = {
