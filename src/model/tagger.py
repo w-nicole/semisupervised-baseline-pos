@@ -5,6 +5,7 @@
 # Changes made relative to original:
 # Added averaging behavior,
 #   and changed "forward" accordingly.
+# Added one layer MLP.
 
 from copy import deepcopy
 from typing import List, Optional, Type
@@ -56,6 +57,13 @@ class Tagger(Model):
 
         if self.hparams.tagger_use_crf:
             self.crf = ChainCRF(self.hidden_size, self.nb_labels, bigram=True)
+        # Added/edited
+        elif self.hparams.use_hidden_layer:
+            self.classifier = nn.Sequential(
+                nn.Linear(self.hidden_size, self.hparams.hidden_layer_size),
+                nn.Linear(self.hparams.hidden_layer_size, self.nb_labels)
+            )
+        # end additions
         else:
             self.classifier = nn.Linear(self.hidden_size, self.nb_labels)
         self.padding = {

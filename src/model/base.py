@@ -63,7 +63,6 @@ class Model(pl.LightningModule):
         self.model = self.build_model()
         self.freeze_layers()
 
-        self.weight = nn.Parameter(torch.zeros(self.num_layers))
         self.mapping = None
         if hparams.mapping:
             assert os.path.isfile(hparams.mapping)
@@ -131,12 +130,19 @@ class Model(pl.LightningModule):
 
     @property
     def num_layers(self):
+        # hidden_size = the input to the classifier
         if isinstance(self.model, transformers.BertModel) or isinstance(
             self.model, transformers.RobertaModel
         ):
-            return self.model.config.num_hidden_layers + 1
+            # Added logic for concatenated embeddings
+            single_layer_size = self.model.config.hidden_size
+            if not self.hparams.concat_all_hidden_states:
+                return single_layer_size
+            else:
+                return single_layer_size * (self.model.config.num_hidden_layers + 1)
+            # end added
         elif isinstance(self.model, transformers.XLMModel):
-            return self.model.n_layers + 1
+            return self.model.dim
         else:
             raise ValueError("Unsupported model")
 
@@ -265,11 +271,18 @@ class Model(pl.LightningModule):
         return hs
 
     def process_feature(self, hidden_states: List[Tensor]):
+<<<<<<< HEAD
         if self.hparams.weighted_feature:
             hs: Tensor = torch.stack(hidden_states)
             weight = F.softmax(self.weight, dim=0).view(-1, 1, 1, 1)
             hs = hs * weight
             hs = hs.sum(dim=0)
+=======
+        if not isinstance(hidden_states, tuple):
+            assert len(hidden_states[0].shape) == 2, hidden_states.shape[0]
+        if self.hparams.concat_all_hidden_states:
+            hs: Tensor = torch.cat(hidden_states, dim = -1)
+>>>>>>> development
         else:
             hs = hidden_states[self.hparams.feature_layer]
         return hs
