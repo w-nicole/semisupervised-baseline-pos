@@ -16,7 +16,6 @@ task=${3:-"udpos"}
 freeze=${4:-"-1"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
-
 save_path=${5:-"./experiments/preprocess_changed_run_grid_search"}
 
 src="English"
@@ -41,8 +40,12 @@ for bs in 16 32; do
                 --freeze_layer "$freeze" \
                 --default_save_path "$save_path"/"$task"/0-shot-finetune-freeze"$freeze"/"$model_name" \
                 --exp_name bs$bs-lr$lr-ep$ep \
+<<<<<<< HEAD
+                --gpus 1
+=======
                 --subset_ratio=0.0001 \
                 #--gpus 1
+>>>>>>> development
         done
     done
 done
