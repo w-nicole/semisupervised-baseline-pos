@@ -121,24 +121,23 @@ class Model(pl.LightningModule):
         else:
             raise ValueError("Unsupported model")
 
-    # Renamed the size
     @property
-    def embedding_size(self):
+    def hidden_size(self):
+        # hidden_size = the input to the classifier
         if isinstance(self.model, transformers.BertModel) or isinstance(
             self.model, transformers.RobertaModel
         ):
-            return self.model.config.hidden_size
+            # Added logic for concatenated embeddings
+            single_layer_size = self.model.config.hidden_size
+            if not hparams.concat_all_hidden_states:
+                return single_layer_size
+            else:
+                return single_layer_size * (self.model.config.num_hidden_layers + 1)
+            # end added
         elif isinstance(self.model, transformers.XLMModel):
             return self.model.dim
         else:
             raise ValueError("Unsupported model")
-            
-    # Swapped out old function for new logic
-    @property
-    def hidden_size(self):
-        if hparams.use_hidden_layer:
-            
-    # end new function
 
     @property
     def num_layers(self):
