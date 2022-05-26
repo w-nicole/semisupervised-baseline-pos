@@ -47,8 +47,7 @@ for bs in 16 32; do
                 --default_save_path "$save_path"/"$task"/0-shot-finetune-freeze"$freeze"/"$model_name" \
                 --exp_name bs$bs-lr$lr-ep$ep \
                 --subset_ratio=0.0001 \
-                --gpus 1 \
+                --gpus 1
         done
     done
 done
-

@@ -24,8 +24,8 @@ tgt=(Bulgarian Danish German English Spanish Persian Hungarian Italian Dutch Pol
 data_path=${6:-"../ud-treebanks-v1.4"}
 
 bs=16
-ep=1
-#ep=4
+#ep=1
+ep=4
 lr=3e-5
 
 python3 src/train.py \
@@ -43,7 +43,5 @@ python3 src/train.py \
     --freeze_layer "$freeze" \
     --default_save_path "$save_path"/"$task"/0-shot-finetune-freeze"$freeze"/"$model_name" \
     --exp_name bs$bs-lr$lr-ep$ep \
-    --subset_ratio=0.01 \
-    
-#    --gpus 1 \
+    --gpus 1 \
     
