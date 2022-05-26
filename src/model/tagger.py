@@ -59,10 +59,10 @@ class Tagger(Model):
             self.crf = ChainCRF(self.hidden_size, self.nb_labels, bigram=True)
         # Added/edited
         elif self.hparams.use_hidden_layer:
-            self.classifier = nn.Sequential([
+            self.classifier = nn.Sequential(
                 nn.Linear(self.hidden_size, self.hparams.hidden_layer_size),
                 nn.Linear(self.hparams.hidden_layer_size, self.nb_labels)
-            ])
+            )
         # end additions
         else:
             self.classifier = nn.Linear(self.hidden_size, self.nb_labels)

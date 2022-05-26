@@ -17,8 +17,11 @@ def average_embeddings(padded_embeddings, padded_start_indices, padded_end_indic
     
     all_clean_averaged_embeddings = []
     for index, sentence in enumerate(padded_embeddings):
-        
-        start_indices = clean_indices(padded_start_indices[index])
+        try:
+            start_indices = clean_indices(padded_start_indices[index])
+        except:
+            import pdb
+            pdb.set_trace()
         end_indices = clean_indices(padded_end_indices[index])
         assert start_indices.shape == end_indices.shape
         

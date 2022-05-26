@@ -128,7 +128,7 @@ class Model(pl.LightningModule):
         ):
             # Added logic for concatenated embeddings
             single_layer_size = self.model.config.hidden_size
-            if not hparams.concat_all_hidden_states:
+            if not self.hparams.concat_all_hidden_states:
                 return single_layer_size
             else:
                 return single_layer_size * (self.model.config.num_hidden_layers + 1)
@@ -246,9 +246,10 @@ class Model(pl.LightningModule):
         return hs
 
     def process_feature(self, hidden_states: List[Tensor]):
-        assert len(hidden_states[0].shape) == 2, hidden_states.shape[0]
+        if not isinstance(hidden_states, tuple):
+            assert len(hidden_states[0].shape) == 2, hidden_states.shape[0]
         if self.hparams.concat_all_hidden_states:
-            hs: Tensor = torch.cat(hidden_states, dim = 0)
+            hs: Tensor = torch.cat(hidden_states, dim = -1)
         else:
             hs = hidden_states[self.hparams.feature_layer]
         return hs
