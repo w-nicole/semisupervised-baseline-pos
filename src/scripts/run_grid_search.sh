@@ -7,7 +7,6 @@
 # Changed to python3
 # Simplified `example/surprising-mbert/evaluate.sh` script due to no need for non-POS evaluation by removing irrelevant code, options, etc.
 # Substitution of parameters that yield best val English on seed 42.
-# Addition of (sometimes commented out) parameters for faster development, such as subset ratio.
 # Changed root directory for run.
 
 seed=${1:-42}
@@ -39,13 +38,7 @@ for bs in 16 32; do
                 --warmup_portion 0.1 \
                 --freeze_layer "$freeze" \
                 --default_save_path "$save_path"/"$task"/0-shot-finetune-freeze"$freeze"/"$model_name" \
-                --exp_name bs$bs-lr$lr-ep$ep \
-<<<<<<< HEAD
-                --gpus 1
-=======
-                --subset_ratio=0.0001 \
-                #--gpus 1
->>>>>>> development
+                --exp_name bs$bs-lr$lr-ep$ep
         done
     done
 done

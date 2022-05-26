@@ -5,6 +5,8 @@
 # Changes made relative to original:
 # Changed hyperparameters to match those in the paper,
 # Added averaging behavior.
+# Changed to not support weighted features, but instead a concatenation of all hidden representations.
+# Changed to support single hidden layer MLP.
 
 import hashlib
 import json
@@ -69,7 +71,8 @@ class Model(pl.LightningModule):
             self.mapping = torch.load(hparams.mapping)
             util.freeze(self.mapping)
 
-        self.projector = self.build_projector()
+        # Changed below line
+        self.projector = None
         self.dropout = InputVariationalDropout(hparams.input_dropout)
 
     def build_model(self):
@@ -119,17 +122,6 @@ class Model(pl.LightningModule):
 
     @property
     def hidden_size(self):
-        if isinstance(self.model, transformers.BertModel) or isinstance(
-            self.model, transformers.RobertaModel
-        ):
-            return self.model.config.hidden_size
-        elif isinstance(self.model, transformers.XLMModel):
-            return self.model.dim
-        else:
-            raise ValueError("Unsupported model")
-
-    @property
-    def num_layers(self):
         # hidden_size = the input to the classifier
         if isinstance(self.model, transformers.BertModel) or isinstance(
             self.model, transformers.RobertaModel
@@ -178,23 +170,6 @@ class Model(pl.LightningModule):
     def reset_metrics(self):
         for metric in self.metrics.values():
             metric.reset()
-
-    def build_projector(self):
-        hparams = self.hparams
-        if hparams.projector == "id":
-            return Identity()
-        elif hparams.projector == "meanpool":
-            return MeanPooling()
-        elif hparams.projector == "transformer":
-            return Transformer(
-                input_dim=self.hidden_size,
-                hidden_dim=hparams.projector_trm_hidden_size,
-                num_heads=hparams.projector_trm_num_heads,
-                dropout=hparams.projector_dropout,
-                num_layers=hparams.projector_trm_num_layers,
-            )
-        else:
-            raise ValueError(hparams.projector)
 
     def get_mask(self, sent: Tensor):
         mask = (sent != self.tokenizer.pad_token_id).long()
@@ -248,7 +223,7 @@ class Model(pl.LightningModule):
         hs = self.map_feature(output["hidden_states"], langs)
         hs = self.process_feature(hs)
         hs = self.dropout(hs)
-        hs = self.projector(hs, mask)
+        # Removed projector.
         
         # Below: added averaging.
         averaged_hs = collate.average_embeddings(hs, start_indices, end_indices)
@@ -271,18 +246,10 @@ class Model(pl.LightningModule):
         return hs
 
     def process_feature(self, hidden_states: List[Tensor]):
-<<<<<<< HEAD
-        if self.hparams.weighted_feature:
-            hs: Tensor = torch.stack(hidden_states)
-            weight = F.softmax(self.weight, dim=0).view(-1, 1, 1, 1)
-            hs = hs * weight
-            hs = hs.sum(dim=0)
-=======
         if not isinstance(hidden_states, tuple):
             assert len(hidden_states[0].shape) == 2, hidden_states.shape[0]
         if self.hparams.concat_all_hidden_states:
             hs: Tensor = torch.cat(hidden_states, dim = -1)
->>>>>>> development
         else:
             hs = hidden_states[self.hparams.feature_layer]
         return hs
@@ -557,7 +524,12 @@ class Model(pl.LightningModule):
         parser.add_argument("--pretrain", required=True, type=str)
         parser.add_argument("--freeze_layer", default=-1, type=int)
         parser.add_argument("--feature_layer", default=-1, type=int)
-        parser.add_argument("--weighted_feature", default=False, type=util.str2bool)
+        # Below additions
+        parser.add_argument("--use_hidden_layer", default=False, type=util.str2bool)
+        parser.add_argument("--hidden_layer_size", default=-1, type=int)
+        # end additions
+        # Below line: changed from providing weighted features to a concatenated all hidden states
+        parser.add_argument("--concat_all_hidden_states", default=False, type=util.str2bool)
         parser.add_argument("--projector", default="id", choices=["id", "meanpool", "transformer"], type=str)
         parser.add_argument("--projector_trm_hidden_size", default=3072, type=int)
         parser.add_argument("--projector_trm_num_heads", default=12, type=int)

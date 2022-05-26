@@ -191,7 +191,6 @@ def default_collate(batch, padding):
         assert all([ torch.all(elem.long() == elem) for elem in batch ])
         return torch.stack([ elem.long() for elem in batch ] , 0, out=out)
         # end additions
-        return torch.stack(batch, 0, out=out)
     elif (
         elem_type.__module__ == "numpy"
         and elem_type.__name__ != "str_"
