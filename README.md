@@ -35,6 +35,8 @@ Note that notes on license were not yet added to every file from original reposi
 
 For license information of original repository please see LICENSE file as directed in the leading comments of each file taken from the original. For brevity the entire LICENSE is reproduced only there.
 
+In general, much now irrelevant code and files was removed, and is not marked in an itemized way.
+
 In the final version of this codebase (i.e. not intermediate commits), files that were added later will NOT have an original repository license information comment, but files taken from the original repository will. This is NOT true of intermediate or latest codebase versions, preceding finalization.
 
 # Added text: as of crosslingual-private repository

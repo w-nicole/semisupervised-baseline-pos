@@ -65,7 +65,6 @@ class Model(pl.LightningModule):
         self.model = self.build_model()
         self.freeze_layers()
 
-        self.weight = nn.Parameter(torch.zeros(self.num_layers))
         self.mapping = None
         if hparams.mapping:
             assert os.path.isfile(hparams.mapping)
@@ -136,17 +135,6 @@ class Model(pl.LightningModule):
             # end added
         elif isinstance(self.model, transformers.XLMModel):
             return self.model.dim
-        else:
-            raise ValueError("Unsupported model")
-
-    @property
-    def num_layers(self):
-        if isinstance(self.model, transformers.BertModel) or isinstance(
-            self.model, transformers.RobertaModel
-        ):
-            return self.model.config.num_hidden_layers + 1
-        elif isinstance(self.model, transformers.XLMModel):
-            return self.model.n_layers + 1
         else:
             raise ValueError("Unsupported model")
 

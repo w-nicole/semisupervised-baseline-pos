@@ -23,11 +23,6 @@ src="English"
 tgt=(Bulgarian Danish German English Spanish Persian Hungarian Italian Dutch Polish Portuguese Romanian Slovak Slovenian Swedish)
 data_path=${6:-"../../ud-treebanks-v1.4"}
 
-bs=16
-ep=10
-#ep=4
-lr=3e-5
-
 for bs in 16 32; do
     for lr in 2e-5 3e-5 5e-5; do
         for ep in 3 4; do
