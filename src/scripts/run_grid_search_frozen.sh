@@ -18,7 +18,7 @@ freeze=${4:-"-1"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${5:-"./experiments/their_parameters_single_val_run"}
+save_path=${5:-"./experiments/frozen_baseline"}
 
 src="English"
 tgt=(Bulgarian Danish German English Spanish Persian Hungarian Italian Dutch Polish Portuguese Romanian Slovak Slovenian Swedish)
