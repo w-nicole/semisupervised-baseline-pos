@@ -42,7 +42,7 @@ for bs in 16 32; do
                 --freeze_layer 12 \
                 --default_save_path "$save_path"/"$task"/0-shot-finetune-freeze"$freeze"/"$model_name" \
                 --exp_name bs$bs-lr$lr-ep$ep \
-                --gpus 1 \
+                --gpus 1
         done
     done
 done

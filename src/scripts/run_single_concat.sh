@@ -37,6 +37,7 @@ python3 src/train.py \
     --learning_rate 5e-5 \
     --max_epochs 3 \
     --warmup_portion 0.1 \
+    --concat_all_hidden_states "y" \
     --default_save_path "$save_path"/"$task"/0-shot-finetune-freeze"$freeze"/"$model_name" \
     --exp_name bs$bs-lr$lr-ep$ep \
     --gpus 1
