@@ -26,6 +26,10 @@ from torch._six import string_classes
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import ConcatDataset, RandomSampler, Sampler
 
+# added below
+apply_gpu = lambda item : item.cuda() if torch.cuda.is_available() else item
+remove_from_gpu = lambda tensor : tensor.detach().cpu() if torch.cuda.is_available() else tensor.detach()
+# end additions
 
 def str2bool(v):
     if isinstance(v, bool):

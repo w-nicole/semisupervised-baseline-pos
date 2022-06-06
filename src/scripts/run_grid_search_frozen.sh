@@ -27,7 +27,7 @@ data_path=${6:-"../ud-treebanks-v1.4"}
 for bs in 16 32; do
     for lr in 2e-5 3e-5 5e-5; do
         for ep in 3 4; do
-            python3 src/train_encoder.py \
+            python3 src/train_baseline.py \
                 --seed "$seed" \
                 --task "$task" \
                 --data_dir "$data_path" \

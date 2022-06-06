@@ -10,7 +10,22 @@ from analysis import compile_metrics
 
 import glob
 
-def analyze_grid_run(name_path_section, seeds):
+def load_results_from_path_sections(name_path_section, layer_section = '0-shot-finetune-freeze-1'):
+    seed_path = f'../experiments/{name_path_section}'
+    search_path = os.path.join(seed_path, layer_section, 'bert-base-multilingual-cased')
+    
+    hyperparameter_version_base_path = f'{search_path}/*/version_0'
+    hyperparameter_paths = glob.glob(hyperparameter_version_base_path)
+    
+    current_version_metrics = {}
+    
+    for path in hyperparameter_paths:
+        best_validation_entry = compile_metrics.load_evaluation_results(path, 'val')
+        current_version_metrics[path] = best_validation_entry
+
+    return current_version_metrics
+
+def analyze_grid_run(name_path_section, layer_section = '0-shot-finetune-freeze-1', seeds = [42]):
 
     all_languages = ["Bulgarian", "Danish", "German", "English", "Spanish", "Persian", "Hungarian", "Italian", "Dutch", "Polish", "Portuguese", "Romanian", "Slovak", "Slovenian", "Swedish"]
     
@@ -23,7 +38,7 @@ def analyze_grid_run(name_path_section, seeds):
     for seed in seeds:
 
         seed_path = f'../experiments/{name_path_section}'
-        hyperparameter_search_path = os.path.join(seed_path, '0-shot-finetune-freeze-1', 'bert-base-multilingual-cased')
+        hyperparameter_search_path = os.path.join(seed_path, layer_section, 'bert-base-multilingual-cased')
 
         current_version_metrics = {}
         hyperparameter_version_base_path = f'{hyperparameter_search_path}/*/version_0'

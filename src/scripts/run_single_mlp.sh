@@ -23,7 +23,7 @@ tgt=(Bulgarian Danish German English Spanish Persian Hungarian Italian Dutch Pol
 data_path=${6:-"../ud-treebanks-v1.4"}
 
 for hidden_size in 32 256 512; do
-    python3 src/train_encoder.py \
+    python3 src/train_baseline.py \
         --seed "$seed" \
         --task "$task" \
         --data_dir "$data_path" \

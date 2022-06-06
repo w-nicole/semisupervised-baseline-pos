@@ -519,7 +519,8 @@ class Model(pl.LightningModule):
         parser.add_argument("--subset_ratio", default=1.0, type=float)
         parser.add_argument("--subset_count", default=-1, type=int)
         parser.add_argument("--subset_seed", default=42, type=int)
-        parser.add_argument("--mix_sampling", default=False, type=util.str2bool)
+        # Below: changed from False. Should not affect the baseline, which would have only had one train language.
+        parser.add_argument("--mix_sampling", default=True, type=util.str2bool)
         # encoder
         parser.add_argument("--pretrain", required=True, type=str)
         parser.add_argument("--freeze_layer", default=-1, type=int)

@@ -15,13 +15,19 @@ https://pytorch-lightning.readthedocs.io/en/stable/starter/installation.html
 
 `conda install pytorch-lightning -c conda-forge`
 
-Note that pytorch-lightning needs to be 1.4.4 for things to work -- the above command won't install 1.4.4.
+For Satori, the above import will need to be resolved, but for now, making local environment requires:
+
+`pip install pytorch-lightning==1.4.4 torchmetrics==0.5.0`
 
 If you are using Satori and encounter an error `cannot import name 'create_repo' from 'huggingface_hub'`, you will have to run:
 
 `conda uninstall huggingface_hub` 
 
 `conda install huggingface_hub=0.2.1 transformers` 
+
+If you run into the error `AttributeError: module 'distutils' has no attribute 'version'`, then, as described here (6/6/22, https://github.com/pytorch/pytorch/issues/69894), run:
+
+`pip install setuptools==59.5.0`
 
 # Run
 
