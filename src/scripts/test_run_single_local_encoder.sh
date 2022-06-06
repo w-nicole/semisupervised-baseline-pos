@@ -17,7 +17,7 @@ freeze=${4:-"12"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${5:-"./experiments/local_encoder"}
+save_path=${5:-"./experiments"}
 
 langs=(English Dutch)
 data_path=${6:-"../ud-treebanks-v1.4"}
@@ -38,6 +38,6 @@ python3 src/train_encoder.py \
     --max_epochs $ep \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
-    --exp_name test_debug \
-    --subset_ratio 0.0001
+    --exp_name encoder_finetune_last_layer \
+    --gpus 1
     

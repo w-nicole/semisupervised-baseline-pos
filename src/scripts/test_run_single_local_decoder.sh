@@ -17,11 +17,11 @@ freeze=${4:-"12"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${5:-"./experiments/local_encoder"}
+save_path=${5:-"./experiments"}
 
 langs=(English Dutch)
 data_path=${6:-"../ud-treebanks-v1.4"}
-encoder_checkpoint=${7:-"./experiments/local_encoder/version_2"}
+encoder_checkpoint=${7:-"./experiments/encoder_finetune_last_layer/version_0"}
 
 bs=16
 ep=3
@@ -38,8 +38,8 @@ python3 src/train_decoder.py \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
-    --default_save_path "$save_path"/"$task"/0-shot-finetune-freeze"$freeze"/"$model_name" \
+    --default_save_path "$save_path" \
     --exp_name test_debug \
-    --subset_ratio 0.0001 \
+    --gpus 1 \
     --encoder_checkpoint "$encoder_checkpoint"
     
