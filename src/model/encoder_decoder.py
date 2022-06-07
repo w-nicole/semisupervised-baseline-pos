@@ -77,9 +77,9 @@ class EncoderDecoder(Tagger):
         pi_t = torch.exp(log_pi_t)
         assert len(pi_t.shape) == 3, pi_t.shape
         
-        log_q_given_input = torch.zeros((pi_t.shape[0], pi_t.shape[-1]))
+        log_q_given_input = util.apply_gpu(torch.zeros((pi_t.shape[0], pi_t.shape[-1])))
         for index in range(pi_t.shape[1]):
-            log_q_given_input += log_pi_t[:, index, :] 
+            log_q_given_input += log_pi_t[:, index, :]
             
         repeated_prior = self.prior_param.prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1)
         

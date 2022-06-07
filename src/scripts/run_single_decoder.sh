@@ -21,7 +21,7 @@ save_path=${5:-"./experiments"}
 
 langs=(Dutch)
 data_path=${6:-"../ud-treebanks-v1.4"}
-encoder_checkpoint=${7:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=0-val_English_acc=11.615.ckpt"}
+encoder_checkpoint=${7:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=2-val_acc=97.057.ckpt"}
 
 bs=16
 ep=3
