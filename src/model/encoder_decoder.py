@@ -4,30 +4,47 @@
 #   as well as inheritance-related code (such as the declaration of the argparse)
 #   or code that directly overrides previous code
 #  (like the mix_sampling default value,
-#  the logic of the forward code was maintained with irrelevant code removed, with new logic added)  
+#  the logic of the forward/training_step code was maintained with irrelevant code removed, with new logic added)  
 #  Most other code was added.
 # See LICENSE in this codebase for license information.
 
 import torch
+import torch.nn.functional as F
+from torch.distributions.uniform import Uniform
+from torch.distributions.categorical import Categorical
+import numpy as np
+from dataset import LABEL_PAD_ID
 
+from dataset import tagging
 from model.tagger import Tagger
+from enumeration import Split
 import util
+import constant
 
 class EncoderDecoder(Tagger):
     
     def __init__(self, hparams):
         super(EncoderDecoder, self).__init__(hparams)
-        weights = torch.load(hparams.encoder_checkpoint, **{'map_location' : torch.device('cpu') } if not torch.cuda.is_available() else {})
-        self.classifier = Tagger.load_weights(weights)
-        self.decoder = torch.nn.LSTM(
-            input_size = self.hidden_size, # Encoder input size.
-            hidden_size = hparams.decoder_hidden_size,
-            num_layers = hparams.decoder_number_of_layers,
-            batch_first = True,
-            bidirectional = True
+        encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
+        # Freeze the mBERT model before use.
+        # Index is effectively +1 (correct) because of embedding layer.
+        final_layer_index = encoder.model.config.num_hidden_layers
+        hparams.freeze_layer = final_layer_index
+        encoder.freeze_layers()
+        # Overwrite base and tagger attributes so that encode_sent will function correctly
+        self.model = encoder.model
+        self.classifier = encoder.classifier
+        self.decoder_lstm = torch.nn.LSTM(
+                input_size = len(constant.UD_POS_LABELS),
+                hidden_size = self.hidden_size, # Encoder input size
+                num_layers = self.hparams.decoder_number_of_layers,
+                batch_first = True,
+                bidirectional = True
         )
+        self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
         english_train_prior = self.get_english_train_prior()
-        param = torch.nn.Parameter(english_train_prior, requires_grad = True)
+        self.prior_param = torch.nn.ParameterDict()
+        self.prior_param['prior'] = torch.nn.Parameter(english_train_prior, requires_grad = True)
         
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
     # and variables renamed for notation consistency.
@@ -42,59 +59,81 @@ class EncoderDecoder(Tagger):
         uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
         noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
         
-        unnormalized_pi_tilde_t = (log_pi_t + noise) / hparams.temperature
+        unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
         pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
         
-        mu_t = self.decoder(pi_tilde_t)
+        # "Reshape" the bidirectional concatenation
+        mu_t_raw, _ = self.decoder_lstm(pi_tilde_t)
+        mu_t = self.decoder_linear(mu_t_raw)
         
         # Calculate losses
         loss = {}
-        loss['encoder_loss'] = F.nll_loss(
-                pi_t.view(-1, self.nb_labels),
-                batch["labels"].view(-1),
-                ignore_index=LABEL_PAD_ID,
-        )
+        with torch.no_grad():
+            loss['encoder_loss'] = F.nll_loss(
+                    log_pi_t.view(-1, self.nb_labels),
+                    batch["labels"].view(-1),
+                    ignore_index=LABEL_PAD_ID,
+            )
         pi_t = torch.exp(log_pi_t)
         assert len(pi_t.shape) == 3, pi_t.shape
         
-        q_given_input = torch.ones((pi_t.shape[0], pi_t.shape[-1]))
-        for index in pi_t.shape[1]:
-            q_given_input *= pi_t[:, index, :]
+        log_q_given_input = torch.zeros((pi_t.shape[0], pi_t.shape[-1]))
+        for index in range(pi_t.shape[1]):
+            log_q_given_input += log_pi_t[:, index, :] 
+            
+        repeated_prior = self.prior_param.prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1)
         
-        pre_sum = q_given_input * torch.log(q_given_input / self.english_train_prior)
-        assert pre_sum.shape == q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {q_given_input.shape}'
+        pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior + 1e-12))
+        assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
         kl_divergence = torch.sum(pre_sum, axis = -1)
         
-        loss['KL'] = kl_divergence
+        loss['KL'] = kl_divergence.mean()
         loss['MSE'] = F.mse_loss(mu_t, hs)
         loss['decoder_loss'] = loss['KL'] + loss['MSE']
-        
+
         return loss, log_pi_t
         
     @classmethod
     def add_model_specific_args(cls, parser):
         parser.add_argument("--temperature", default=1, type=float)
-        parser.add_argument("--decoder_hidden_size", default=1, type=int)
         parser.add_argument("--decoder_number_of_layers", default=1, type=int)
         return parser
     
     def get_english_train_prior(self):
-        matching_indices = np.where(np.array(hparams.trn_langs) == 'English')[0]
-        assert matching_indices.shape[0] == 1 and len(matching_indices.shape) == 1, f'Actual indices: {matching_indices}'
         
-        language_index = matching_indices.item()
-        
-        english_dataset = self.trn_datasets[language_index]
+        # From model/base.py, adapted to simplify and get English dataset
+        params = {}; lang = "English"; split = Split.train
+        params["tokenizer"] = self.tokenizer
+        params["filepath"] = tagging.UdPOS.get_file(self.hparams.data_dir, lang, split)
+        params["lang"] = "English"
+        params["split"] = split
+        params["max_len"] = self.hparams.max_trn_len
+        params["subset_ratio"] = self.hparams.subset_ratio
+        params["subset_count"] = self.hparams.subset_count
+        params["subset_seed"] = self.hparams.subset_seed
+        english_dataset = tagging.UdPOS(**params)
+        # end taken
         assert english_dataset.lang == 'English', f'Actual language: {english_dataset.lang}'
-        
         train_data = english_dataset.read_file(english_dataset.filepath, english_dataset.lang, english_dataset.split)
         
         labels = []
         for data in train_data:
             labels.extend(data['labels'])
             
-        numerical_labels = list(map(lambda label : english_dataset.label2id[label], labels))
-        return torch.bincount(numerical_labels, minlength = english_dataset.nb_labels)
+        numerical_labels = torch.Tensor(list(map(lambda label : english_dataset.label2id[label], labels))).int()
+        counts = torch.bincount(numerical_labels, minlength = int(english_dataset.nb_labels()))
+        return counts / torch.sum(counts)
+    
+    def training_step(self, batch, batch_idx):
+        loss_dict, _ = self.forward(batch)
+        loss = loss_dict['decoder_loss']
+        self.log("loss", loss)
+        
+        try:
+            return loss
+        except:
+            import pdb
+            pdb.set_trace()
     
     def evaluation_step_helper(self, batch, prefix):
         loss, encoder_log_probs = self.forward(batch)
@@ -102,12 +141,6 @@ class EncoderDecoder(Tagger):
             len(set(batch["lang"])) == 1
         ), "eval batch should contain only one language"
         lang = batch["lang"][0]
-        self.metrics[lang].add(batch["labels"], log_probs)
+        self.metrics[lang].add(batch["labels"], encoder_log_probs)
         return loss
-            
-        
-        
-        
-        
-        
     

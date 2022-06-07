@@ -35,7 +35,7 @@ class Tagger(Model):
         self._selection_criterion = {
             Task.conllner: "val_f1",
             Task.wikiner: "val_f1",
-            Task.udpos: "val_English_acc",
+            Task.udpos: "val_acc",
         }[self.hparams.task]
         self._nb_labels: Optional[int] = None
         self._nb_labels = {

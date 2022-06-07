@@ -144,8 +144,6 @@ if __name__ == "__main__":
     ############################################################################
     parser = Model.add_model_specific_args(parser)
     parser = Tagger.add_model_specific_args(parser)
-    parser = Classifier.add_model_specific_args(parser)
-    parser = DependencyParser.add_model_specific_args(parser)
-    parser = Aligner.add_model_specific_args(parser)
+    parser = EncoderDecoder.add_model_specific_args(parser)
     hparams = parser.parse_args()
     main(hparams)
