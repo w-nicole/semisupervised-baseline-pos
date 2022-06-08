@@ -89,7 +89,7 @@ class EncoderDecoder(Tagger):
         
         loss['KL'] = kl_divergence.mean()
         loss['MSE'] = F.mse_loss(mu_t, hs)
-        loss['decoder_loss'] = loss['KL'] + loss['MSE']
+        loss['decoder_loss'] = loss['MSE'] - loss['KL']
 
         return loss, log_pi_t
         
@@ -113,7 +113,6 @@ class EncoderDecoder(Tagger):
         params["subset_seed"] = self.hparams.subset_seed
         english_dataset = tagging.UdPOS(**params)
         # end taken
-        assert english_dataset.lang == 'English', f'Actual language: {english_dataset.lang}'
         train_data = english_dataset.read_file(english_dataset.filepath, english_dataset.lang, english_dataset.split)
         
         labels = []
