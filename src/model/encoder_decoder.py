@@ -42,9 +42,9 @@ class EncoderDecoder(Tagger):
                 bidirectional = True
         )
         self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
-        english_train_prior = self.get_english_train_prior()
+        prior = self.get_uniform_prior()
         self.prior_param = torch.nn.ParameterDict()
-        self.prior_param['prior'] = torch.nn.Parameter(english_train_prior, requires_grad = True)
+        self.prior_param['prior'] = torch.nn.Parameter(prior, requires_grad = True)
         
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
     # and variables renamed for notation consistency.
@@ -99,6 +99,10 @@ class EncoderDecoder(Tagger):
         parser.add_argument("--decoder_number_of_layers", default=1, type=int)
         return parser
     
+    def get_uniform_prior(self):
+        number_of_labels = len(constant.UD_POS_LABELS)
+        return torch.ones(number_of_labels) / number_of_labels
+        
     def get_english_train_prior(self):
         
         # From model/base.py, adapted to simplify and get English dataset

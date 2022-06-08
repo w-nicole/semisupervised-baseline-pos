@@ -18,8 +18,9 @@ def get_event_df(event_path):
 # from explore import main
 # import os
 
-# event_name = 'events.out.tfevents.1654630044.node0034.2544548.0'
-# decoder_folder = './experiments/decoder_baseline/version_13/'
+# event_name = 'events.out.tfevents.1654710396.node0029.1205277.0'
+# decoder_folder = '../experiments/decoder_baseline/version_0/'
 
-# events_path = '../experiments/decoder_baseline/version_13/events.out.tfevents.1654630044.node0034.2544548.0'
+# event_path = os.path.join(decoder_folder, event_name)
+# df = main.get_event_df(event_path)
 # paths = main.get_all_checkpoint_paths(decoder_folder)
