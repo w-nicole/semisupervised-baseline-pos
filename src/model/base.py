@@ -273,11 +273,7 @@ class Model(pl.LightningModule):
         aver_result = defaultdict(list)
         for lang, output in zip(langs, outputs):
             for key in output[0]:
-                try:
-                    mean_val = torch.stack([x[key] for x in output]).mean()
-                except:
-                    import pdb
-                    pdb.set_trace()        
+                mean_val = torch.stack([x[key] for x in output]).mean()    
                 self.log(key, mean_val)
 
                 raw_key = key.replace(f"{lang}_", "")
@@ -473,6 +469,7 @@ class Model(pl.LightningModule):
         )
 
     def val_dataloader(self):
+            
         if self.val_datasets is None:
             self.val_datasets = self.prepare_datasets(Split.dev)
 
