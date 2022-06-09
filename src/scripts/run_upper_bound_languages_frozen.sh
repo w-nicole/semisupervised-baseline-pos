@@ -25,7 +25,7 @@ bs=16
 ep=3
 lr=5e-5
 
-langs=(Bulgarian Danish German English Spanish Persian Hungarian Italian Dutch Polish Portuguese Romanian Slovak Slovenian Swedish)
+langs=(German Dutch)
     
 for src in langs; do
     python3 src/train_encoder.py \
