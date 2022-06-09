@@ -16,7 +16,7 @@ task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${4:-"./experiments/encoder_upper_bounds/frozen"}
+save_path=${4:-"./experiments/encoder_upper_bounds/frozen_total"}
 
 langs=(English)
 data_path=${5:-"../ud-treebanks-v1.4"}
@@ -25,7 +25,7 @@ bs=16
 ep=20
 lr=5e-5
 
-langs="German Dutch"
+langs="German Dutch English"
 
 for src in $langs; do
     python3 src/train_encoder.py \

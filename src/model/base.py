@@ -447,7 +447,8 @@ class Model(pl.LightningModule):
         if self.trn_datasets is None:
             self.trn_datasets = self.prepare_datasets(Split.train)
 
-        collate = partial(util.default_collate, padding=self.padding)
+        # Renamed collate to collate_fn due to import
+        collate_fn = partial(util.default_collate, padding=self.padding)
         if len(self.trn_datasets) == 1:
             dataset = self.trn_datasets[0]
             sampler = RandomSampler(dataset)
@@ -464,7 +465,7 @@ class Model(pl.LightningModule):
             sampler=sampler,
             pin_memory=True,
             drop_last=False,
-            collate_fn=collate,
+            collate_fn=collate_fn,
             num_workers=1,
         )
 
@@ -473,7 +474,8 @@ class Model(pl.LightningModule):
         if self.val_datasets is None:
             self.val_datasets = self.prepare_datasets(Split.dev)
 
-        collate = partial(util.default_collate, padding=self.padding)
+        # Renamed collate to collate_fn due to import
+        collate_fn = partial(util.default_collate, padding=self.padding)
         return [
             DataLoader(
                 val_dataset,
@@ -481,7 +483,7 @@ class Model(pl.LightningModule):
                 shuffle=False,
                 pin_memory=True,
                 drop_last=False,
-                collate_fn=collate,
+                collate_fn=collate_fn,
                 num_workers=1,
             )
             for val_dataset in self.val_datasets
@@ -491,7 +493,8 @@ class Model(pl.LightningModule):
         if self.tst_datasets is None:
             self.tst_datasets = self.prepare_datasets(Split.test)
 
-        collate = partial(util.default_collate, padding=self.padding)
+        # Renamed collate to collate_fn due to import
+        collate_fn = partial(util.default_collate, padding=self.padding)
         return [
             DataLoader(
                 tst_dataset,
@@ -499,7 +502,7 @@ class Model(pl.LightningModule):
                 shuffle=False,
                 pin_memory=True,
                 drop_last=False,
-                collate_fn=collate,
+                collate_fn=collate_fn,
                 num_workers=1,
             )
             for tst_dataset in self.tst_datasets

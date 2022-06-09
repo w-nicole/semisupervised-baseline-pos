@@ -13,6 +13,7 @@ from typing import List, Optional, Type
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from functools import partial # added this from model/base.py
 
 import util
 from dataset import LABEL_PAD_ID, ConllNER, Dataset, UdPOS, WikiAnnNER
@@ -21,7 +22,16 @@ from metric import NERMetric, POSMetric, convert_bio_to_spans
 from model.base import Model
 from model.crf import ChainCRF
 
-import constant # added
+# added below
+import constant
+from dataset import tagging
+from torch.utils.data import DataLoader
+# end added
+
+# Below: added imports
+from dataset import collate
+# end imports
+
 
 class Tagger(Model):
     def __init__(self, hparams):
@@ -166,3 +176,51 @@ class Tagger(Model):
     def add_model_specific_args(cls, parser):
         parser.add_argument("--tagger_use_crf", default=False, type=util.str2bool)
         return parser
+        
+    # Below: added
+    def get_labels(self, lang, split):
+        
+        dataset = self.get_dataset(lang, split)
+        train_data = dataset.read_file(dataset.filepath, dataset.lang, dataset.split)
+        
+        labels = []
+        for data in train_data:
+            labels.extend(data['labels'])
+            
+        numerical_labels = torch.Tensor(list(map(lambda label : dataset.label2id[label], labels))).int()
+        return numerical_labels
+
+    def get_label_counts(self, lang, split):
+        numerical_labels = self.get_labels(lang, split)    
+        counts = torch.bincount(numerical_labels, minlength = int(torch.max(numerical_labels)))
+        return counts
+        
+    def get_dataset(self, lang, split):
+        # From model/base.py, adapted to simplify and get English dataset
+        params = {}
+        params["tokenizer"] = self.tokenizer
+        params["filepath"] = tagging.UdPOS.get_file(self.hparams.data_dir, lang, split)
+        params["lang"] = lang
+        params["split"] = split
+        params["max_len"] = self.hparams.max_trn_len
+        params["subset_ratio"] = self.hparams.subset_ratio
+        params["subset_count"] = self.hparams.subset_count
+        params["subset_seed"] = self.hparams.subset_seed
+        return tagging.UdPOS(**params)
+        # end taken
+        
+    def get_dataloader(self, lang, split):
+        # Adapted from model/base.py
+        collate_fn = partial(util.default_collate, padding=self.padding)
+        return DataLoader(
+                self.get_dataset(lang, split),
+                batch_size=self.hparams.eval_batch_size,
+                shuffle=False,
+                pin_memory=True,
+                drop_last=False,
+                collate_fn=collate_fn,
+                num_workers=1,
+        )
+        # end adapted
+        
+    # end added

@@ -13,15 +13,14 @@
 seed=${1:-42}
 model=${2:-"bert-base-multilingual-cased"}
 task=${3:-"udpos"}
-freeze=${4:-"12"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${5:-"./experiments"}
+save_path=${4:-"./experiments"}
 
 langs=(Dutch)
-data_path=${6:-"../ud-treebanks-v1.4"}
-encoder_checkpoint=${7:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=2-val_acc=97.057.ckpt"}
+data_path=${5:-"../ud-treebanks-v1.4"}
+encoder_checkpoint=${6:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=2-val_acc=97.057.ckpt"}
 
 bs=16
 ep=3

@@ -16,8 +16,8 @@ import torch.nn.functional as F
 from torch.distributions.uniform import Uniform
 from torch.distributions.categorical import Categorical
 import numpy as np
-from dataset import LABEL_PAD_ID
 
+from dataset import LABEL_PAD_ID
 from dataset import tagging
 from model.tagger import Tagger
 from enumeration import Split
@@ -46,20 +46,17 @@ class EncoderDecoder(Tagger):
         self.prior_param['prior'] = torch.nn.Parameter(prior, requires_grad = True)
         
     def freeze_bert(self, encoder):
-        # Index is effectively +1 (correct) because of embedding layer.
-        final_layer_index = encoder.model.config.num_hidden_layers
-        
-        # Below is adapted from model/base.py from the crosslingual-nlp codebase.
-        # Changes include removing unneeded code
-        #   and focusing only on the freezing logic.
+        # Adapted from model/base.py by taking the logic to freeze up to and including a certain layer
+        # Doesn't freeze the pooler, but encode_sent excludes pooler correctly.
         encoder.freeze_embeddings()
-        for index in range(final_layer_index + 1):
+        for index in range(encoder.model.config.num_hidden_layers + 1):
             encoder.freeze_layer(index)
-        # end taken
-
+        # end adapted
+        
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
     # and variables renamed for notation consistency.
     def forward(self, batch):
+        
         batch = self.preprocess_batch(batch)
         # Updated call arguments
         hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
@@ -70,10 +67,7 @@ class EncoderDecoder(Tagger):
         uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
         noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
         
-        try:
-            unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
-        except:
-            import pdb; pdb.set_trace()
+        unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
         pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
         
         # "Reshape" the bidirectional concatenation
@@ -116,33 +110,6 @@ class EncoderDecoder(Tagger):
     def get_uniform_prior(self):
         number_of_labels = len(constant.UD_POS_LABELS)
         return torch.ones(number_of_labels) / number_of_labels
-        
-    def get_labels(self, lang, split):
-        # From model/base.py, adapted to simplify and get English dataset
-        params = {}
-        params["tokenizer"] = self.tokenizer
-        params["filepath"] = tagging.UdPOS.get_file(self.hparams.data_dir, lang, split)
-        params["lang"] = "English"
-        params["split"] = split
-        params["max_len"] = self.hparams.max_trn_len
-        params["subset_ratio"] = self.hparams.subset_ratio
-        params["subset_count"] = self.hparams.subset_count
-        params["subset_seed"] = self.hparams.subset_seed
-        english_dataset = tagging.UdPOS(**params)
-        # end taken
-        train_data = english_dataset.read_file(english_dataset.filepath, english_dataset.lang, english_dataset.split)
-        
-        labels = []
-        for data in train_data:
-            labels.extend(data['labels'])
-            
-        numerical_labels = torch.Tensor(list(map(lambda label : english_dataset.label2id[label], labels))).int()
-        return numerical_labels
-
-    def get_label_counts(self, lang, split):
-        numerical_labels = self.get_labels(lang, split)    
-        counts = torch.bincount(numerical_labels, minlength = int(english_dataset.nb_labels()))
-        return counts
         
     def get_english_prior(self):
         counts = self.get_label_counts('English', Split.train)
