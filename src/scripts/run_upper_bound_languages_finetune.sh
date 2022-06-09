@@ -17,17 +17,15 @@ task=${3:-"udpos"}
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
 save_path=${4:-"./experiments/encoder_upper_bounds"}
-
-langs=(English)
 data_path=${5:-"../ud-treebanks-v1.4"}
 
 bs=16
 ep=3
 lr=5e-5
 
-langs=(German Dutch)
+langs="German Dutch"
 
-for src in langs; do
+for src in $langs; do
     python3 src/train_encoder.py \
         --seed "$seed" \
         --task "$task" \
@@ -42,6 +40,6 @@ for src in langs; do
         --freeze_layer -1 \
         --default_save_path "$save_path" \
         --exp_name $src \
-        --gpus 1 \
+        --gpus 1
     done
     

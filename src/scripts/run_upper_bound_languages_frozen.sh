@@ -25,9 +25,9 @@ bs=16
 ep=3
 lr=5e-5
 
-langs=(German Dutch)
-    
-for src in langs; do
+langs="German Dutch"
+
+for src in $langs; do
     python3 src/train_encoder.py \
         --seed "$seed" \
         --task "$task" \
@@ -43,6 +43,6 @@ for src in langs; do
         --concat_all_hidden_states "y" \
         --default_save_path "$save_path" \
         --exp_name $src \
-        --gpus 1 \
+        --gpus 1
     done
     
