@@ -39,7 +39,6 @@ python3 src/train_decoder.py \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
     --exp_name decoder_baseline \
-    --save_top_k $ep \
     --gpus 1 \
     --encoder_checkpoint "$encoder_checkpoint"
     
