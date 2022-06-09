@@ -16,7 +16,7 @@ task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${4:-"./experiments/encoder_upper_bounds"}
+save_path=${4:-"./experiments/encoder_upper_bounds/frozen"}
 
 langs=(English)
 data_path=${5:-"../ud-treebanks-v1.4"}
