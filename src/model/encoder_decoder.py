@@ -1,6 +1,9 @@
 
-# Referenced/modified `model/tagger.py` from Shijie Wu's crosslingual-nlp repository.
-# Taken code includes basic class structure, imports, and method headers, general method logic excluding new functionality/irrelevant old functionality
+# Referenced/modified code from Shijie Wu's crosslingual-nlp repository,
+#   particularly `model/tagger.py`.
+# Taken code includes basic class structure, imports, and method headers,
+# general method logic for all methods that also exist in `tagger.py`,
+#   excluding new functionality per new decoder logic/irrelevant old functionality
 #   as well as inheritance-related code (such as the declaration of the argparse)
 #   or code that directly overrides previous code
 #  (like the mix_sampling default value,
@@ -26,11 +29,7 @@ class EncoderDecoder(Tagger):
     def __init__(self, hparams):
         super(EncoderDecoder, self).__init__(hparams)
         encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
-        # Freeze the mBERT model before use.
-        # Index is effectively +1 (correct) because of embedding layer.
-        final_layer_index = encoder.model.config.num_hidden_layers
-        hparams.freeze_layer = final_layer_index
-        encoder.freeze_layers()
+        self.freeze_bert(encoder)
         # Overwrite base and tagger attributes so that encode_sent will function correctly
         self.model = encoder.model
         self.classifier = encoder.classifier
@@ -46,6 +45,18 @@ class EncoderDecoder(Tagger):
         self.prior_param = torch.nn.ParameterDict()
         self.prior_param['prior'] = torch.nn.Parameter(prior, requires_grad = True)
         
+    def freeze_bert(self, encoder):
+        # Index is effectively +1 (correct) because of embedding layer.
+        final_layer_index = encoder.model.config.num_hidden_layers
+        
+        # Below is adapted from model/base.py from the crosslingual-nlp codebase.
+        # Changes include removing unneeded code
+        #   and focusing only on the freezing logic.
+        encoder.freeze_embeddings()
+        for index in range(final_layer_index + 1):
+            encoder.freeze_layer(index)
+        # end taken
+
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
     # and variables renamed for notation consistency.
     def forward(self, batch):
@@ -59,7 +70,10 @@ class EncoderDecoder(Tagger):
         uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
         noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
         
-        unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
+        try:
+            unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
+        except:
+            import pdb; pdb.set_trace()
         pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
         
         # "Reshape" the bidirectional concatenation
@@ -103,10 +117,9 @@ class EncoderDecoder(Tagger):
         number_of_labels = len(constant.UD_POS_LABELS)
         return torch.ones(number_of_labels) / number_of_labels
         
-    def get_english_train_prior(self):
-        
+    def get_labels(self, lang, split):
         # From model/base.py, adapted to simplify and get English dataset
-        params = {}; lang = "English"; split = Split.train
+        params = {}
         params["tokenizer"] = self.tokenizer
         params["filepath"] = tagging.UdPOS.get_file(self.hparams.data_dir, lang, split)
         params["lang"] = "English"
@@ -124,7 +137,15 @@ class EncoderDecoder(Tagger):
             labels.extend(data['labels'])
             
         numerical_labels = torch.Tensor(list(map(lambda label : english_dataset.label2id[label], labels))).int()
+        return numerical_labels
+
+    def get_label_counts(self, lang, split):
+        numerical_labels = self.get_labels(lang, split)    
         counts = torch.bincount(numerical_labels, minlength = int(english_dataset.nb_labels()))
+        return counts
+        
+    def get_english_prior(self):
+        counts = self.get_label_counts('English', Split.train)
         return counts / torch.sum(counts)
     
     def training_step(self, batch, batch_idx):
