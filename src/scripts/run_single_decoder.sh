@@ -18,6 +18,7 @@ model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
 save_path=${4:-"./experiments"}
 
+src="English"
 langs=(Dutch)
 data_path=${5:-"../ud-treebanks-v1.4"}
 encoder_checkpoint=${6:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=2-val_acc=97.057.ckpt"}
@@ -30,7 +31,7 @@ python3 src/train_decoder.py \
     --seed "$seed" \
     --task "$task" \
     --data_dir "$data_path" \
-    --trn_langs "${langs[@]}" \
+    --trn_langs $src \
     --val_langs "${langs[@]}" \
     --pretrain "$model" \
     --batch_size $bs \

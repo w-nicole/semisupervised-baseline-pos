@@ -99,7 +99,7 @@ class EncoderDecoder(Tagger):
         loss['KL'] = kl_divergence.mean()
         
         loss['MSE'] = F.mse_loss(mu_t, hs)
-        loss['decoder_loss'] = -(loss['MSE'] - loss['KL'])
+        loss['decoder_loss'] = loss['MSE'] + loss['KL']
 
         if loss['KL'] == 0: import pdb; pdb.set_trace()
         return loss, log_pi_t
