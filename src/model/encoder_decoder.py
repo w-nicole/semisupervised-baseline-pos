@@ -121,8 +121,9 @@ class EncoderDecoder(Tagger):
     def get_smoothed_english_prior(self):
         threshold = 0.001
         prior = self.get_english_prior()
-        raw_smoothed_prior = torch.clamp(prior, threshold)
-        assert torch.all(prior > threshold), prior
+        raw_smoothed_prior = torch.clamp(prior, min = threshold)
+
+        assert torch.all(raw_smoothed_prior >= threshold), raw_smoothed_prior
         return raw_smoothed_prior / torch.sum(raw_smoothed_prior)
     
     def training_step(self, batch, batch_idx):
