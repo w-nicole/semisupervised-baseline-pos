@@ -22,6 +22,7 @@ from dataset import tagging
 from model.tagger import Tagger
 from enumeration import Split
 import util
+import metric
 import constant
 
 class EncoderDecoder(Tagger):
@@ -61,8 +62,11 @@ class EncoderDecoder(Tagger):
         # Updated call arguments
         hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
         logits = self.classifier(hs)
-        log_pi_t = F.log_softmax(logits, dim=-1)
-        
+        raw_log_pi_t = F.log_softmax(logits, dim=-1)
+        # Need to remove the log_pi_t that do not correspond to real inputs
+        repeated_labels = batch['labels'].unsqueeze(2).repeat(1, 1, raw_log_pi_t.shape[-1])
+        log_pi_t = torch.where(repeated_labels != metric.LABEL_PAD_ID, raw_log_pi_t, torch.zeros(raw_log_pi_t.shape).cuda())
+
         # Calculate predicted mean
         uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
         noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
@@ -82,23 +86,22 @@ class EncoderDecoder(Tagger):
                     batch["labels"].view(-1),
                     ignore_index=LABEL_PAD_ID,
             )
-        pi_t = torch.exp(log_pi_t)
-        assert len(pi_t.shape) == 3, pi_t.shape
-        
-        log_q_given_input = util.apply_gpu(torch.zeros((pi_t.shape[0], pi_t.shape[-1])))
-        for index in range(pi_t.shape[1]):
-            log_q_given_input += log_pi_t[:, index, :]
+
+        log_q_given_input = util.apply_gpu(torch.zeros((log_pi_t.shape[0], log_pi_t.shape[-1])))
+        log_q_given_input = log_pi_t.sum(dim=1)
             
         repeated_prior = self.prior_param.prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1)
         
-        pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior + 1e-12))
+        pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
         assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
         kl_divergence = torch.sum(pre_sum, axis = -1)
         
         loss['KL'] = kl_divergence.mean()
+        
         loss['MSE'] = F.mse_loss(mu_t, hs)
-        loss['decoder_loss'] = loss['MSE'] - loss['KL']
+        loss['decoder_loss'] = -(loss['MSE'] - loss['KL'])
 
+        if loss['KL'] == 0: import pdb; pdb.set_trace()
         return loss, log_pi_t
         
     @classmethod

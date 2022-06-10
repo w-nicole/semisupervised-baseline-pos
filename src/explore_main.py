@@ -100,7 +100,7 @@ def compare_validation_predictions(checkpoint_path, model_type):
         
         accuracy = (torch.sum(outputs == labels) / outputs.shape[0]).item()
         plt.legend()
-        plt.title(f'Frequency of class predictions vs labels. Accuracy: {round(accuracy, 4)}%')
+        plt.title(f'Frequency of class predictions vs labels. Accuracy: {round(accuracy * 100, 4)}%')
         plt.xlabel('Numerical label')
         plt.ylabel('Counts')
         plt.xticks(range(len(constant.UD_POS_LABELS)), constant.UD_POS_LABELS, rotation = 45)
@@ -114,33 +114,40 @@ def get_event_df(event_path):
     
 if __name__ == '__main__':
     
+    # Decoder
     #model_folder = './experiments/decoder_baseline/version_0/'
     #checkpoint_name = 'ckpts_epoch=1-val_acc=7.616.ckpt'
     #model_type = EncoderDecoder
     
-    model_folder = './experiments/encoder_for_baseline/version_0'
-    checkpoint_name = 'ckpts_epoch=2-val_acc=97.057.ckpt'
+    ## Encoders
     model_type = Tagger
+    
+    # Encoder: finetuned
+    # model_folder = './experiments/encoder_for_baseline/version_0'
+    # checkpoint_name = 'ckpts_epoch=2-val_acc=97.057.ckpt'
+    
+    # Encoder: frozen
+    model_folder = './experiments/was_ok_freeze/layer_search_frozen/udpos/0-shot-finetune-layerconcat/bert-base-multilingual-cased/bs16-lr5e-5-ep4/version_0'
+    checkpoint_name = 'ckpts_epoch=3-val_English_acc=95.181.ckpt'
     
     checkpoint_path = os.path.join(model_folder, 'ckpts', checkpoint_name)
     
-    #get_validation_predictions(checkpoint_path, model_type)
+    get_validation_predictions(checkpoint_path, model_type)
     compare_validation_predictions(checkpoint_path, model_type)
     
     
 # For running in interactive mode
 # Run everything from the /src directory.
 
-# from explore import main
+# import explore_main
 # import os
-
-# decoder_folder = '../experiments/decoder_baseline/version_0/'
-# checkpoint_name = 'ckpts_epoch=1-val_acc=7.616.ckpt'
 
 # ------------------
 
 # Getting the event df
 
-# event_name = 'events.out.tfevents.1654711028.node0029.1205786.0'
-# event_path = os.path.join(decoder_folder, event_name)
-# df = main.get_event_df(event_path)
+# event_folder = '../experiments/decoder_baseline/version_0'
+# event_name = 'events.out.tfevents.1654803013.node0023.1339734.0'
+# event_path = os.path.join(event_folder, event_name)
+# df = explore_main.get_event_df(event_path)
+# df.to_csv(os.path.join(event_folder, event_name + '.csv'))
