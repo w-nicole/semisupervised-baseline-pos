@@ -42,7 +42,7 @@ class EncoderDecoder(Tagger):
                 bidirectional = True
         )
         self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
-        prior = self.get_uniform_prior()
+        prior = self.get_smoothed_english_prior() # self.get_uniform_prior()
         self.prior_param = torch.nn.ParameterDict()
         self.prior_param['prior'] = torch.nn.Parameter(prior, requires_grad = True)
         
@@ -117,6 +117,13 @@ class EncoderDecoder(Tagger):
     def get_english_prior(self):
         counts = self.get_label_counts('English', Split.train)
         return counts / torch.sum(counts)
+        
+    def get_smoothed_english_prior(self):
+        threshold = 0.001
+        prior = self.get_english_prior()
+        raw_smoothed_prior = torch.clamp(prior, threshold)
+        assert torch.all(prior > threshold), prior
+        return raw_smoothed_prior / torch.sum(raw_smoothed_prior)
     
     def training_step(self, batch, batch_idx):
         loss_dict, _ = self.forward(batch)
