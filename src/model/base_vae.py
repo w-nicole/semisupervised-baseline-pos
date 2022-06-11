@@ -44,6 +44,7 @@ class BaseVAE(Tagger):
         self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
         self.fixed_prior = self.get_smoothed_english_prior()
         self._selection_criterion = 'decoder_loss'
+        self.comparison = 'min'
         
     def freeze_bert(self, encoder):
         # Adapted from model/base.py by taking the logic to freeze up to and including a certain layer

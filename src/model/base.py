@@ -52,7 +52,7 @@ class Model(pl.LightningModule):
         self.base_dir: str = ""
 
         self._batch_per_epoch: int = -1
-        self._comparsion: Optional[str] = None
+        self._comparison: Optional[str] = None
         self._selection_criterion: Optional[str] = None
 
         if isinstance(hparams, dict):
@@ -155,9 +155,9 @@ class Model(pl.LightningModule):
         return self._selection_criterion
 
     @property
-    def comparsion(self):
-        assert self._comparsion is not None
-        return self._comparsion
+    def comparison(self):
+        assert self._comparison is not None
+        return self._comparison
 
     def setup_metrics(self):
         assert self._metric is not None

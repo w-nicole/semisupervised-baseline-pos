@@ -37,7 +37,7 @@ class Tagger(Model):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
 
-        self._comparsion = {
+        self._comparison = {
             Task.conllner: "max",
             Task.wikiner: "max",
             Task.udpos: "max",
