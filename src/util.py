@@ -271,7 +271,7 @@ class ConcatSampler(Sampler):
     def __len__(self):
         n = self.samples_per_dataset
         return sum([len(d) // n * n for d in self.concat_dataset.datasets])
-
+        
 
 def masked_log_softmax(
     vector: torch.Tensor, mask: torch.Tensor, dim: int = -1

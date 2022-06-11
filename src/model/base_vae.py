@@ -25,10 +25,10 @@ import util
 import metric
 import constant
 
-class EncoderDecoder(Tagger):
+class BaseVAE(Tagger):
     
     def __init__(self, hparams):
-        super(EncoderDecoder, self).__init__(hparams)
+        super(BaseVAE, self).__init__(hparams)
         encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
         self.freeze_bert(encoder)
         # Overwrite base and tagger attributes so that encode_sent will function correctly
@@ -42,9 +42,8 @@ class EncoderDecoder(Tagger):
                 bidirectional = True
         )
         self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
-        prior = self.get_smoothed_english_prior() # self.get_uniform_prior()
-        self.prior_param = torch.nn.ParameterDict()
-        self.prior_param['prior'] = torch.nn.Parameter(prior, requires_grad = True)
+        self.fixed_prior = self.get_smoothed_english_prior()
+        self._selection_criterion = 'decoder_loss'
         
     def freeze_bert(self, encoder):
         # Adapted from model/base.py by taking the logic to freeze up to and including a certain layer
@@ -53,56 +52,65 @@ class EncoderDecoder(Tagger):
         for index in range(encoder.model.config.num_hidden_layers + 1):
             encoder.freeze_layer(index)
         # end adapted
-        
+    
+    # Below forward-related methods:
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
     # and variables renamed for notation consistency.
-    def forward(self, batch):
-        
+    
+    def calculate_hidden_states(self, batch):
         batch = self.preprocess_batch(batch)
         # Updated call arguments
         hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
-        logits = self.classifier(hs)
-        raw_log_pi_t = F.log_softmax(logits, dim=-1)
-        # Need to remove the log_pi_t that do not correspond to real inputs
-        repeated_labels = batch['labels'].unsqueeze(2).repeat(1, 1, raw_log_pi_t.shape[-1])
-        log_pi_t = torch.where(repeated_labels != metric.LABEL_PAD_ID, raw_log_pi_t, torch.zeros(raw_log_pi_t.shape).cuda())
-
-        # Calculate predicted mean
-        uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
-        noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
+        return hs
         
-        unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
-        pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
+    def get_non_pad_label_mask(self, batch, tensor):
+        repeated_labels = batch['labels'].unsqueeze(2).repeat(1, 1, tensor.shape[-1])
+        return repeated_labels != metric.LABEL_PAD_ID        
         
+    def set_padded_to_zero(self, batch, tensor):
+        clean_tensor = torch.where(
+            self.get_non_pad_label_mask(batch, tensor),
+            tensor, util.apply_gpu(torch.zeros(tensor.shape))
+        )
+        return clean_tensor
+        
+    def calculate_decoder(self, pi_t):
         # "Reshape" the bidirectional concatenation
-        mu_t_raw, _ = self.decoder_lstm(pi_tilde_t)
+        mu_t_raw, _ = self.decoder_lstm(pi_t)
         mu_t = self.decoder_linear(mu_t_raw)
+        return mu_t
         
-        # Calculate losses
+    def masked_mse_loss(self, batch, padded_mu_t, padded_hs):
+        clean_mu_t = self.set_padded_to_zero(batch, padded_mu_t)
+        clean_hs = self.set_padded_to_zero(batch, padded_hs)
+        clean_difference_sum = torch.sum(torch.pow(clean_mu_t - clean_hs, 2))
+        assert clean_hs.shape == clean_mu_t.shape, f'hs: {clean_hs.shape}, mu_t: {clean_mu_t.shape}'
+        non_pad_mask = self.get_non_pad_label_mask(batch, clean_hs)
+        clean_mse = clean_difference_sum / torch.sum(non_pad_mask)
+        return clean_mse
+        
+    def calculate_agnostic_loss(self, batch, mu_t, hs):
+         # Calculate losses
         loss = {}
-        with torch.no_grad():
-            loss['encoder_loss'] = F.nll_loss(
-                    log_pi_t.view(-1, self.nb_labels),
-                    batch["labels"].view(-1),
-                    ignore_index=LABEL_PAD_ID,
-            )
-
-        log_q_given_input = util.apply_gpu(torch.zeros((log_pi_t.shape[0], log_pi_t.shape[-1])))
-        log_q_given_input = log_pi_t.sum(dim=1)
-            
-        repeated_prior = self.prior_param.prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1)
+        loss['MSE'] = self.masked_mse_loss(batch, mu_t, hs)
+        return loss
         
-        pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
-        assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
-        kl_divergence = torch.sum(pre_sum, axis = -1)
+    def forward(self, batch):
+        # Padded true_pi_t will be all 0.
+        assert len(batch['labels'].shape) == 2
+        true_pi_t = F.one_hot(
+            batch['labels'] + 1,
+            num_classes = len(constant.UD_POS_LABELS) + 1
+        )[:, :, 1:].float()
         
-        loss['KL'] = kl_divergence.mean()
+        hs = self.calculate_hidden_states(batch)
+        mu_t = self.calculate_decoder(true_pi_t)
+        loss = self.calculate_agnostic_loss(batch, mu_t, hs)
         
-        loss['MSE'] = F.mse_loss(mu_t, hs)
-        loss['decoder_loss'] = loss['MSE'] + loss['KL']
-
-        if loss['KL'] == 0: import pdb; pdb.set_trace()
-        return loss, log_pi_t
+        loss['decoder_loss'] = loss['MSE']
+        return loss
+        
+    # end forward-related methods
         
     @classmethod
     def add_model_specific_args(cls, parser):
@@ -127,7 +135,7 @@ class EncoderDecoder(Tagger):
         return raw_smoothed_prior / torch.sum(raw_smoothed_prior)
     
     def training_step(self, batch, batch_idx):
-        loss_dict, _ = self.forward(batch)
+        loss_dict = self.forward(batch)
         loss = loss_dict['decoder_loss']
         self.log("loss", loss)
         
@@ -138,11 +146,5 @@ class EncoderDecoder(Tagger):
             pdb.set_trace()
     
     def evaluation_step_helper(self, batch, prefix):
-        loss, encoder_log_probs = self.forward(batch)
-        assert (
-            len(set(batch["lang"])) == 1
-        ), "eval batch should contain only one language"
-        lang = batch["lang"][0]
-        self.metrics[lang].add(batch["labels"], encoder_log_probs)
-        return loss
+        return self.forward(batch)
     

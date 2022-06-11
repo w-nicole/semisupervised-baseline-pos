@@ -8,6 +8,7 @@
 
 # Added the below. This MUST be zero, or the averaging logic is incorrect.
 START_END_INDEX_PADDING = 0
+SUPERVISED_LANGUAGE = "English"
 # end added
 
 LANGUAGE_TO_ISO639 = {
@@ -188,4 +189,3 @@ LANDID_LABEL = [
     "yor",
     "zho",
 ]
-

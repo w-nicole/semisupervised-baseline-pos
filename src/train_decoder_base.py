@@ -4,7 +4,7 @@
 # Changes made relative to original:
 # Changed amp_level to be dependent on CPU to permit running on CPU.
 # Removed testing and irrelevant code (such as unsupported methods from the previous codebase)
-# Added checkpoint load for decoder and changed to finetune decoder
+# Added checkpoint load for encoder and changed to train decoder
 
 import os
 from argparse import ArgumentParser
@@ -13,7 +13,7 @@ import pytorch_lightning as pl
 
 import util
 from enumeration import Task
-from model import Model, Tagger, BaseVAE, VAE
+from model import Model, Tagger, BaseVAE
 
 import torch # Added this
 
@@ -24,10 +24,10 @@ def main(hparams):
         os.makedirs(hparams.cache_path, exist_ok=True)
 
     if hparams.do_train:
-        model = VAE(hparams)
+        model = BaseVAE(hparams)
     else:
         assert os.path.isfile(hparams.checkpoint)
-        model = VAE.load_from_checkpoint(hparams.checkpoint)
+        model = BaseVAE.load_from_checkpoint(hparams.checkpoint)
 
     os.makedirs(
         os.path.join(hparams.default_save_path, hparams.exp_name), exist_ok=True
@@ -63,8 +63,6 @@ def main(hparams):
     logging_callback = util.Logging(base_dir)
     lr_logger = pl.callbacks.LearningRateMonitor()
     callbacks = [early_stopping, checkpoint_callback, logging_callback, lr_logger]
-    if isinstance(model, Aligner) and hparams.aligner_sim == "linear":
-        callbacks.append(util.MappingCheckpoint(base_dir))
 
     trainer = pl.Trainer(
         logger=logger,
@@ -105,7 +103,7 @@ def main(hparams):
 if __name__ == "__main__":
     parser = ArgumentParser()
     # Added the below lines until the divider.
-    parser.add_argument("--decoder_checkpoint", default="", type=str)
+    parser.add_argument("--encoder_checkpoint", default="", type=str)
     ############################################################################
     parser.add_argument("--exp_name", default="default", type=str)
     parser.add_argument("--min_delta", default=1e-3, type=float)
@@ -145,6 +143,5 @@ if __name__ == "__main__":
     parser = Model.add_model_specific_args(parser)
     parser = Tagger.add_model_specific_args(parser)
     parser = BaseVAE.add_model_specific_args(parser)
-    parser = VAE.add_model_specific_args(parser)
     hparams = parser.parse_args()
     main(hparams)

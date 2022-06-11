@@ -6,6 +6,7 @@
 # Added averaging behavior,
 #   and changed "forward" accordingly.
 # Added one layer MLP.
+# Removed irrelevant code, such as outdated classes, imports, etc.
 
 from copy import deepcopy
 from typing import List, Optional, Type
@@ -20,7 +21,6 @@ from dataset import LABEL_PAD_ID, ConllNER, Dataset, UdPOS, WikiAnnNER
 from enumeration import Split, Task
 from metric import NERMetric, POSMetric, convert_bio_to_spans
 from model.base import Model
-from model.crf import ChainCRF
 
 # added below
 import constant
