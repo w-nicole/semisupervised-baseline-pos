@@ -5,19 +5,34 @@
 # Changed amp_level to be dependent on CPU to permit running on CPU.
 # Removed testing and irrelevant code (such as unsupported methods from the previous codebase)
 # Added checkpoint load for decoder and changed to finetune decoder
+# Added logic to load encoder checkpoint path so BaseVAE can be declared
+# Added imports as needed
+# Changed comparsion -> comparison_mode
 
 import os
-from argparse import ArgumentParser
-
+from argparse import ArgumentParser, Namespace
+import yaml
 import pytorch_lightning as pl
 
 import util
 from enumeration import Task
 from model import Model, Tagger, BaseVAE, VAE
 
-import torch # Added this
+import torch
+
+# Added
+def add_encoder_checkpoint_hparams(hparams):
+    hparam_dict = vars(hparams)
+    folder = util.get_folder_from_checkpoint_path(hparams.decoder_checkpoint)
+    with open(os.path.join(folder, 'hparams.yaml')) as f:
+        base_hparams = yaml.safe_load(f)
+    encoder_checkpoint = base_hparams['encoder_checkpoint']
+    hparam_dict['encoder_checkpoint'] = encoder_checkpoint
+    return Namespace(**hparam_dict)
+# end added
 
 def main(hparams):
+    hparams = add_encoder_checkpoint_hparams(hparams) # Added
     if hparams.cache_dataset:
         if not hparams.cache_path:
             hparams.cache_path = os.path.join(os.path.expanduser("~"), ".cache/clnlp")
@@ -41,7 +56,7 @@ def main(hparams):
         min_delta=hparams.min_delta,
         patience=hparams.patience,
         verbose=True,
-        mode=model.comparsion,
+        mode=model.comparison_mode,
         strict=True,
     )
 
@@ -58,13 +73,11 @@ def main(hparams):
         verbose=True,
         save_last=hparams.save_last,
         save_top_k=hparams.save_top_k,
-        mode=model.comparsion,
+        mode=model.comparison_mode,
     )
     logging_callback = util.Logging(base_dir)
     lr_logger = pl.callbacks.LearningRateMonitor()
     callbacks = [early_stopping, checkpoint_callback, logging_callback, lr_logger]
-    if isinstance(model, Aligner) and hparams.aligner_sim == "linear":
-        callbacks.append(util.MappingCheckpoint(base_dir))
 
     trainer = pl.Trainer(
         logger=logger,
@@ -145,6 +158,5 @@ if __name__ == "__main__":
     parser = Model.add_model_specific_args(parser)
     parser = Tagger.add_model_specific_args(parser)
     parser = BaseVAE.add_model_specific_args(parser)
-    parser = VAE.add_model_specific_args(parser)
     hparams = parser.parse_args()
     main(hparams)

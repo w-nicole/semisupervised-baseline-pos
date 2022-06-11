@@ -46,13 +46,11 @@ def predict_validation(model, langs):
     
     
 def get_analysis_path(checkpoint_path):
-    
     path_components = checkpoint_path.split('/')
+    decoder_folder = util.get_folder_from_checkpoint_path(checkpoint_path)
     checkpoint_name = path_components[-1]
-    decoder_folder = '/'.join(path_components[:-2])
     analysis_path = os.path.join(decoder_folder, os.path.splitext(checkpoint_name)[0])
     print(f'Analysis path: {analysis_path}')
-    
     return analysis_path
         
         

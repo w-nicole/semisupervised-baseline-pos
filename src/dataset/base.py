@@ -1,3 +1,7 @@
+
+# Taken from Shijie Wu's crosslingual-nlp repository.
+# See LICENSE in this codebase for license information.
+
 from functools import partial
 from typing import Dict, Iterator, List, Optional, Tuple
 
@@ -10,9 +14,8 @@ tqdm.monitor_interval = 0
 tqdm = partial(tqdm, bar_format="{l_bar}{r_bar}")
 
 
-LABEL_PAD_ID = -1
+# Removed label ID so defined in one place.
 DUMMY_LABEL = "DUMMY_LABEL"
-
 
 class Tokenizer(transformers.PreTrainedTokenizer):
     pass

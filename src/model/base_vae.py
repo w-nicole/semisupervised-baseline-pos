@@ -13,16 +13,13 @@
 
 import torch
 import torch.nn.functional as F
-from torch.distributions.uniform import Uniform
-from torch.distributions.categorical import Categorical
 import numpy as np
 
-from dataset import LABEL_PAD_ID
+from metric import LABEL_PAD_ID
 from dataset import tagging
 from model.tagger import Tagger
 from enumeration import Split
 import util
-import metric
 import constant
 
 class BaseVAE(Tagger):
@@ -44,7 +41,7 @@ class BaseVAE(Tagger):
         self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
         self.fixed_prior = self.get_smoothed_english_prior()
         self._selection_criterion = 'decoder_loss'
-        self.comparison = 'min'
+        self._comparison_mode = 'min'
         
     def freeze_bert(self, encoder):
         # Adapted from model/base.py by taking the logic to freeze up to and including a certain layer
@@ -66,7 +63,7 @@ class BaseVAE(Tagger):
         
     def get_non_pad_label_mask(self, batch, tensor):
         repeated_labels = batch['labels'].unsqueeze(2).repeat(1, 1, tensor.shape[-1])
-        return repeated_labels != metric.LABEL_PAD_ID        
+        return repeated_labels != LABEL_PAD_ID        
         
     def set_padded_to_zero(self, batch, tensor):
         clean_tensor = torch.where(
@@ -109,7 +106,7 @@ class BaseVAE(Tagger):
         loss = self.calculate_agnostic_loss(batch, mu_t, hs)
         
         loss['decoder_loss'] = loss['MSE']
-        return loss
+        return loss, None
         
     # end forward-related methods
         
@@ -136,7 +133,7 @@ class BaseVAE(Tagger):
         return raw_smoothed_prior / torch.sum(raw_smoothed_prior)
     
     def training_step(self, batch, batch_idx):
-        loss_dict = self.forward(batch)
+        loss_dict, _ = self.forward(batch)
         loss = loss_dict['decoder_loss']
         self.log("loss", loss)
         
@@ -147,5 +144,6 @@ class BaseVAE(Tagger):
             pdb.set_trace()
     
     def evaluation_step_helper(self, batch, prefix):
-        return self.forward(batch)
+        loss_dict, _ = self.forward(batch)
+        return loss_dict
     

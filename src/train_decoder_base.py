@@ -41,7 +41,7 @@ def main(hparams):
         min_delta=hparams.min_delta,
         patience=hparams.patience,
         verbose=True,
-        mode=model.comparsion,
+        mode=model.comparison_mode, # Changed this variable name
         strict=True,
     )
 
@@ -58,7 +58,7 @@ def main(hparams):
         verbose=True,
         save_last=hparams.save_last,
         save_top_k=hparams.save_top_k,
-        mode=model.comparsion,
+        mode=model.comparison_mode, # Changed this variable name
     )
     logging_callback = util.Logging(base_dir)
     lr_logger = pl.callbacks.LearningRateMonitor()

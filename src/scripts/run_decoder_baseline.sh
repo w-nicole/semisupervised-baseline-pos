@@ -18,9 +18,10 @@ model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
 save_path=${4:-"./experiments"}
 
-src="Dutch"
+src="English Dutch"
+tgt="Dutch"
 data_path=${5:-"../ud-treebanks-v1.4"}
-decoder_checkpoint=${6:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=2-val_acc=97.057.ckpt"}
+decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/long_train/ckpts/ckpts_epoch=50-decoder_loss=0.060.ckpt"}
 
 bs=16
 ep=20
@@ -31,16 +32,16 @@ python3 src/train_decoder.py \
     --task "$task" \
     --data_dir "$data_path" \
     --trn_langs $src \
-    --val_langs $src \
+    --val_langs $tgt \
     --pretrain "$model" \
     --batch_size $bs \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
-    --exp_name decoder_for_baseline \
+    --exp_name decoder_baseline \
     --gpus 1 \
     --decoder_checkpoint "$decoder_checkpoint" \
-    --mix_sampling "y"
+    --mix_sampling "n"
     
     

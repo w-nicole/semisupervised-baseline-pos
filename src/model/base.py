@@ -7,6 +7,7 @@
 # Added averaging behavior.
 # Changed to not support weighted features, but instead a concatenation of all hidden representations.
 # Changed to support single hidden layer MLP.
+# Changed `comparsion` to `comparison_mode`
 
 import hashlib
 import json
@@ -52,7 +53,7 @@ class Model(pl.LightningModule):
         self.base_dir: str = ""
 
         self._batch_per_epoch: int = -1
-        self._comparison: Optional[str] = None
+        self._comparison_mode: Optional[str] = None
         self._selection_criterion: Optional[str] = None
 
         if isinstance(hparams, dict):
@@ -155,9 +156,9 @@ class Model(pl.LightningModule):
         return self._selection_criterion
 
     @property
-    def comparison(self):
-        assert self._comparison is not None
-        return self._comparison
+    def comparison_mode(self):
+        assert self._comparison_mode is not None
+        return self._comparison_mode
 
     def setup_metrics(self):
         assert self._metric is not None
@@ -273,7 +274,9 @@ class Model(pl.LightningModule):
         aver_result = defaultdict(list)
         for lang, output in zip(langs, outputs):
             for key in output[0]:
-                mean_val = torch.stack([x[key] for x in output]).mean()    
+                try:
+                    mean_val = torch.stack([x[key] for x in output]).mean()    
+                except: import pdb; pdb.set_trace()
                 self.log(key, mean_val)
 
                 raw_key = key.replace(f"{lang}_", "")

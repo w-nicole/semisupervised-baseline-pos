@@ -311,3 +311,11 @@ def masked_log_softmax(
         # we can actually use.
         vector = vector + (mask + 1e-45).log()
     return F.log_softmax(vector, dim=dim)
+    
+    
+# Added the below
+def get_folder_from_checkpoint_path(checkpoint_path):
+    path_components = checkpoint_path.split('/')
+    folder = '/'.join(path_components[:-2])
+    return folder
+# end additions

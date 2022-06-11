@@ -2,9 +2,7 @@
 # See LICENSE in this codebase for license information.
 
 # Removed irrelevant dataset imports.
+# Removed LABEL_ID so it's defined in one place.
 
-from dataset.base import LABEL_PAD_ID, Dataset  # noqa: F401
-from dataset.better import BetterDataset  # noqa: F401
-from dataset.bitext import Bitext  # noqa: F401
-from dataset.parsing import ParsingDataset  # noqa: F401
-from dataset.tagging import ConllNER, UdPOS, WikiAnnNER  # noqa: F401
+from dataset.base import Dataset  # noqa: F401
+from dataset.tagging import UdPOS

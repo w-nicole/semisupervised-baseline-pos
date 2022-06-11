@@ -7,6 +7,7 @@
 #   and changed "forward" accordingly.
 # Added one layer MLP.
 # Removed irrelevant code, such as outdated classes, imports, etc.
+# and simplified to remove unused parameter choices.
 
 from copy import deepcopy
 from typing import List, Optional, Type
@@ -17,9 +18,10 @@ import torch.nn.functional as F
 from functools import partial # added this from model/base.py
 
 import util
-from dataset import LABEL_PAD_ID, ConllNER, Dataset, UdPOS, WikiAnnNER
+from metric import LABEL_PAD_ID # changed this from dataset import
+from dataset import Dataset, UdPOS
 from enumeration import Split, Task
-from metric import NERMetric, POSMetric, convert_bio_to_spans
+from metric import POSMetric
 from model.base import Model
 
 # added below
@@ -36,39 +38,16 @@ from dataset import collate
 class Tagger(Model):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
-
-        self._comparison = {
-            Task.conllner: "max",
-            Task.wikiner: "max",
-            Task.udpos: "max",
-        }[self.hparams.task]
-        self._selection_criterion = {
-            Task.conllner: "val_f1",
-            Task.wikiner: "val_f1",
-            Task.udpos: "val_acc",
-        }[self.hparams.task]
+        self._comparison_mode = 'max'
+        self._selection_criterion = 'val_acc'
         self._nb_labels: Optional[int] = None
-        self._nb_labels = {
-            Task.conllner: ConllNER.nb_labels(),
-            Task.wikiner: WikiAnnNER.nb_labels(),
-            Task.udpos: UdPOS.nb_labels(),
-        }[self.hparams.task]
-        self._metric = {
-            Task.conllner: NERMetric(ConllNER.get_labels()),
-            Task.wikiner: NERMetric(WikiAnnNER.get_labels()),
-            Task.udpos: POSMetric(),
-        }[self.hparams.task]
+        self._nb_labels = UdPOS.nb_labels()
+        self._metric = POSMetric()
 
-        self.id2label = {
-            Task.conllner: ConllNER.get_labels(),
-            Task.wikiner: WikiAnnNER.get_labels(),
-            Task.udpos: UdPOS.get_labels(),
-        }[self.hparams.task]
+        self.id2label = UdPOS.get_labels()
 
-        if self.hparams.tagger_use_crf:
-            self.crf = ChainCRF(self.hidden_size, self.nb_labels, bigram=True)
         # Added/edited
-        elif self.hparams.use_hidden_layer:
+        if self.hparams.use_hidden_layer:
             self.classifier = nn.Sequential(
                 nn.Linear(self.hidden_size, self.hparams.hidden_layer_size),
                 nn.Linear(self.hparams.hidden_layer_size, self.nb_labels)
@@ -132,14 +111,7 @@ class Tagger(Model):
             len(set(batch["lang"])) == 1
         ), "eval batch should contain only one language"
         lang = batch["lang"][0]
-        if self.hparams.tagger_use_crf:
-            energy = log_probs
-            prediction = self.crf.decode(
-                energy, mask=(batch["labels"] != LABEL_PAD_ID).float()
-            )
-            self.metrics[lang].add(batch["labels"], prediction)
-        else:
-            self.metrics[lang].add(batch["labels"], log_probs)
+        self.metrics[lang].add(batch["labels"], log_probs)
 
         result = dict()
         result[f"{prefix}_{lang}_loss"] = loss
@@ -147,16 +119,7 @@ class Tagger(Model):
 
     def prepare_datasets(self, split: str) -> List[Dataset]:
         hparams = self.hparams
-        data_class: Type[Dataset]
-        if hparams.task == Task.conllner:
-            data_class = ConllNER
-        elif hparams.task == Task.wikiner:
-            data_class = WikiAnnNER
-        elif hparams.task == Task.udpos:
-            data_class = UdPOS
-        else:
-            raise ValueError(f"Unsupported task: {hparams.task}")
-
+        data_class = UdPOS
         if split == Split.train:
             return self.prepare_datasets_helper(
                 data_class, hparams.trn_langs, Split.train, hparams.max_trn_len

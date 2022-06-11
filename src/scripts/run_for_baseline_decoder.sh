@@ -23,7 +23,7 @@ data_path=${5:-"../ud-treebanks-v1.4"}
 encoder_checkpoint=${6:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=2-val_acc=97.057.ckpt"}
 
 bs=16
-ep=20
+ep=75
 lr=5e-5
 
 python3 src/train_decoder_base.py \

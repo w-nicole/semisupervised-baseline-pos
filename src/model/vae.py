@@ -4,10 +4,19 @@
 # Taken code includes basic class structure, imports, and method headers,
 # such as initialization code.
 
-from model import BaseVAE
-import torch.nn.functional as F
 
+import torch.nn.functional as F
+import yaml
+from argparse import Namespace
+import os
+import torch
+import torch.nn.functional as F
+from torch.distributions.uniform import Uniform
+from metric import LABEL_PAD_ID
+
+from model import BaseVAE
 import constant
+import util
 
 class VAE(BaseVAE):
     
@@ -18,6 +27,9 @@ class VAE(BaseVAE):
         prior = self.get_smoothed_english_prior()
         self.prior_param = torch.nn.ParameterDict()
         self.prior_param['prior'] = torch.nn.Parameter(prior, requires_grad = True)
+        self._selection_criterion = 'val_acc'
+        self._comparison_mode = 'max'
+        
                 
     def calculate_log_pi_t(self, batch, hs):
         logits = self.classifier(hs)
@@ -28,11 +40,11 @@ class VAE(BaseVAE):
         
     def forward(self, batch):
         
-        current_language = batch[0]['lang']
-        assert len(filter(lambda example : example['lang'] != current_language, batch)) == 0
+        current_language = batch['lang'][0]
+        assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
         
         # Labeled case
-        if current_language != constant.SUPERVISED_LANGUAGE:
+        if current_language == constant.SUPERVISED_LANGUAGE:
             return BaseVAE.forward(self, batch)
             
         # Unlabeled case
@@ -56,7 +68,7 @@ class VAE(BaseVAE):
         # KL calculation
         log_q_given_input = log_pi_t.sum(dim=1) 
             
-        repeated_prior = self.fixed_prior(0).repeat(log_q_given_input.shape[0], 1)
+        repeated_prior = self.prior_param.prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1)
         
         pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
         assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
@@ -69,11 +81,18 @@ class VAE(BaseVAE):
         return loss, log_pi_t
     
     def train_dataloader(self):
-        
-        print('Note the unintuitive behavior of cutting off the concatsampler ends!')
-        
         assert not self.hparams.mix_sampling, "This must be set to false for the batches to work."
         assert any([current_dataset.lang == constant.SUPERVISED_LANGUAGE for current_dataset in self.trn_datasets])
-        return super().train_dataloader(self)
+        return super().train_dataloader()
+        
+    def evaluation_step_helper(self, batch, prefix):
+        
+        loss, encoder_log_probs = self.forward(batch)
+        assert (
+            len(set(batch["lang"])) == 1
+        ), "eval batch should contain only one language"
+        lang = batch["lang"][0]
+        self.metrics[lang].add(batch["labels"], encoder_log_probs)
+        return loss
         
         

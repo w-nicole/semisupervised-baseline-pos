@@ -7,6 +7,7 @@
 # Removed sliding window logic.
 # Changed labels to not use first subtoken marking via padding, but just to be labels.
 # Changed to return start/end indices.
+# Updated imports
 
 import glob
 from collections import defaultdict
@@ -16,11 +17,11 @@ from typing import Dict, Iterator, List, Optional, Tuple
 import numpy as np
 
 import constant
-from dataset.base import DUMMY_LABEL, LABEL_PAD_ID, Dataset
+from dataset.base import DUMMY_LABEL, Dataset
 from enumeration import Split
-from metric import convert_bio_to_spans
+from metric import LABEL_PAD_ID, convert_bio_to_spans
 
-import torch # added this
+import torch
 
 class TaggingDataset(Dataset):
     def before_load(self):
