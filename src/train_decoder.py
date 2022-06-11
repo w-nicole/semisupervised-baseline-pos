@@ -158,5 +158,6 @@ if __name__ == "__main__":
     parser = Model.add_model_specific_args(parser)
     parser = Tagger.add_model_specific_args(parser)
     parser = BaseVAE.add_model_specific_args(parser)
+    parser = VAE.add_model_specific_args(parser)
     hparams = parser.parse_args()
     main(hparams)

@@ -39,7 +39,6 @@ class BaseVAE(Tagger):
                 bidirectional = True
         )
         self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
-        self.fixed_prior = self.get_smoothed_english_prior()
         self._selection_criterion = 'decoder_loss'
         self._comparison_mode = 'min'
         
@@ -115,22 +114,6 @@ class BaseVAE(Tagger):
         parser.add_argument("--temperature", default=1, type=float)
         parser.add_argument("--decoder_number_of_layers", default=1, type=int)
         return parser
-    
-    def get_uniform_prior(self):
-        number_of_labels = len(constant.UD_POS_LABELS)
-        return torch.ones(number_of_labels) / number_of_labels
-        
-    def get_english_prior(self):
-        counts = self.get_label_counts('English', Split.train)
-        return counts / torch.sum(counts)
-        
-    def get_smoothed_english_prior(self):
-        threshold = 0.001
-        prior = self.get_english_prior()
-        raw_smoothed_prior = torch.clamp(prior, min = threshold)
-
-        assert torch.all(raw_smoothed_prior >= threshold), raw_smoothed_prior
-        return raw_smoothed_prior / torch.sum(raw_smoothed_prior)
     
     def training_step(self, batch, batch_idx):
         loss_dict, _ = self.forward(batch)

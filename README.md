@@ -33,6 +33,12 @@ If you run into the error `AttributeError: module 'distutils' has no attribute '
 
 Run everything from the repository root.
 
+After training, to inspect KL, MSE, and other metrics, run the following to get a DataFrame version of the event file:
+
+The `model_path_section` should include the path components following `./experiments` of the folder that has the event file.
+
+`python3 ./src/explore_event_to_df.py --model_path_section='decoder_baseline/version_0'`
+
 # Added text: as of semisupervised-baseline-pos repository
 
 Edits are described in their individual files.
