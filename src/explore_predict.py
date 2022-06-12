@@ -18,10 +18,6 @@ import metric
 
 from pprint import pprint
     
-def to_flat_label(flat_probs):
-    flat_predicted_labels = torch.argmax(flat_probs, dim = -1)
-    return flat_predicted_labels
-
 def predict_validation(model, langs):
     
     predictions = {}
@@ -75,6 +71,14 @@ def get_padded_labels(model, lang):
         raw_labels.append(batch['labels'].flatten())
     labels = torch.cat([batch['labels'].flatten() for batch in dataloader])
     return labels
+
+def clean_padded_labels_pair(model, lang, padded_predictions):
+    padded_labels = util.remove_from_gpu(get_padded_labels(model, lang))
+    mask_for_non_pad = (padded_labels != metric.LABEL_PAD_ID)
+    labels = padded_labels[mask_for_non_pad]
+    outputs = padded_predictions[mask_for_non_pad]
+    return outputs, labels
+    
     
 def compare_validation_predictions(model, checkpoint_path):
     
@@ -84,12 +88,9 @@ def compare_validation_predictions(model, checkpoint_path):
     
     try:
         for lang, raw_logits in predictions.items():
-            raw_outputs = torch.cat([to_flat_label(raw_logits[i]) for i in range(raw_logits.shape[0])], dim = 0)
-            
-            padded_labels = util.remove_from_gpu(get_padded_labels(model, lang))
-            mask_for_non_pad = (padded_labels != metric.LABEL_PAD_ID)
-            labels = padded_labels[mask_for_non_pad]
-            outputs = raw_outputs[mask_for_non_pad]
+            to_flat_label = lambda flat_probs : torch.argmax(flat_probs, dim = -1)
+            raw_outputs = torch.argmax(raw_logits, dim = -1)
+            outputs, labels = clean_padded_labels_pair(model, lang, raw_outputs)
     
             plt.hist(outputs.numpy().flat, alpha = 0.5, color = 'r', label = 'predicted')
             plt.hist(labels.numpy().flat, alpha = 0.5, color = 'g', label = 'true')
@@ -108,13 +109,15 @@ def compare_validation_predictions(model, checkpoint_path):
 
 def compare_english_prior(model):
     
-    analysis_folder = analysis_path = get_analysis_path(checkpoint_path)
+    analysis_folder = get_analysis_path(checkpoint_path)
     try:
+        lang = 'Dutch'
         english_prior = model.get_smoothed_english_prior()
-        predictions = torch.load(os.path.join(analysis_folder, 'predictions.pt'))['Dutch']
+        raw_outputs = torch.load(os.path.join(analysis_folder, 'predictions.pt'))[lang]
+        predictions, labels = clean_padded_labels_pair(model, lang, raw_outputs)
         repeated_prior = english_prior.unsqueeze(0).repeat(predictions.shape[0], 1)
         
-        mean = (predictions - repeated_prior).mean(dim = 0)
+        mean = torch.abs(predictions - repeated_prior).mean(dim = 0)
         stdev = (predictions - repeated_prior).std(dim = 0)
         
         results = {
