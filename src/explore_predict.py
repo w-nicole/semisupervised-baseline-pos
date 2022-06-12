@@ -108,6 +108,7 @@ def compare_validation_predictions(model, checkpoint_path):
 
 def compare_english_prior(model):
     
+    analysis_folder = analysis_path = get_analysis_path(checkpoint_path)
     try:
         english_prior = model.get_smoothed_english_prior()
         predictions = torch.load(os.path.join(analysis_folder, 'predictions.pt'))['Dutch']
@@ -122,7 +123,7 @@ def compare_english_prior(model):
             'smoothed_english_prior' : english_prior
         }
         
-        results_path = os.path.join(get_analysis_path(checkpoint_path), 'prior_compare_stats.pt')
+        results_path = os.path.join(analysis_folder, 'prior_compare_stats.pt')
         torch.save(results, results_path)
     except: import pdb; pdb.set_trace()
     
