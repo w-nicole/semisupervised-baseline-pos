@@ -1,7 +1,7 @@
 
 
 from explore import tflogs2pandas
-from model import EncoderDecoder, Tagger
+from model import VAE, Tagger
 from enumeration import Split
 import constant
 
@@ -25,6 +25,9 @@ def predict_validation(model, langs):
     
     predictions = {}
     for lang in langs:
+        if lang == "English" and isinstance(model, VAE):
+            print('Skipping English because it is a labeled case.')
+            continue
         trainer = pl.Trainer(gpus = 1 if torch.cuda.is_available() else 0)
         model.reset_metrics()
         dataloader = model.get_dataloader(lang, Split.dev)
@@ -109,9 +112,9 @@ def get_event_df(event_path):
 if __name__ == '__main__':
     
     # Decoder
-    model_folder = './experiments/decoder_baseline/version_0/'
-    checkpoint_name = 'ckpts_epoch=0-val_acc=81.318.ckpt'
-    model_type = EncoderDecoder
+    model_folder = './experiments/decoder_baseline/one_kl_weight_with_ref_val/'
+    checkpoint_name = 'ckpts_epoch=1-val_acc=81.349.ckpt'
+    model_type = VAE
     
     ## Encoders
     #model_type = Tagger
@@ -125,19 +128,3 @@ if __name__ == '__main__':
     get_validation_predictions(checkpoint_path, model_type)
     compare_validation_predictions(checkpoint_path, model_type)
     
-    
-# For running in interactive mode
-# Run everything from the /src directory.
-
-# import explore_main
-# import os
-
-# ------------------
-
-# Getting the event df
-
-# event_folder = '../experiments/decoder_baseline/version_0'
-# event_name = 'events.out.tfevents.1654803013.node0023.1339734.0'
-# event_path = os.path.join(event_folder, event_name)
-# df = explore_main.get_event_df(event_path)
-# df.to_csv(os.path.join(event_folder, event_name + '.csv'))
