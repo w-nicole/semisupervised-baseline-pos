@@ -62,7 +62,9 @@ class VAE(BaseVAE):
     def calculate_KL_against_prior(self, log_q_given_input, prior):
         
         repeated_prior = prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1)
-        pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
+        #pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
+        q_given_input = torch.exp(log_q_given_input)
+        pre_sum = q_given_input * torch.log(q_given_input / repeated_prior)
         assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
         
         kl_divergence = torch.sum(pre_sum, axis = -1)

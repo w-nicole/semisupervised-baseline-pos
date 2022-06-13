@@ -41,7 +41,6 @@ python3 src/train_decoder.py \
     --default_save_path "$save_path" \
     --exp_name decoder_baseline \
     --gpus 1 \
-    --save_top_k $ep \
     --decoder_checkpoint "$decoder_checkpoint" \
     --mix_sampling "n"
     
