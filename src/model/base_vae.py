@@ -120,8 +120,6 @@ class BaseVAE(Tagger):
         loss = loss_dict['decoder_loss']
         self.log("loss", loss)
         
-        import math
-        if math.isnan(loss): import pdb; pdb.set_trace()
         return loss
     
     def evaluation_step_helper(self, batch, prefix):

@@ -62,9 +62,7 @@ class VAE(BaseVAE):
     def calculate_KL_against_prior(self, log_q_given_input, prior):
         
         repeated_prior = prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1)
-        #pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
-        q_given_input = torch.exp(log_q_given_input)
-        pre_sum = q_given_input * torch.log(q_given_input / repeated_prior)
+        pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
         assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
         
         kl_divergence = torch.sum(pre_sum, axis = -1)
@@ -106,6 +104,8 @@ class VAE(BaseVAE):
             loss['target_KL'] = self.calculate_KL_against_prior(log_q_given_input, self.validation_prior)
             
         loss['decoder_loss'] = loss['MSE'] + self.hparams.kl_weight * loss['KL']
+        import math
+        if math.isnan(loss['decoder_loss']): import pdb; pdb.set_trace()
         return loss, log_pi_t
         
     @classmethod
