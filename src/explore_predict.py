@@ -18,6 +18,7 @@ import metric
 from pprint import pprint
 
 def get_all_predictions(model, langs):
+    predictions = {}
     for lang in langs:
         if lang == "English" and isinstance(model, VAE):
             print('Skipping English because it is a labeled case.')
@@ -25,25 +26,8 @@ def get_all_predictions(model, langs):
         trainer = pl.Trainer(gpus = 1 if torch.cuda.is_available() else 0)
         model.reset_metrics()
         dataloader = model.get_dataloader(lang, Split.dev)
-        current_predictions = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
-    return current_predictions
-    
-    
-def predict_validation(model, langs):
-    current_predictions = get_all_predictions(model, langs)
-    predictions = {}
-    try:
-        predictions[lang] = util.remove_from_gpu(
-            torch.cat([
-                        F.softmax(outputs[1].reshape(-1, model.nb_labels), dim = -1)
-                        for outputs in current_predictions
-                    ], dim = 0
-            )
-        )
-    except:
-        import pdb; pdb.set_trace()
+        predictions[lang] = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
     return predictions
-    
     
 def get_analysis_path(checkpoint_path):
     path_components = checkpoint_path.split('/')
@@ -52,18 +36,6 @@ def get_analysis_path(checkpoint_path):
     analysis_path = os.path.join(decoder_folder, os.path.splitext(checkpoint_name)[0])
     print(f'Analysis path: {analysis_path}')
     return analysis_path
-        
-        
-def get_validation_predictions(model, checkpoint_path):
-    
-    analysis_path = get_analysis_path(checkpoint_path)
-    if not os.path.exists(analysis_path):
-        os.makedirs(analysis_path)
-    
-    predictions = predict_validation(model, ['English', 'Dutch'])
-    torch.save(predictions, os.path.join(analysis_path, 'predictions.pt'))
-    
-    return predictions
     
 def get_padded_labels(model, lang):
     dataloader = model.get_dataloader(lang, Split.dev)
@@ -89,7 +61,7 @@ def compare_validation_predictions(model, checkpoint_path):
     
     try:
         for lang, raw_logits in predictions.items():
-            to_flat_label = lambda flat_probs : torch.argmax(flat_probs, dim = -1)
+            to_flat_label = lambda probs : torch.argmax(probs.reshape(-1, probs.shape[-1]), dim = -1)
             raw_outputs = torch.argmax(raw_logits, dim = -1)
             outputs, labels = clean_padded_labels_pair(model, lang, raw_outputs)
     
@@ -153,11 +125,15 @@ if __name__ == '__main__':
     
     checkpoint_path = os.path.join(model_folder, 'ckpts', checkpoint_name)
     model = model_type.load_from_checkpoint(checkpoint_path)
-    #get_validation_predictions(model, checkpoint_path)
+    predictions = get_all_predictions(model, ['Dutch'])
+    
+    analysis_path = get_analysis_path(checkpoint_path)
+    torch.save(predictions, os.path.join(analysis_path, 'predictions.pt'))
+    
     #compare_validation_predictions(model, checkpoint_path)
     #results = compare_english_prior(model)
     
-    pprint(results)
+    print(predictions)
     
     
     

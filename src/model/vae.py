@@ -29,7 +29,7 @@ class VAE(BaseVAE):
         self.prior_param['prior'] = torch.nn.Parameter(prior, requires_grad = True)
         
         assert len(self.hparams.val_langs) == 1, "Validation prior code currently only designed for one validation language."
-        self.validation_prior = util.apply_gpu(self.get_prior(self.hparams.val_langs[0], Split.dev))
+        self.validation_prior = util.apply_gpu(self.get_smoothed_prior(self.hparams.val_langs[0], Split.dev))
         self._selection_criterion = 'val_acc'
         self._comparison_mode = 'max'
     
@@ -40,14 +40,17 @@ class VAE(BaseVAE):
     def get_prior(self, lang, split):
         counts = self.get_label_counts(lang, split)
         return counts / torch.sum(counts)
-        
-    def get_smoothed_english_prior(self):
+    
+    def get_smoothed_prior(self, lang, split):
         threshold = 0.001
-        prior = self.get_prior('English', Split.train)
+        prior = self.get_prior(lang, split)
         raw_smoothed_prior = torch.clamp(prior, min = threshold)
-
         assert torch.all(raw_smoothed_prior >= threshold), raw_smoothed_prior
         return raw_smoothed_prior / torch.sum(raw_smoothed_prior)
+        
+    def get_smoothed_english_prior(self):
+        prior = self.get_smoothed_prior('English', Split.train)
+        return prior
     
     def calculate_log_pi_t(self, batch, hs):
         logits = self.classifier(hs)
@@ -101,7 +104,6 @@ class VAE(BaseVAE):
             loss['target_KL'] = self.calculate_KL_against_prior(log_q_given_input, self.validation_prior)
             
         loss['decoder_loss'] = loss['MSE'] + self.hparams.kl_weight * loss['KL']
-        
         return loss, log_pi_t
         
     @classmethod

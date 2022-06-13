@@ -32,31 +32,26 @@ def reconstruct_kl_over_checkpoints():
         current_predictions
     
 def calculate_kl_tensor_against_prior(log_q_given_input, prior):
-    
-    repeated_prior = prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1)
+    repeated_prior = util.apply_gpu(prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1))
     pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
     assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
-    
     return pre_sum
-
-def clean_1d_padding(padded_labels, tensor):
-    repeated_labels = padded_labels.unsqueeze(1).repeat(1, tensor.shape[-1])
-    mask = repeated_labels != LABEL_PAD_ID
-    clean_tensor = torch.where(mask, tensor, torch.zeros(tensor.shape))
-    return clean_tensor
-
-def reconstruct_kl_tensor(model, lang, predictions_dict, analysis_path):
-    raw_flat_softmaxes = torch.log(predictions_dict[lang])
-    flat_padded_labels = explore_predict.get_padded_labels(model, lang)
     
-    # Do equivalent of set_padded_to_zero using the current dimensionalities
-    clean_log_pi_t = clean_1d_padding(flat_padded_labels, raw_flat_softmaxes)
+def reconstruct_kl_tensor(model, lang, predictions_dict, analysis_path):
+    log_q_given_input = torch.cat([
+        outputs[1].sum(dim=1)
+        for outputs in predictions_dict[lang]
+    ], axis = 0)
+    
+    print(log_q_given_input.shape)
     
     model_prior = model.prior_param.prior
     english_prior = model.get_smoothed_english_prior()
     
-    kl_tensor_model = calculate_kl_tensor_against_prior(clean_log_pi_t, model_prior)
-    kl_tensor_english = calculate_kl_tensor_against_prior(clean_log_pi_t, english_prior)
+    kl_tensor_model = calculate_kl_tensor_against_prior(log_q_given_input, model_prior)
+    kl_tensor_english = calculate_kl_tensor_against_prior(log_q_given_input, english_prior)
+    
+    print('kl tensor model', kl_tensor_model.shape)
     
     tensor_path = os.path.join(analysis_path, f'{lang}_kl_tensors.pt')
     results = {
@@ -66,7 +61,6 @@ def reconstruct_kl_tensor(model, lang, predictions_dict, analysis_path):
         'english_prior' : english_prior
     }
     torch.save(results, tensor_path)
-    import pdb; pdb.set_trace()
     print(f'Written KL tensor reconstruction to {tensor_path}')
     return results
     
@@ -82,7 +76,7 @@ def save_histogram_kl_examples(kl_tensor_results, lang, analysis_path):
             label = prior_name, alpha = 0.5, color = color
         )
     
-    plt.title(f'KL of {lang} examples')
+    plt.title(f'KL of {lang} examples. Mean: {kl_divergence.mean()}')
     plt.xlabel('KL')
     plt.ylabel("Frequency")
     plt.legend()
@@ -109,7 +103,8 @@ if __name__ == '__main__':
         predictions_dict = explore_predict.get_all_predictions(model, [lang])
         
     kl_path = os.path.join(analysis_path, f'{lang}_kl_tensors.pt')
-    if False:#os.path.exists(kl_path):
+    
+    if os.path.exists(kl_path):
         all_kl = torch.load(kl_path)
     else:
         all_kl = reconstruct_kl_tensor(model, lang, predictions_dict, analysis_path)
