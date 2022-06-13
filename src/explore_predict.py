@@ -1,5 +1,4 @@
 
-
 from explore import tflogs2pandas
 from model import VAE, Tagger
 from enumeration import Split
@@ -17,10 +16,8 @@ import util
 import metric
 
 from pprint import pprint
-    
-def predict_validation(model, langs):
-    
-    predictions = {}
+
+def get_all_predictions(model, langs):
     for lang in langs:
         if lang == "English" and isinstance(model, VAE):
             print('Skipping English because it is a labeled case.')
@@ -29,7 +26,12 @@ def predict_validation(model, langs):
         model.reset_metrics()
         dataloader = model.get_dataloader(lang, Split.dev)
         current_predictions = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
-
+    return current_predictions
+    
+    
+def predict_validation(model, langs):
+    current_predictions = get_all_predictions(model, langs)
+    predictions = {}
     try:
         predictions[lang] = util.remove_from_gpu(
             torch.cat([
@@ -64,7 +66,6 @@ def get_validation_predictions(model, checkpoint_path):
     return predictions
     
 def get_padded_labels(model, lang):
-    
     dataloader = model.get_dataloader(lang, Split.dev)
     raw_labels = []
     for batch in dataloader:
@@ -132,6 +133,7 @@ def compare_english_prior(model):
     
     return results
     
+    
 def get_event_df(event_path):
     return tflogs2pandas.tflog2pandas(event_path)
     
@@ -153,7 +155,7 @@ if __name__ == '__main__':
     model = model_type.load_from_checkpoint(checkpoint_path)
     #get_validation_predictions(model, checkpoint_path)
     #compare_validation_predictions(model, checkpoint_path)
-    results = compare_english_prior(model)
+    #results = compare_english_prior(model)
     
     pprint(results)
     
