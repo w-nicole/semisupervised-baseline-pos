@@ -94,9 +94,8 @@ class VAE(BaseVAE):
         
         unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
         pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
-        mu_t = self.calculate_decoder(pi_tilde_t)
+        loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
 
-        loss = self.calculate_agnostic_loss(batch, mu_t, hs)
         with torch.no_grad():
             loss['encoder_loss'] = F.nll_loss(
                     log_pi_t.view(-1, self.nb_labels),
@@ -108,14 +107,14 @@ class VAE(BaseVAE):
         with torch.no_grad():
             loss['target_KL'] = self.calculate_KL_against_prior(log_pi_t, self.validation_prior).mean()
             
-        loss['decoder_loss'] = loss['MSE'] + self.hparams.kl_weight * loss['KL']
+        loss['decoder_loss'] = loss['MSE'] + self.hparams.pos_kl_weight * loss['KL']
         
         if math.isnan(loss['decoder_loss']): import pdb; pdb.set_trace()
         return loss, log_pi_t
         
     @classmethod
     def add_model_specific_args(cls, parser):
-        parser.add_argument("--kl_weight", default=1, type=float)
+        parser.add_argument("--pos_kl_weight", default=1, type=float)
         return parser
     
     def train_dataloader(self):
