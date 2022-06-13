@@ -11,12 +11,14 @@ import os
 import torch
 import torch.nn.functional as F
 from torch.distributions.uniform import Uniform
-from metric import LABEL_PAD_ID
+import math
 
+from metric import LABEL_PAD_ID
 from model import BaseVAE
 from enumeration import Split
 import constant
 import util
+
 
 class VAE(BaseVAE):
     
@@ -26,7 +28,7 @@ class VAE(BaseVAE):
         
         prior = self.get_smoothed_english_prior()
         self.prior_param = torch.nn.ParameterDict()
-        self.prior_param['prior'] = torch.nn.Parameter(prior, requires_grad = True)
+        self.prior_param['raw_prior'] = torch.nn.Parameter(prior, requires_grad = True)
         
         assert len(self.hparams.val_langs) == 1, "Validation prior code currently only designed for one validation language."
         self.validation_prior = util.apply_gpu(self.get_smoothed_prior(self.hparams.val_langs[0], Split.dev))
@@ -59,14 +61,19 @@ class VAE(BaseVAE):
         log_pi_t = self.set_padded_to_zero(batch, raw_log_pi_t)
         return log_pi_t
         
-    def calculate_KL_against_prior(self, log_q_given_input, prior):
+    def calculate_KL_against_prior(self, log_q_given_input, raw_prior):
         
-        repeated_prior = prior.unsqueeze(0).repeat(log_q_given_input.shape[0], 1)
+        prior = raw_prior.softmax(dim=-1)
+        repeated_prior = prior.reshape(1, 1, prior.shape[0]).repeat(log_q_given_input.shape[0], log_q_given_input.shape[1], 1)
         pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
         assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
         
         kl_divergence = torch.sum(pre_sum, axis = -1)
-        return kl_divergence.mean()
+        
+        if not torch.all(kl_divergence >= 0):
+            import pdb; pdb.set_trace()
+            
+        return kl_divergence
         
         
     def forward(self, batch):
@@ -97,14 +104,12 @@ class VAE(BaseVAE):
                     ignore_index=LABEL_PAD_ID,
             )
             
-        log_q_given_input = log_pi_t.sum(dim=1) 
-        
-        loss['KL'] = self.calculate_KL_against_prior(log_q_given_input, self.prior_param.prior)
+        loss['KL'] = self.calculate_KL_against_prior(log_pi_t, self.prior_param.raw_prior).mean()
         with torch.no_grad():
-            loss['target_KL'] = self.calculate_KL_against_prior(log_q_given_input, self.validation_prior)
+            loss['target_KL'] = self.calculate_KL_against_prior(log_pi_t, self.validation_prior).mean()
             
         loss['decoder_loss'] = loss['MSE'] + self.hparams.kl_weight * loss['KL']
-        import math
+        
         if math.isnan(loss['decoder_loss']): import pdb; pdb.set_trace()
         return loss, log_pi_t
         

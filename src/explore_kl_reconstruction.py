@@ -38,12 +38,8 @@ def calculate_kl_tensor_against_prior(log_q_given_input, prior):
     return pre_sum
     
 def reconstruct_kl_tensor(model, lang, predictions_dict, analysis_path):
-    log_q_given_input = torch.cat([
-        outputs[1].sum(dim=1)
-        for outputs in predictions_dict[lang]
-    ], axis = 0)
     
-    print(log_q_given_input.shape)
+    log_q_given_input = explore_predict.get_log_q_given_input(predictions_dict, lang)
     
     model_prior = model.prior_param.prior
     english_prior = model.get_smoothed_english_prior()
@@ -85,7 +81,6 @@ def save_histogram_kl_examples(kl_tensor_results, lang, analysis_path):
     plt.savefig(figure_path)
     
     print(f'Written to {figure_path}')
-
     
 if __name__ == '__main__':
     
@@ -103,12 +98,13 @@ if __name__ == '__main__':
         predictions_dict = explore_predict.get_all_predictions(model, [lang])
         
     kl_path = os.path.join(analysis_path, f'{lang}_kl_tensors.pt')
+    # if os.path.exists(kl_path):
+    #     all_kl = torch.load(kl_path)
+    # else:
+    #     all_kl = reconstruct_kl_tensor(model, lang, predictions_dict, analysis_path)
+    # save_histogram_kl_examples(all_kl, lang, analysis_path)
     
-    if os.path.exists(kl_path):
-        all_kl = torch.load(kl_path)
-    else:
-        all_kl = reconstruct_kl_tensor(model, lang, predictions_dict, analysis_path)
-    save_histogram_kl_examples(all_kl, lang, analysis_path)
+    
     
 
 
