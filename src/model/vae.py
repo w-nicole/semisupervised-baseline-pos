@@ -24,16 +24,18 @@ class VAE(BaseVAE):
     
     def __init__(self, hparams):
         super(VAE, self).__init__(hparams)
-        decoder = BaseVAE.load_from_checkpoint(self.hparams.decoder_checkpoint)
-        
+        # Default argument is empty, meaning initialize from random
+        try:
+            if self.hparams.decoder_checkpoint:
+                decoder = BaseVAE.load_from_checkpoint(self.hparams.decoder_checkpoint)
+            else:
+                decoder = BaseVAE(hparams)
+        except: import pdb; pdb.set_trace()
         prior = self.get_smoothed_english_prior()
         self.prior_param = torch.nn.ParameterDict()
         self.prior_param['raw_prior'] = torch.nn.Parameter(prior, requires_grad = True)
-        
-        assert len(self.hparams.val_langs) == 1, "Validation prior code currently only designed for one validation language."
-        self.validation_prior = util.apply_gpu(self.get_smoothed_prior(self.hparams.val_langs[0], Split.dev))
-        self._selection_criterion = 'val_acc'
-        self._comparison_mode = 'max'
+        self._selection_criterion = 'decoder_loss'
+        self._comparison_mode = 'min'
     
     def get_uniform_prior(self):
         number_of_labels = len(constant.UD_POS_LABELS)
@@ -76,18 +78,31 @@ class VAE(BaseVAE):
         return kl_divergence
         
         
+    def calculate_encoder_loss(self, batch, log_pi_t):
+        encoder_loss = F.nll_loss(
+            log_pi_t.view(-1, self.nb_labels),
+            batch["labels"].view(-1),
+            ignore_index=LABEL_PAD_ID,
+        )
+        return encoder_loss
+
+        
     def forward(self, batch):
         
         current_language = batch['lang'][0]
         assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
+       
+        hs = self.calculate_hidden_states(batch)
+        log_pi_t = self.calculate_log_pi_t(batch, hs)
         
         # Labeled case
         if current_language == constant.SUPERVISED_LANGUAGE:
-            return BaseVAE.forward(self, batch)
-            
+            loss, _ = BaseVAE.forward(self, batch)
+            loss['encoder_loss'] = self.calculate_encoder_loss(batch, log_pi_t)
+            loss['decoder_loss'] += (self.hparams.pos_nll_weight * loss['encoder_loss'])
+            return loss, None
+
         # Unlabeled case
-        hs = self.calculate_hidden_states(batch)
-        log_pi_t = self.calculate_log_pi_t(batch, hs)
         # Calculate predicted mean
         uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
         noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
@@ -96,17 +111,7 @@ class VAE(BaseVAE):
         pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
         loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
 
-        with torch.no_grad():
-            loss['encoder_loss'] = F.nll_loss(
-                    log_pi_t.view(-1, self.nb_labels),
-                    batch["labels"].view(-1),
-                    ignore_index=LABEL_PAD_ID,
-            )
-            
         loss['KL'] = self.calculate_KL_against_prior(log_pi_t, self.prior_param.raw_prior).mean()
-        with torch.no_grad():
-            loss['target_KL'] = self.calculate_KL_against_prior(log_pi_t, self.validation_prior).mean()
-            
         loss['decoder_loss'] = loss['MSE'] + self.hparams.pos_kl_weight * loss['KL']
         
         if math.isnan(loss['decoder_loss']): import pdb; pdb.set_trace()
@@ -115,6 +120,7 @@ class VAE(BaseVAE):
     @classmethod
     def add_model_specific_args(cls, parser):
         parser.add_argument("--pos_kl_weight", default=1, type=float)
+        parser.add_argument("--pos_nll_weight", default=1, type=float)
         return parser
     
     def train_dataloader(self):
@@ -123,7 +129,6 @@ class VAE(BaseVAE):
         return super().train_dataloader()
         
     def evaluation_step_helper(self, batch, prefix):
-        
         loss, encoder_log_probs = self.forward(batch)
         assert (
             len(set(batch["lang"])) == 1

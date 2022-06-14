@@ -21,18 +21,28 @@ from model import Model, Tagger, BaseVAE, VAE
 import torch
 
 # Added
-def add_encoder_checkpoint_hparams(hparams):
-    hparam_dict = vars(hparams)
+def get_encoder_checkpoint(hparams):
     folder = util.get_folder_from_checkpoint_path(hparams.decoder_checkpoint)
     with open(os.path.join(folder, 'hparams.yaml')) as f:
         base_hparams = yaml.safe_load(f)
     encoder_checkpoint = base_hparams['encoder_checkpoint']
+    return encoder_checkpoint
+    
+def add_encoder_checkpoint_hparams(hparams):
+    encoder_checkpoint = get_encoder_checkpoint(hparams)
+    hparam_dict = vars(hparams)
     hparam_dict['encoder_checkpoint'] = encoder_checkpoint
     return Namespace(**hparam_dict)
 # end added
 
 def main(hparams):
-    hparams = add_encoder_checkpoint_hparams(hparams) # Added
+    # added
+    if hparams.decoder_checkpoint:
+        print("Ignoring encoder_checkpoint because overwriting with pretrained decoder's.")
+        hparams = add_encoder_checkpoint_hparams(hparams)
+    else:
+        assert hparams.encoder_checkpoint, "If no pretrained decoder is specified, pretrained encoder must be specified."
+    # end added
     if hparams.cache_dataset:
         if not hparams.cache_path:
             hparams.cache_path = os.path.join(os.path.expanduser("~"), ".cache/clnlp")
@@ -118,6 +128,7 @@ def main(hparams):
 if __name__ == "__main__":
     parser = ArgumentParser()
     # Added the below lines until the divider.
+    parser.add_argument("--encoder_checkpoint", default="", type=str)
     parser.add_argument("--decoder_checkpoint", default="", type=str)
     ############################################################################
     parser.add_argument("--exp_name", default="default", type=str)

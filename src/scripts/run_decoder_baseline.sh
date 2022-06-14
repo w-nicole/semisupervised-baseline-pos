@@ -21,7 +21,7 @@ save_path=${4:-"./experiments"}
 src="English Dutch"
 tgt="Dutch"
 data_path=${5:-"../ud-treebanks-v1.4"}
-decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/long_train/ckpts/ckpts_epoch=50-decoder_loss=0.060.ckpt"}
+decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/no_auxiliary_short/ckpts/ckpts_epoch=19-decoder_loss=0.066.ckpt"}
 
 bs=16
 ep=20

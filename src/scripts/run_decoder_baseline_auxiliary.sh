@@ -21,7 +21,7 @@ save_path=${4:-"./experiments"}
 src="English Dutch"
 tgt="Dutch"
 data_path=${5:-"../ud-treebanks-v1.4"}
-decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/long_train/ckpts/ckpts_epoch=50-decoder_loss=0.060.ckpt"}
+decoder_checkpoint=${6:-"./experiments/auxiliary_decoder_for_baseline/version_0/ckpts/ckpts_epoch=11-decoder_loss=0.470.ckpt"}
 
 bs=16
 ep=20
@@ -38,8 +38,8 @@ python3 src/train_decoder.py \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
-    --subset_ratio 0.1 \
     --default_save_path "$save_path" \
-    --exp_name debug_auxiliary_decoder_baseline \
+    --exp_name auxiliary_decoder_baseline \
     --decoder_checkpoint "$decoder_checkpoint" \
-    --mix_sampling "n"
+    --mix_sampling "n" \
+    --gpus 1

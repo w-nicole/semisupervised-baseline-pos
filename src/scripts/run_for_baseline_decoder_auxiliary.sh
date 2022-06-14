@@ -23,7 +23,7 @@ data_path=${5:-"../ud-treebanks-v1.4"}
 encoder_checkpoint=${6:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=2-val_acc=97.057.ckpt"}
 
 bs=16
-ep=75
+ep=20
 lr=5e-5
 
 python3 src/train_decoder_base.py \
@@ -37,8 +37,8 @@ python3 src/train_decoder_base.py \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
-    --subset_ratio 0.001 \
     --default_save_path "$save_path" \
-    --exp_name debug_auxiliary_decoder_for_baseline \
+    --exp_name auxiliary_decoder_for_baseline \
     --auxiliary_size 256 \
-    --encoder_checkpoint "$encoder_checkpoint"
+    --encoder_checkpoint "$encoder_checkpoint" \
+    --gpus 1

@@ -1,4 +1,4 @@
-
+w
 # Referenced/modified code from Shijie Wu's crosslingual-nlp repository,
 #   particularly `model/tagger.py`.
 # Taken code includes basic class structure, imports, and method headers,
@@ -88,27 +88,24 @@ class BaseVAE(Tagger):
         loss = {}
         if self.use_auxiliary:
             auxiliary_mu_t = self.auxiliary_mu(hs)
-            auxiliary_sigma_t = F.sigmoid(self.auxiliary_sigma(hs))
-            auxiliary = torch.normal(auxiliary_mu_t, auxiliary_sigma_t)
-            try:
-                return torch.cat([pi_t, auxiliary], dim = 0)
-            except: import pdb; pdb.set_trace()
             auxiliary_sigma_t = torch.pow(self.auxiliary_sigma(hs), 2)
 
             auxiliary_distribution = Normal(auxiliary_mu_t, auxiliary_sigma_t)
             auxiliary = auxiliary_distribution.rsample()
-            normal_prior = Normal(torch.zeros(auxiliary.shape), torch.ones(auxiliary.shape))
-            loss['auxiliary_KL'] = torch.distributions.kl.kl_divergence(q, normal_prior)
-
-            decoder_input = torch.cat([pi_t, auxiliary], dim = 0)
+            normal_prior = Normal(
+                util.apply_gpu(torch.zeros(auxiliary.shape)),
+                util.apply_gpu(torch.ones(auxiliary.shape))
+            )
+            loss['auxiliary_KL'] = torch.distributions.kl.kl_divergence(auxiliary_distribution, normal_prior).sum(dim=-1).mean()
+            decoder_input = torch.cat([pi_t, auxiliary], dim = -1)
         else:
-            return pi_t
             decoder_input = pi_t
 
         mu_t = self.calculate_decoder(decoder_input)
 
         loss['MSE'] = self.masked_mse_loss(batch, mu_t, hs)
-        loss['decoder_loss'] = loss['MSE'] + (self.hparams.auxiliary_kl_weight * loss['auxiliary_KL'] if self.use_auxiliary else 0)
+        auxiliary_loss = self.hparams.auxiliary_kl_weight * loss['auxiliary_KL'] if self.use_auxiliary else 0
+        loss['decoder_loss'] = loss['MSE'] + auxiliary_loss
 
         return loss
         
