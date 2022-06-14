@@ -37,8 +37,8 @@ python3 src/train_decoder_base.py \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
+    --subset_ratio 0.001 \
     --default_save_path "$save_path" \
-    --exp_name auxiliary_decoder_for_baseline \
+    --exp_name debug_auxiliary_decoder_for_baseline \
     --auxiliary_size 256 \
-    --gpus 1 \
     --encoder_checkpoint "$encoder_checkpoint"

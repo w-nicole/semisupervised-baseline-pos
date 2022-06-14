@@ -38,9 +38,8 @@ python3 src/train_decoder.py \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
+    --subset_ratio 0.1 \
     --default_save_path "$save_path" \
-    --exp_name auxiliary_decoder_baseline \
-    --gpus 1 \
-    --save_top_k $ep \
+    --exp_name debug_auxiliary_decoder_baseline \
     --decoder_checkpoint "$decoder_checkpoint" \
     --mix_sampling "n"

@@ -90,7 +90,9 @@ class BaseVAE(Tagger):
             auxiliary_mu_t = self.auxiliary_mu(hs)
             auxiliary_sigma_t = F.sigmoid(self.auxiliary_sigma(hs))
             auxiliary = torch.normal(auxiliary_mu_t, auxiliary_sigma_t)
-            return torch.cat([pi_t, auxiliary], dim = 0)
+            try:
+                return torch.cat([pi_t, auxiliary], dim = 0)
+            except: import pdb; pdb.set_trace()
             auxiliary_sigma_t = torch.pow(self.auxiliary_sigma(hs), 2)
 
             auxiliary_distribution = Normal(auxiliary_mu_t, auxiliary_sigma_t)
