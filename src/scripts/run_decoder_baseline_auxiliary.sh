@@ -21,10 +21,10 @@ save_path=${4:-"./experiments"}
 src="English Dutch"
 tgt="Dutch"
 data_path=${5:-"../ud-treebanks-v1.4"}
-decoder_checkpoint=${6:-"./experiments/auxiliary_decoder_for_baseline/version_0/ckpts/ckpts_epoch=11-decoder_loss=0.470.ckpt"}
+decoder_checkpoint=${6:-"./experiments/auxiliary_decoder_for_baseline/version_3/ckpts/ckpts_epoch=19-decoder_loss=0.008.ckpt"}
 
 bs=16
-ep=20
+ep=10
 lr=5e-5
 
 python3 src/train_decoder.py \

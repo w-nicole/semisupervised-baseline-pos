@@ -26,7 +26,7 @@ if __name__ == "__main__":
     df.to_csv(df_path)
     
     analysis_path = os.path.join('./experiments', args.model_path_section)
-    for current_metric in ['KL', 'MSE', 'decoder_loss', 'val_Dutch_acc']:
+    for current_metric in ['KL', 'target_KL', 'MSE', 'decoder_loss', 'val_Dutch_acc']:
         figure_path = os.path.join(analysis_path, f'{current_metric}.png')
         subset = df[df.metric == current_metric]
         print(subset['metric'])

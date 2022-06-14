@@ -1,4 +1,3 @@
-w
 # Referenced/modified code from Shijie Wu's crosslingual-nlp repository,
 #   particularly `model/tagger.py`.
 # Taken code includes basic class structure, imports, and method headers,
@@ -88,7 +87,7 @@ class BaseVAE(Tagger):
         loss = {}
         if self.use_auxiliary:
             auxiliary_mu_t = self.auxiliary_mu(hs)
-            auxiliary_sigma_t = torch.pow(self.auxiliary_sigma(hs), 2)
+            auxiliary_sigma_t = torch.exp(self.auxiliary_sigma(hs))
 
             auxiliary_distribution = Normal(auxiliary_mu_t, auxiliary_sigma_t)
             auxiliary = auxiliary_distribution.rsample()

@@ -34,8 +34,8 @@ class VAE(BaseVAE):
         prior = self.get_smoothed_english_prior()
         self.prior_param = torch.nn.ParameterDict()
         self.prior_param['raw_prior'] = torch.nn.Parameter(prior, requires_grad = True)
-        self._selection_criterion = 'decoder_loss'
-        self._comparison_mode = 'min'
+        self._selection_criterion = 'val_acc'
+        self._comparison_mode = 'max'
     
     def get_uniform_prior(self):
         number_of_labels = len(constant.UD_POS_LABELS)
@@ -111,7 +111,16 @@ class VAE(BaseVAE):
         pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
         loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
 
+            
         loss['KL'] = self.calculate_KL_against_prior(log_pi_t, self.prior_param.raw_prior).mean()
+
+        with torch.no_grad():
+            loss['encoder_loss'] = F.nll_loss(
+                    log_pi_t.view(-1, self.nb_labels),
+                    batch["labels"].view(-1),
+                    ignore_index=LABEL_PAD_ID,
+            )
+            loss['target_KL'] = self.calculate_KL_against_prior(log_pi_t, self.validation_prior).mean()
         loss['decoder_loss'] = loss['MSE'] + self.hparams.pos_kl_weight * loss['KL']
         
         if math.isnan(loss['decoder_loss']): import pdb; pdb.set_trace()
