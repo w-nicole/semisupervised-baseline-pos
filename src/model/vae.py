@@ -34,6 +34,7 @@ class VAE(BaseVAE):
         prior = self.get_smoothed_english_prior()
         self.prior_param = torch.nn.ParameterDict()
         self.prior_param['raw_prior'] = torch.nn.Parameter(prior, requires_grad = True)
+        self.validation_prior = util.apply_gpu(self.get_smoothed_prior(self.hparams.val_langs[0], Split.dev))
         self._selection_criterion = 'val_acc'
         self._comparison_mode = 'max'
     
@@ -129,7 +130,7 @@ class VAE(BaseVAE):
     @classmethod
     def add_model_specific_args(cls, parser):
         parser.add_argument("--pos_kl_weight", default=1, type=float)
-        parser.add_argument("--pos_nll_weight", default=1, type=float)
+        parser.add_argument("--pos_nll_weight", default=0, type=float)
         return parser
     
     def train_dataloader(self):
