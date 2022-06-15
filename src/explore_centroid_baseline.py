@@ -72,8 +72,8 @@ if __name__ == '__main__':
                 assert len(label_hs.shape) == 2
                 centroid = label_hs.sum(dim=0) / label_counts[label]
                 mask = get_non_label_mask(padded_labels, states, label)
-                current_distance = ((label_hs - centroid) * mask).sum() / label_counts[label]
-                average_distances[key] = current_distance.item()
+                current_distance = ((label_hs - centroid) * mask).sum() 
+                average_distances[key] = (current_distance / label_counts[label]).item()
                 all_distances += current_distance
                 
             average_distances['all'] = (all_distances / torch.sum(label_counts)).item()
