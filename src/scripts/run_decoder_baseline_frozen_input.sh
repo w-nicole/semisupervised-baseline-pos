@@ -22,7 +22,7 @@ src="English Dutch"
 tgt="English Dutch"
 
 data_path=${5:-"../ud-treebanks-v1.4"}
-decoder_checkpoint=${6:-"./experiments/auxiliary_decoder_for_baseline/version_3/ckpts/ckpts_epoch=19-decoder_loss=0.008.ckpt"}
+decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/version_1/ckpts/ckpts_epoch=15-val_English_decoder_loss=66.886.ckpt"}
 
 bs=16
 ep=10
@@ -40,7 +40,9 @@ python3 src/train_decoder.py \
     --max_epochs $ep \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
-    --exp_name auxiliary_decoder_baseline \
+    --input_frozen_hidden_states "y" \
+    --exp_name decoder_baseline_frozen_input \
+    --gpus 1 \
     --decoder_checkpoint "$decoder_checkpoint" \
-    --mix_sampling "n" \
-    --gpus 1
+    --mix_sampling "n"
+    

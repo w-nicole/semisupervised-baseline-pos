@@ -19,13 +19,14 @@ model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 save_path=${4:-"./experiments"}
 
 src="English Dutch"
-tgt="Dutch"
+tgt="English Dutch"
+
 data_path=${5:-"../ud-treebanks-v1.4"}
-decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/no_auxiliary_short/ckpts/ckpts_epoch=19-decoder_loss=0.066.ckpt"}
+decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/version_1/ckpts/ckpts_epoch=15-val_English_decoder_loss=66.886.ckpt"}
 
 bs=16
 ep=10
-lr=5e-5
+lr=1e-4
 
 python3 src/train_decoder.py \
     --seed "$seed" \
@@ -39,8 +40,8 @@ python3 src/train_decoder.py \
     --max_epochs $ep \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
-    --pos_nll_weight 0.1 \
-    --exp_name small_nll_decoder_baseline \
+    --exp_name decoder_baseline_small_kl \
+    --pos_kl_weight 0.1 \
     --gpus 1 \
     --decoder_checkpoint "$decoder_checkpoint" \
     --mix_sampling "n"

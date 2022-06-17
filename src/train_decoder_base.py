@@ -144,4 +144,6 @@ if __name__ == "__main__":
     parser = Tagger.add_model_specific_args(parser)
     parser = BaseVAE.add_model_specific_args(parser)
     hparams = parser.parse_args()
+    # Added below line
+    assert len(hparams.trn_langs) == 1, "Checkpointing for train_decoder_base assumes this."
     main(hparams)

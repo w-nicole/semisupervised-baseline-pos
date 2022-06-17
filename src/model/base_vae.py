@@ -36,7 +36,6 @@ class BaseVAE(Tagger):
                 input_size = len(constant.UD_POS_LABELS) + self.hparams.auxiliary_size,
                 hidden_size = self.hidden_size, # Encoder input size
                 num_layers = self.hparams.decoder_number_of_layers,
-                batch_first = True,
                 bidirectional = True
         )
         self.use_auxiliary = self.hparams.auxiliary_size > 0
@@ -44,9 +43,10 @@ class BaseVAE(Tagger):
             self.auxiliary_mu = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
             self.auxiliary_sigma = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
         self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
-        self._selection_criterion = 'decoder_loss'
+        self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_decoder_loss'
         self._comparison_mode = 'min'
-        
+        self.optimization_loss = 'decoder_loss'
+
     def freeze_bert(self, encoder):
         # Adapted from model/base.py by taking the logic to freeze up to and including a certain layer
         # Doesn't freeze the pooler, but encode_sent excludes pooler correctly.
@@ -81,7 +81,7 @@ class BaseVAE(Tagger):
         mu_t_raw, _ = self.decoder_lstm(pi_t)
         mu_t = self.decoder_linear(mu_t_raw)
         return mu_t
-    
+        
     def calculate_decoder_loss(self, batch, hs, pi_t):
 
         loss = {}
@@ -114,10 +114,12 @@ class BaseVAE(Tagger):
         clean_difference_sum = torch.sum(torch.pow(clean_mu_t - clean_hs, 2))
         assert clean_hs.shape == clean_mu_t.shape, f'hs: {clean_hs.shape}, mu_t: {clean_mu_t.shape}'
         non_pad_mask = self.get_non_pad_label_mask(batch, clean_hs)
-        clean_mse = clean_difference_sum / torch.sum(non_pad_mask)
+        # Adjust scale to NOT divide out the hidden size representation.
+        clean_mse = clean_difference_sum / torch.sum(non_pad_mask) * padded_hs.shape[-1]
         return clean_mse
         
-    def forward(self, batch):
+    # Changed from forward.
+    def __call__(self, batch):
         # Padded true_pi_t will be all 0.
         assert len(batch['labels'].shape) == 2
         true_pi_t = F.one_hot(
@@ -128,9 +130,17 @@ class BaseVAE(Tagger):
         hs = self.calculate_hidden_states(batch)
         loss = self.calculate_decoder_loss(batch, hs, true_pi_t)
         loss['decoder_loss'] = loss['MSE']
+
+        self.add_language_to_batch_output(loss, batch)
         return loss, None
         
     # end forward-related methods
+    
+    # Renamed variables, function, direct return of loss_dict, no self.log for loss
+    # Updated assert message and metrics indexing
+    def step_helper(self, batch, prefix):
+        loss_dict, _ = self.__call__(batch)
+        return loss_dict
         
     @classmethod
     def add_model_specific_args(cls, parser):
@@ -140,15 +150,3 @@ class BaseVAE(Tagger):
         parser.add_argument("--temperature", default=1, type=float)
         parser.add_argument("--decoder_number_of_layers", default=1, type=int)
         return parser
-    
-    def training_step(self, batch, batch_idx):
-        loss_dict, _ = self.forward(batch)
-        loss = loss_dict['decoder_loss']
-        self.log("loss", loss)
-        
-        return loss
-    
-    def evaluation_step_helper(self, batch, prefix):
-        loss_dict, _ = self.forward(batch)
-        return loss_dict
-    

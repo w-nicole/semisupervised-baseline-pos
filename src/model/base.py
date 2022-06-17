@@ -8,6 +8,8 @@
 # Changed to not support weighted features, but instead a concatenation of all hidden representations.
 # Changed to support single hidden layer MLP.
 # Changed `comparsion` to `comparison_mode`
+# Added support for logging train metrics.
+# Changed forward to __call__.
 
 import hashlib
 import json
@@ -45,22 +47,43 @@ class Model(pl.LightningModule):
         self.optimizer = None
         self.scheduler = None
         self._metric: Optional[Metric] = None
-        self.metrics: Dict[str, Metric] = dict()
+        # Changed below to account for train.
+        self.metrics: Dict[str, Dict[str, Metric]] = defaultdict(dict)
         self.trn_datasets: List[Dataset] = None
         self.val_datasets: List[Dataset] = None
         self.tst_datasets: List[Dataset] = None
         self.padding: Dict[str, int] = {}
         self.base_dir: str = ""
+        
+        # below line: added
+        self.optimization_loss = None
 
         self._batch_per_epoch: int = -1
         self._comparison_mode: Optional[str] = None
         self._selection_criterion: Optional[str] = None
-
+        
         if isinstance(hparams, dict):
             hparams = Namespace(**hparams)
         # self.hparams: Namespace = hparams
         self.save_hyperparameters(hparams)
         pl.seed_everything(hparams.seed)
+        
+        # Added the following
+        print("Need to take out the if statement in base.py with encoder checkpoint and hparams!")
+        if 'encoder_checkpoint' in vars(self.hparams):
+            assert not self.hparams.mix_sampling, "Metric code designed with NOT mix_sampling assumed."
+        self.run_phases = [Split.train, 'val', Split.test]
+        
+        one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
+        valid_val_langs = len(self.hparams.val_langs) == 1 or one_other_target_language
+        assert valid_val_langs, "target_language/checkpoint was designed with at most 1 non-source language."
+        if one_other_target_language:
+            not_supervised_languages = list(filter(lambda lang : lang != constant.SUPERVISED_LANGUAGE, self.hparams.val_langs))
+            assert len(not_supervised_languages) == 1
+            self.target_language = not_supervised_languages[0]
+        else:
+            self.target_language = constant.SUPERVISED_LANGUAGE
+        # end additions
 
         self.tokenizer = AutoTokenizer.from_pretrained(hparams.pretrain)
         self.model = self.build_model()
@@ -160,16 +183,18 @@ class Model(pl.LightningModule):
         assert self._comparison_mode is not None
         return self._comparison_mode
 
+    # Below: changes due to 2d metric dict
     def setup_metrics(self):
         assert self._metric is not None
         langs = self.hparams.trn_langs + self.hparams.val_langs + self.hparams.tst_langs
         langs = sorted(list(set(langs)))
-        for lang in langs:
-            self.metrics[lang] = deepcopy(self._metric)
-        self.reset_metrics()
+        for phase in self.run_phases:
+            for lang in langs:
+                self.metrics[phase][lang] = deepcopy(self._metric)
 
-    def reset_metrics(self):
-        for metric in self.metrics.values():
+    # Below: changed to permit train logging
+    def reset_metrics(self, phase):
+        for metric in self.metrics[phase].values():
             metric.reset()
 
     def get_mask(self, sent: Tensor):
@@ -255,61 +280,117 @@ class Model(pl.LightningModule):
             hs = hidden_states[self.hparams.feature_layer]
         return hs
 
-    def evaluation_step_helper(self, batch, prefix) -> Dict[str, Tensor]:
-        raise NotImplementedError
-
+    # Renamed variables, function, direct return of loss_dict, no self.log for loss
+    # Updated assert message and metrics indexing
+    def step_helper(self, batch, prefix):
+        loss_dict, encoder_outputs = self.__call__(batch)
+        assert (
+            len(set(batch["lang"])) == 1
+        ), "batch should contain only one language"
+        lang = batch["lang"][0]
+        self.metrics[prefix][lang].add(batch["labels"], encoder_outputs)
+        return loss_dict
+    
+    # Moved from model/tagger.py.    
+    # Changed below to be compatible with later models' loss_dict
+    # and to do accuracy updates.
+    def training_step(self, batch, batch_idx): 
+        loss_dict = self.step_helper(batch, 'train')
+        loss_dict['loss'] = loss_dict[self.optimization_loss]
+        # Detach per the warning. Double detach is safe.
+        loss_dict = {
+            key : value.detach() if key not in ['lang', 'loss'] else value
+            for key, value in loss_dict.items()
+        }
+        self.log("loss", loss_dict['loss'])
+        return loss_dict
+        
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.evaluation_step_helper(batch, "val")
+        return self.step_helper(batch, "val")
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.evaluation_step_helper(batch, "tst")
+        return self.step_helper(batch, "tst")
+        
+    # Added this function
+    def add_language_to_batch_output(self, loss_dict, batch):
+        # Note that below is true if mix_sampling=False
+        assert all(batch['lang'][0] == elem for elem in batch['lang']), set(batch['lang'])
+        loss_dict.update({'lang' : batch['lang'][0]})
 
-    def training_epoch_end(self, outputs):
-        return
+    # Changed training_epoch_end
 
+    # Changed all of below to account for language sorting and training logging,
+    # as well as updates to arguments to reflect meaning of parameters.
+    # Changes to logging for phase and language separation,
+    # and renaming of language-aggregated metrics to '_all' modifier,
+    # and ignoring added language differentiator from forward call
     def aggregate_outputs(
-        self, outputs: List[List[Dict[str, Tensor]]], langs: List[str], prefix: str
+        self, outputs: List[List[Dict[str, Tensor]]], langs: List[str], phase: str
     ):
-        assert prefix in ["val", "tst"]
         aver_result = defaultdict(list)
         for lang, output in zip(langs, outputs):
             for key in output[0]:
+                if 'lang' in key: continue
                 try:
                     mean_val = torch.stack([x[key] for x in output]).mean()
                 except: import pdb; pdb.set_trace()
-                self.log(key, mean_val)
+                logging_key = f'{phase}_{lang}_{key}'
+                self.log(logging_key, mean_val)
 
-                raw_key = key.replace(f"{lang}_", "")
+                raw_key = logging_key.replace(f"{lang}_", "")
                 aver_result[raw_key].append(mean_val)
 
         for key, vals in aver_result.items():
-            self.log(key, torch.stack(vals).mean())
+            self.log(f'{key}_all', torch.stack(vals).mean())
 
-    def aggregate_metrics(self, langs: List[str], prefix: str):
+    # Changed prefix to phase to mark meaning
+    def aggregate_metrics(self, langs: List[str], phase: str):
         aver_metric = defaultdict(list)
         for lang in langs:
-            metric = self.metrics[lang]
+            metric = self.metrics[phase][lang]
             for key, val in metric.get_metric().items():
-                self.log(f"{prefix}_{lang}_{key}", val)
-
+                self.log(f"{phase}_{lang}_{key}", val)
                 aver_metric[key].append(val)
 
         for key, vals in aver_metric.items():
-            self.log(f"{prefix}_{key}", torch.stack(vals).mean())
+            self.log(f"{phase}_{key}", torch.stack(vals).mean())
+            
+    # Added training_epoch_end, adapted from the epoch_end functions below,
+    # which has output sorting by language
+    def training_epoch_end(self, outputs):
+        if len(self.hparams.trn_langs) == 1:
+            filtered_outputs = [outputs]
+        else:
+            filtered_outputs = [[] for _ in self.hparams.trn_langs]
+            # Need to filter the outputs, such that they belong to a single language
+            lang_to_index = { lang : index for index, lang in enumerate(self.hparams.trn_langs) } 
+            for batch_outputs in outputs:
+                lang = batch_outputs['lang']
+                filtered_outputs[lang_to_index[lang]].append(batch_outputs)
+        # Enforce correctness of filtered outputs
+        for lang_index, lang_outputs in enumerate(filtered_outputs):
+            for batch_index, batch_outputs in enumerate(lang_outputs):
+                if self.hparams.trn_langs[lang_index] != batch_outputs['lang']:
+                    import pdb; pdb.set_trace()
+        self.aggregate_outputs(filtered_outputs, self.hparams.trn_langs, Split.train)
+        self.aggregate_metrics(self.hparams.trn_langs, Split.train)
+        return
 
+    # Below functions: fixed strings to phase names
     def validation_epoch_end(self, outputs):
         if len(self.hparams.val_langs) == 1:
             outputs = [outputs]
-        self.aggregate_outputs(outputs, self.hparams.val_langs, "val")
-        self.aggregate_metrics(self.hparams.val_langs, "val")
+        self.aggregate_outputs(outputs, self.hparams.val_langs, 'val')
+        self.aggregate_metrics(self.hparams.val_langs, 'val')
         return
 
     def test_epoch_end(self, outputs):
         if len(self.hparams.tst_langs) == 1:
             outputs = [outputs]
-        self.aggregate_outputs(outputs, self.hparams.tst_langs, "tst")
-        self.aggregate_metrics(self.hparams.tst_langs, "tst")
+        self.aggregate_outputs(outputs, self.hparams.tst_langs, Split.test)
+        self.aggregate_metrics(self.hparams.tst_langs, Split.test)
         return
+    # end changes
 
     def get_warmup_and_total_steps(self):
         if self.hparams.max_steps is not None:
@@ -526,8 +607,7 @@ class Model(pl.LightningModule):
         parser.add_argument("--subset_ratio", default=1.0, type=float)
         parser.add_argument("--subset_count", default=-1, type=int)
         parser.add_argument("--subset_seed", default=42, type=int)
-        # Below: changed from False. Should not affect the baseline, which would have only had one train language.
-        parser.add_argument("--mix_sampling", default=True, type=util.str2bool)
+        parser.add_argument("--mix_sampling", default=False, type=util.str2bool)
         # encoder
         parser.add_argument("--pretrain", required=True, type=str)
         parser.add_argument("--freeze_layer", default=-1, type=int)

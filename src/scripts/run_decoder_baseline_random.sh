@@ -19,13 +19,14 @@ model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 save_path=${4:-"./experiments"}
 
 src="English Dutch"
-tgt="Dutch"
+tgt="English Dutch"
+
 data_path=${5:-"../ud-treebanks-v1.4"}
 encoder_checkpoint=${6:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=2-val_acc=97.057.ckpt"}
 
 bs=16
 ep=10
-lr=5e-5
+lr=1e-4
 
 python3 src/train_decoder.py \
     --seed "$seed" \

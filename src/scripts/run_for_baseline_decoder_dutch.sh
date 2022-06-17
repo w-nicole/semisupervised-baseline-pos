@@ -8,7 +8,7 @@
 # Simplified `example/surprising-mbert/evaluate.sh` script due to no need for non-POS evaluation by removing irrelevant code, variables, options, etc.
 # Added hyperparameters that yield best performance on English val for last layer finetuned BERT.
 # Edited arguments.
-# Edited to run the train_decoder script instead.
+# Edited to run the train_decoder_base script instead.
 
 seed=${1:-42}
 model=${2:-"bert-base-multilingual-cased"}
@@ -18,16 +18,17 @@ model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
 save_path=${4:-"./experiments"}
 
-src="English Dutch"
-tgt="Dutch"
+src="Dutch"
+tgt="English Dutch"
+
 data_path=${5:-"../ud-treebanks-v1.4"}
-decoder_checkpoint=${6:-"./experiments/auxiliary_decoder_for_baseline/version_3/ckpts/ckpts_epoch=19-decoder_loss=0.008.ckpt"}
+encoder_checkpoint=${6:-"./experiments/encoder_for_baseline/version_0/ckpts/ckpts_epoch=2-val_acc=97.057.ckpt"}
 
 bs=16
 ep=20
-lr=5e-7
+lr=5e-5
 
-python3 src/train_decoder.py \
+python3 src/train_decoder_base.py \
     --seed "$seed" \
     --task "$task" \
     --data_dir "$data_path" \
@@ -39,7 +40,6 @@ python3 src/train_decoder.py \
     --max_epochs $ep \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
-    --exp_name auxiliary_decoder_baseline_low_lr \
-    --decoder_checkpoint "$decoder_checkpoint" \
-    --mix_sampling "n" \
-    --gpus 1
+    --exp_name decoder_for_baseline_dutch \
+    --gpus 1 \
+    --encoder_checkpoint "$encoder_checkpoint"

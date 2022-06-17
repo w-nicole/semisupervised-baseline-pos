@@ -5,6 +5,7 @@
 # Changes made relative to original:
 # Added averaging behavior,
 #   and changed "forward" accordingly.
+# Changed forward to __call__.
 # Added one layer MLP.
 # Removed irrelevant code, such as outdated classes, imports, etc.
 # and simplified to remove unused parameter choices.
@@ -39,7 +40,7 @@ class Tagger(Model):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
         self._comparison_mode = 'max'
-        self._selection_criterion = 'val_acc'
+        self._selection_criterion = f'val_{self.target_language}_acc'
         self._nb_labels: Optional[int] = None
         self._nb_labels = UdPOS.nb_labels()
         self._metric = POSMetric()
@@ -64,7 +65,8 @@ class Tagger(Model):
             # end changes
             "labels": LABEL_PAD_ID,
         }
-
+        # optimization loss added
+        self.optimization_loss = 'pos_nll_loss'
         self.setup_metrics()
 
     @property
@@ -75,7 +77,7 @@ class Tagger(Model):
     def preprocess_batch(self, batch):
         return batch
 
-    def forward(self, batch):
+    def __call__(self, batch):
         batch = self.preprocess_batch(batch)
         # Updated call arguments
         hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
@@ -97,25 +99,15 @@ class Tagger(Model):
                 batch["labels"].view(-1),
                 ignore_index=LABEL_PAD_ID,
             )
-        return loss, log_probs
+        # Changed below to be compatible with later models' loss_dict and added assert.
+        loss_dict = {self.optimization_loss : loss}
+        self.add_language_to_batch_output(loss_dict, batch)
+        return loss_dict, log_probs
 
-    def training_step(self, batch, batch_idx):
-        loss, _ = self.forward(batch)
-        self.log("loss", loss)
-        return loss
-
-    def evaluation_step_helper(self, batch, prefix):
-        loss, log_probs = self.forward(batch)
-
-        assert (
-            len(set(batch["lang"])) == 1
-        ), "eval batch should contain only one language"
-        lang = batch["lang"][0]
-        self.metrics[lang].add(batch["labels"], log_probs)
-
-        result = dict()
-        result[f"{prefix}_{lang}_loss"] = loss
-        return result
+    # Moved training_step to base.py.
+    
+    # Removed loss logging in original evaluation_step_helper
+    # because handled in event and not checkpointing on it.
 
     def prepare_datasets(self, split: str) -> List[Dataset]:
         hparams = self.hparams
