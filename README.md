@@ -9,6 +9,8 @@ https://github.com/shijie-wu/crosslingual-nlp
 
 `conda install transformers conllu datasets pandas matplotlib scikit-learn`
 
+`pip install wandb`
+
 Also, as taken from here (5/22/22):
 
 https://pytorch-lightning.readthedocs.io/en/stable/starter/installation.html

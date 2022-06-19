@@ -20,6 +20,7 @@ from enumeration import Split
 import constant
 import util
 
+import wandb
 
 class VAE(BaseVAE):
     
@@ -163,6 +164,12 @@ class VAE(BaseVAE):
         
     def step_helper(self, batch, prefix):
         return Model.step_helper(self, batch, prefix)
+        
+    def training_step(self, batch, batch_idx):
+        loss_dict = super().training_step(batch, batch_idx)
+        if self.hparams.log_wandb and batch_idx % self.hparams.log_frequency:
+            wandb.log(loss_dict)
+        return loss_dict
         
     @classmethod
     def add_model_specific_args(cls, parser):
