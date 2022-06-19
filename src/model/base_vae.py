@@ -27,7 +27,10 @@ class BaseVAE(Tagger):
     
     def __init__(self, hparams):
         super(BaseVAE, self).__init__(hparams)
-        encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
+        if self.hparams.encoder_checkpoint:
+            encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
+        else:
+            encoder = Tagger(self.hparams)
         self.freeze_bert(encoder)
         # Overwrite base and tagger attributes so that encode_sent will function correctly
         self.model = encoder.model
@@ -40,8 +43,24 @@ class BaseVAE(Tagger):
         )
         self.use_auxiliary = self.hparams.auxiliary_size > 0
         if self.use_auxiliary:
-            self.auxiliary_mu = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
-            self.auxiliary_sigma = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
+            if self.hparams.auxiliary_hidden_layers >= 0:
+                self.auxiliary_mu = self.build_mlp(
+                    self.hidden_size,
+                    self.hparams.auxiliary_size,
+                    self.hparams.auxiliary_hidden_size,
+                    self.hparams.auxiliary_hidden_layers,
+                    self.hparams.auxiliary_nonlinear_first
+                )
+                self.auxiliary_sigma = self.build_mlp(
+                    self.hidden_size,
+                    self.hparams.auxiliary_size,
+                    self.hparams.auxiliary_hidden_size,
+                    self.hparams.auxiliary_hidden_layers,
+                    self.hparams.auxiliary_nonlinear_first
+                )
+            else:
+                self.auxiliary_mu = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
+                self.auxiliary_sigma = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
         self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
         self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_decoder_loss'
         self._comparison_mode = 'min'
@@ -83,7 +102,6 @@ class BaseVAE(Tagger):
         return mu_t
         
     def calculate_decoder_loss(self, batch, hs, pi_t):
-
         loss = {}
         if self.use_auxiliary:
             auxiliary_mu_t = self.auxiliary_mu(hs)
@@ -145,8 +163,12 @@ class BaseVAE(Tagger):
     @classmethod
     def add_model_specific_args(cls, parser):
         parser.add_argument("--auxiliary_kl_weight", default=1, type=int)
-        # 0 indicates no auxiliary vector.
+        # auxiliary_hidden_layers = -1 indicates no hidden layers (single linear layer).
+        parser.add_argument("--auxiliary_hidden_layers", default=-1, type=int)
+        parser.add_argument("--auxiliary_hidden_size", default=0, type=int)
+        # auxiliary_size = 0 indicates no auxiliary vector.
         parser.add_argument("--auxiliary_size", default=0, type=int)
+        parser.add_argument("--auxiliary_nonlinear_first", default=False, type=util.str2bool)
         parser.add_argument("--temperature", default=1, type=float)
         parser.add_argument("--decoder_number_of_layers", default=1, type=int)
         return parser

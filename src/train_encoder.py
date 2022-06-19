@@ -4,6 +4,8 @@
 # Changes made relative to original:
 # Changed amp_level to be dependent on CPU to permit running on CPU.
 # Removed testing.
+# Removed irrelevant code, such as Aligner-related, etc.
+# attribute comparsion -> comparison_mode
 
 import os
 from argparse import ArgumentParser
@@ -12,7 +14,7 @@ import pytorch_lightning as pl
 
 import util
 from enumeration import Task
-from model import Aligner, Classifier, DependencyParser, Model, Tagger
+from model import Model, Tagger
 
 import torch # Added this
 
@@ -22,17 +24,7 @@ def main(hparams):
             hparams.cache_path = os.path.join(os.path.expanduser("~"), ".cache/clnlp")
         os.makedirs(hparams.cache_path, exist_ok=True)
 
-    ModelClass = {
-        Task.conllner: Tagger,
-        Task.wikiner: Tagger,
-        Task.udpos: Tagger,
-        Task.xnli: Classifier,
-        Task.pawsx: Classifier,
-        Task.mldoc: Classifier,
-        Task.langid: Classifier,
-        Task.parsing: DependencyParser,
-        Task.alignment: Aligner,
-    }[hparams.task]
+    ModelClass = Tagger
     if hparams.do_train:
         model = ModelClass(hparams)
     else:
@@ -51,7 +43,7 @@ def main(hparams):
         min_delta=hparams.min_delta,
         patience=hparams.patience,
         verbose=True,
-        mode=model.comparsion,
+        mode=model.comparison_mode,
         strict=True,
     )
 
@@ -68,13 +60,11 @@ def main(hparams):
         verbose=True,
         save_last=hparams.save_last,
         save_top_k=hparams.save_top_k,
-        mode=model.comparsion,
+        mode=model.comparison_mode,
     )
     logging_callback = util.Logging(base_dir)
     lr_logger = pl.callbacks.LearningRateMonitor()
     callbacks = [early_stopping, checkpoint_callback, logging_callback, lr_logger]
-    if isinstance(model, Aligner) and hparams.aligner_sim == "linear":
-        callbacks.append(util.MappingCheckpoint(base_dir))
 
     trainer = pl.Trainer(
         logger=logger,
@@ -151,8 +141,5 @@ if __name__ == "__main__":
     ############################################################################
     parser = Model.add_model_specific_args(parser)
     parser = Tagger.add_model_specific_args(parser)
-    parser = Classifier.add_model_specific_args(parser)
-    parser = DependencyParser.add_model_specific_args(parser)
-    parser = Aligner.add_model_specific_args(parser)
     hparams = parser.parse_args()
     main(hparams)

@@ -6,9 +6,8 @@
 # Changes made relative to original:
 # Changed to python3, directory where this is run
 # Simplified `example/surprising-mbert/evaluate.sh` script due to no need for non-POS evaluation by removing irrelevant code, variables, options, etc.
-# Added hyperparameters that yield best performance on English val for last layer finetuned BERT.
 # Edited arguments.
-# Edited to run the train_decoder script instead.
+# Edited to run the train_decoder script instead with phase 3 only.
 
 seed=${1:-42}
 model=${2:-"bert-base-multilingual-cased"}
@@ -16,16 +15,15 @@ task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${4:-"./experiments"}
+save_path=${4:-"./experiments/all_in_phase_3"}
 
 src="English Dutch"
 tgt="English Dutch"
 data_path=${5:-"../ud-treebanks-v1.4"}
-decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/version_1/ckpts/ckpts_epoch=15-val_English_decoder_loss=66.886.ckpt"}
 
 bs=16
 ep=50
-lr=1e-4
+lr=1e-3
 
 python3 src/train_decoder.py \
     --seed "$seed" \
@@ -38,10 +36,7 @@ python3 src/train_decoder.py \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
-    --subset_ratio 0.01 \
     --default_save_path "$save_path" \
-    --exp_name decoder_baseline \
-    --gpus 1 \
-    --decoder_checkpoint "$decoder_checkpoint" \
-    --mix_sampling "n"
-    
+    --exp_name english_and_dutch \
+    --pos_nll_weight 1 \
+    --gpus 1

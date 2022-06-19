@@ -55,7 +55,7 @@ if __name__ == "__main__":
         'KL_against_train_English',
         'KL_against_val_Dutch',
         'acc',
-        'optimized_KL'
+        'loss_KL'
     ]
     
     english_pair = ('English', 'g')

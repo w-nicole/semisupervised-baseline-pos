@@ -69,9 +69,6 @@ class Model(pl.LightningModule):
         pl.seed_everything(hparams.seed)
         
         # Added the following
-        print("Need to take out the if statement in base.py with encoder checkpoint and hparams!")
-        if 'encoder_checkpoint' in vars(self.hparams):
-            assert not self.hparams.mix_sampling, "Metric code designed with NOT mix_sampling assumed."
         self.run_phases = [Split.train, 'val', Split.test]
         
         one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
@@ -86,7 +83,8 @@ class Model(pl.LightningModule):
         # end additions
 
         self.tokenizer = AutoTokenizer.from_pretrained(hparams.pretrain)
-        self.model = self.build_model()
+        # Changed below to correspond to classmethod
+        self.model = self.build_model(self.hparams.pretrain)
         self.freeze_layers()
 
         self.mapping = None
@@ -99,12 +97,32 @@ class Model(pl.LightningModule):
         self.projector = None
         self.dropout = InputVariationalDropout(hparams.input_dropout)
 
-    def build_model(self):
+    # Changed below to accept pretrain as argument so classmethod works.
+    @classmethod
+    def build_model(self, pretrain):
         config = AutoConfig.from_pretrained(
-            self.hparams.pretrain, output_hidden_states=True
+            pretrain, output_hidden_states=True
         )
-        model = AutoModel.from_pretrained(self.hparams.pretrain, config=config)
+        model = AutoModel.from_pretrained(pretrain, config=config)
         return model
+        
+    def build_mlp(self, input_size, output_size, hidden_size, hidden_layers, nonlinear_first):
+        layers = []
+        if nonlinear_first:
+            layers.append(torch.nn.GELU())
+        # input layer
+        layers.extend([
+            torch.nn.Linear(input_size, hidden_size),
+            torch.nn.GELU()
+        ])
+        for _ in range(hidden_layers):
+            layers.extend([
+                torch.nn.Linear(hidden_size, hidden_size),
+                torch.nn.GELU()
+            ])
+        layers.extend([torch.nn.Linear(hidden_size, output_size)])
+        return nn.Sequential(*tuple(layers))
+        
 
     def freeze_layers(self):
         if self.hparams.freeze_layer == -1:
@@ -313,7 +331,6 @@ class Model(pl.LightningModule):
         
     # Added this function
     def add_language_to_batch_output(self, loss_dict, batch):
-        # Note that below is true if mix_sampling=False
         assert all(batch['lang'][0] == elem for elem in batch['lang']), set(batch['lang'])
         loss_dict.update({'lang' : batch['lang'][0]})
 
@@ -538,10 +555,8 @@ class Model(pl.LightningModule):
             sampler = RandomSampler(dataset)
         else:
             dataset = ConcatDataset(self.trn_datasets)
-            if self.hparams.mix_sampling:
-                sampler = RandomSampler(dataset)
-            else:
-                sampler = util.ConcatSampler(dataset, self.hparams.batch_size)
+            # Removed mix_sampling logic.
+            sampler = util.ConcatSampler(dataset, self.hparams.batch_size)
 
         return DataLoader(
             dataset,
@@ -607,7 +622,7 @@ class Model(pl.LightningModule):
         parser.add_argument("--subset_ratio", default=1.0, type=float)
         parser.add_argument("--subset_count", default=-1, type=int)
         parser.add_argument("--subset_seed", default=42, type=int)
-        parser.add_argument("--mix_sampling", default=False, type=util.str2bool)
+        # Removed mix_sampling.
         # encoder
         parser.add_argument("--pretrain", required=True, type=str)
         parser.add_argument("--freeze_layer", default=-1, type=int)

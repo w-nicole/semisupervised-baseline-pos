@@ -40,8 +40,6 @@ def main(hparams):
     if hparams.decoder_checkpoint:
         print("Ignoring encoder_checkpoint because overwriting with pretrained decoder's.")
         hparams = add_encoder_checkpoint_hparams(hparams)
-    else:
-        assert hparams.encoder_checkpoint, "If no pretrained decoder is specified, pretrained encoder must be specified."
     # end added
     if hparams.cache_dataset:
         if not hparams.cache_path:

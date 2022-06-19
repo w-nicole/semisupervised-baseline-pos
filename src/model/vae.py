@@ -25,31 +25,37 @@ class VAE(BaseVAE):
     
     def __init__(self, hparams):
         super(VAE, self).__init__(hparams)
+        clean_initialization = (not self.hparams.decoder_checkpoint) and (not self.hparams.encoder_checkpoint)
         # Default argument is empty, meaning initialize from random
-        try:
-            if self.hparams.decoder_checkpoint:
-                decoder = BaseVAE.load_from_checkpoint(self.hparams.decoder_checkpoint)
-                
-                # Overwrite all of the attributes
-                self.model = decoder.model
-                self.classifier = decoder.classifier
-                self.decoder_lstm = decoder.decoder_lstm
-                self.decoder_linear = decoder.decoder_linear
-                self.use_auxiliary = self.hparams.auxiliary_size > 0
-                if self.use_auxiliary:
-                    self.auxiliary_mu = decoder.auxiliary_mu
-                    self.auxiliary_sigma = decoder.auxiliary_sigma
-            if self.hparams.input_frozen_hidden_states:
-                # overwrite self.model with huggingface BERT
+        if self.hparams.decoder_checkpoint:
+            decoder = BaseVAE.load_from_checkpoint(self.hparams.decoder_checkpoint)
+            # Overwrite all of the attributes
+            self.model = decoder.model
+            self.classifier = decoder.classifier
+            self.decoder_lstm = decoder.decoder_lstm
+            self.decoder_linear = decoder.decoder_linear
+            if decoder.use_auxiliary:
+                if not self.hparams.auxiliary_size > 0: print('Overriding hparams on VAE level, always following BaseVAE architecture.')
+                self.use_auxiliary = decoder.use_auxiliary
+                self.auxiliary_mu = decoder.auxiliary_mu
+                self.auxiliary_sigma = decoder.auxiliary_sigma
+        if self.hparams.input_frozen_hidden_states or clean_initialization:
+            # initialize/overwrite self.model with huggingface BERT
+            if self.hparams.encoder_checkpoint:
                 assert self.hparams.encoder_checkpoint == decoder.hparams.encoder_checkpoint, "Inconsistent classifier possible with input_frozen_hidden_states=True."
                 encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
-                encoder.model = self.build_model()
-                self.freeze_bert(encoder)
-                self.model = encoder.model
-        except: import pdb; pdb.set_trace()
-        prior = self.get_smoothed_english_prior()
-        self.prior_param = torch.nn.ParameterDict()
-        self.prior_param['raw_prior'] = torch.nn.Parameter(prior, requires_grad = True)
+            else:
+                encoder = Tagger(self.hparams)
+            encoder.model = self.build_model(self.hparams.pretrain)
+            self.freeze_bert(encoder)
+            self.model = encoder.model
+        smoothed_english_prior = self.get_smoothed_english_prior()
+        if not self.hparams.fixed_prior:
+            self.prior_param = torch.nn.ParameterDict()
+            self.prior_param['raw_prior'] = torch.nn.Parameter(smoothed_english_prior, requires_grad = True)
+            self.loss_prior = self.prior_param.raw_prior
+        else:
+            self.loss_prior = util.apply_gpu(smoothed_english_prior)
         self.metric_prior_arguments = [(self.target_language, 'val'), ('English', Split.train)]
         self.fixed_metric_priors = {
             f'{phase}_{lang}' : util.apply_gpu(self.get_smoothed_prior(lang, Split.dev if phase == 'val' else phase))
@@ -139,8 +145,10 @@ class VAE(BaseVAE):
             pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
             loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
                 
-            loss['optimized_KL'] = self.calculate_kl_against_prior(log_pi_t, self.prior_param.raw_prior).mean()
-            loss['decoder_loss'] = loss['MSE'] + self.hparams.pos_kl_weight * loss['optimized_KL']
+            loss['loss_KL'] = self.calculate_kl_against_prior(log_pi_t, self.loss_prior).mean()
+            loss['decoder_loss'] = self.hparams.pos_mse_weight * loss['MSE'] + self.hparams.pos_kl_weight * loss['loss_KL']
+            if self.use_auxiliary:
+                loss['decoder_loss'] += self.hparams.auxiliary_kl_weight * loss['auxiliary_KL']
 
             with torch.no_grad():
                 loss['encoder_loss'] = self.calculate_encoder_loss(batch, log_pi_t)
@@ -156,13 +164,13 @@ class VAE(BaseVAE):
     @classmethod
     def add_model_specific_args(cls, parser):
         parser.add_argument("--input_frozen_hidden_states", default=False, type=util.str2bool)
+        parser.add_argument("--fixed_prior", default=True, type=util.str2bool)
+        parser.add_argument("--pos_mse_weight", default=1, type=float)
         parser.add_argument("--pos_kl_weight", default=1, type=float)
         parser.add_argument("--pos_nll_weight", default=0, type=float)
         return parser
     
     def train_dataloader(self):
-        assert not self.hparams.mix_sampling, "This must be set to false for the batches to work."
-        assert any([current_dataset.lang == constant.SUPERVISED_LANGUAGE for current_dataset in self.trn_datasets])
         return super().train_dataloader()
         
         

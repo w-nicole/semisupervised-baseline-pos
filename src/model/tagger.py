@@ -48,10 +48,11 @@ class Tagger(Model):
         self.id2label = UdPOS.get_labels()
 
         # Added/edited
-        if self.hparams.use_hidden_layer:
-            self.classifier = nn.Sequential(
-                nn.Linear(self.hidden_size, self.hparams.hidden_layer_size),
-                nn.Linear(self.hparams.hidden_layer_size, self.nb_labels)
+        if self.hparams.encoder_hidden_layers >= 0:
+            self.classifier = self.build_mlp(
+                self.hidden_size, self.nb_labels,
+                self.hparams.encoder_hidden_size, self.hparams.encoder_hidden_layers,
+                self.hparams.encoder_nonlinear_first
             )
         # end additions
         else:
@@ -82,23 +83,15 @@ class Tagger(Model):
         # Updated call arguments
         hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
         # end updates
-        if self.hparams.tagger_use_crf:
-            mask = (batch["labels"] != LABEL_PAD_ID).float()
-            energy = self.crf(hs, mask=mask)
-            target = batch["labels"].masked_fill(
-                batch["labels"] == LABEL_PAD_ID, self.nb_labels
-            )
-            loss = self.crf.loss(energy, target, mask=mask)
-            log_probs = energy
-        else:
-            logits = self.classifier(hs)
-            log_probs = F.log_softmax(logits, dim=-1)
+        # removed use_crf
+        logits = self.classifier(hs)
+        log_probs = F.log_softmax(logits, dim=-1)
 
-            loss = F.nll_loss(
-                log_probs.view(-1, self.nb_labels),
-                batch["labels"].view(-1),
-                ignore_index=LABEL_PAD_ID,
-            )
+        loss = F.nll_loss(
+            log_probs.view(-1, self.nb_labels),
+            batch["labels"].view(-1),
+            ignore_index=LABEL_PAD_ID,
+        )
         # Changed below to be compatible with later models' loss_dict and added assert.
         loss_dict = {self.optimization_loss : loss}
         self.add_language_to_batch_output(loss_dict, batch)
@@ -129,7 +122,11 @@ class Tagger(Model):
 
     @classmethod
     def add_model_specific_args(cls, parser):
-        parser.add_argument("--tagger_use_crf", default=False, type=util.str2bool)
+        # Added these arguments, removed crf argument
+        # -1 indicates a linear layer alone (no input layer).
+        parser.add_argument("--encoder_hidden_layers", default=-1, type=int)
+        parser.add_argument("--encoder_hidden_size", default=0, type=int)
+        parser.add_argument("--encoder_nonlinear_first", default=False, type=util.str2bool)
         return parser
         
     # Below: added

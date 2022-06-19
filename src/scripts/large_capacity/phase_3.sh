@@ -16,16 +16,16 @@ task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${4:-"./experiments"}
+save_path=${4:-"./experiments/debug_large_capacity"}
 
 src="English Dutch"
 tgt="English Dutch"
 data_path=${5:-"../ud-treebanks-v1.4"}
-decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/version_1/ckpts/ckpts_epoch=15-val_English_decoder_loss=66.886.ckpt"}
+decoder_checkpoint=${6:-"./experiments/debug_large_capacity/phase_2/version_0/ckpts/ckpts_epoch=18-val_English_decoder_loss=80.106.ckpt"}
 
 bs=16
-ep=50
-lr=1e-4
+ep=15
+lr=1e-3
 
 python3 src/train_decoder.py \
     --seed "$seed" \
@@ -38,10 +38,12 @@ python3 src/train_decoder.py \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
+    --pos_mse_weight 0 \
+    --auxiliary_kl_weight 0 \
     --subset_ratio 0.01 \
     --default_save_path "$save_path" \
-    --exp_name decoder_baseline \
+    --exp_name phase_3 \
     --gpus 1 \
     --decoder_checkpoint "$decoder_checkpoint" \
-    --mix_sampling "n"
+    
     
