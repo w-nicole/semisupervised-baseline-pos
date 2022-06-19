@@ -134,6 +134,9 @@ class VAE(BaseVAE):
         if current_language == constant.SUPERVISED_LANGUAGE:
             loss, _ = BaseVAE.__call__(self, batch)
             loss['encoder_loss'] = self.calculate_encoder_loss(batch, log_pi_t)
+            loss['decoder_loss'] = self.hparams.pos_mse_weight * loss['MSE']
+            if self.use_auxiliary:
+                loss['decoder_loss'] += self.hparams.auxiliary_kl_weight * loss['auxiliary_KL']
             loss['decoder_loss'] += (self.hparams.pos_nll_weight * loss['encoder_loss'])
         else:
             # Unlabeled case
