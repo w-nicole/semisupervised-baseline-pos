@@ -17,7 +17,7 @@ freeze=${4:-"12"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${5:-"./experiments"}
+save_path=${5:-"./experiments/normal"}
 
 langs=(English)
 data_path=${6:-"../ud-treebanks-v1.4"}
@@ -38,6 +38,6 @@ python3 src/train_encoder.py \
     --max_epochs $ep \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
-    --exp_name normal_phase_1 \
+    --exp_name phase_1 \
     --gpus 1
     

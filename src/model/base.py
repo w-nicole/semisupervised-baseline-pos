@@ -39,6 +39,7 @@ from model.module import Identity, InputVariationalDropout, MeanPooling, Transfo
 
 # Below: added imports
 from dataset import collate
+import wandb
 # end imports
 
 class Model(pl.LightningModule):
@@ -311,7 +312,7 @@ class Model(pl.LightningModule):
     
     # Moved from model/tagger.py.    
     # Changed below to be compatible with later models' loss_dict
-    # and to do accuracy updates.
+    # and to do accuracy updates and wandb logging
     def training_step(self, batch, batch_idx): 
         loss_dict = self.step_helper(batch, 'train')
         loss_dict['loss'] = loss_dict[self.optimization_loss]
@@ -321,6 +322,8 @@ class Model(pl.LightningModule):
             for key, value in loss_dict.items()
         }
         self.log("loss", loss_dict['loss'])
+        if self.hparams.log_wandb and batch_idx % self.hparams.log_frequency == 0:
+            wandb.log(loss_dict)
         return loss_dict
         
     def validation_step(self, batch, batch_idx, dataloader_idx=0):

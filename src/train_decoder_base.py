@@ -5,6 +5,7 @@
 # Changed amp_level to be dependent on CPU to permit running on CPU.
 # Removed testing and irrelevant code (such as unsupported methods from the previous codebase)
 # Added checkpoint load for encoder and changed to train decoder
+# Added wandb logging
 
 import os
 from argparse import ArgumentParser
@@ -16,6 +17,9 @@ from enumeration import Task
 from model import Model, Tagger, BaseVAE
 
 import torch # Added this
+# added
+import wandb
+# Added
 
 def main(hparams):
     if hparams.cache_dataset:
@@ -28,6 +32,12 @@ def main(hparams):
     else:
         assert os.path.isfile(hparams.checkpoint)
         model = BaseVAE.load_from_checkpoint(hparams.checkpoint)
+        
+    # added the below
+    if hparams.log_wandb:
+        wandb.init()
+        wandb.watch(model, log_freq=1)
+    # end additions
 
     os.makedirs(
         os.path.join(hparams.default_save_path, hparams.exp_name), exist_ok=True
@@ -139,6 +149,10 @@ if __name__ == "__main__":
     # only used for non-native amp
     # Changed to below to permit running on CPU
     parser.add_argument("--amp_level", default="01" if torch.cuda.is_available() else None, type=str)
+    # below: added
+    parser.add_argument("--log_wandb", default=True, type=util.str2bool)
+    parser.add_argument("--log_frequency", default=1, type=int)
+    # end added
     ############################################################################
     parser = Model.add_model_specific_args(parser)
     parser = Tagger.add_model_specific_args(parser)

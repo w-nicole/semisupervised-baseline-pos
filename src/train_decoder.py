@@ -55,8 +55,9 @@ def main(hparams):
         model = VAE.load_from_checkpoint(hparams.checkpoint)
         
     # added the below
-    wandb.init()
-    wandb.watch(model, log_freq=100)
+    if hparams.log_wandb:
+        wandb.init()
+        wandb.watch(model, log_freq=1)
     # end additions
 
     os.makedirs(
