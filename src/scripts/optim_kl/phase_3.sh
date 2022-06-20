@@ -25,7 +25,7 @@ decoder_checkpoint=${6:-"./experiments/debug_optim_kl/phase_2/version_0/ckpts/ck
 
 bs=16
 ep=15
-lr=1e-1
+lr=1e-3
 
 python3 src/train_decoder.py \
     --seed "$seed" \

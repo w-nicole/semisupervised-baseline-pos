@@ -56,11 +56,6 @@ class VAE(BaseVAE):
             self.freeze_bert(encoder)
             self.model = encoder.model
             self.classifier = encoder.classifier
-            try:
-                # Below: for debugging only.
-                self.classifier.weight = torch.nn.Parameter(util.apply_gpu(torch.zeros(self.classifier.weight.shape)))
-                self.classifier.bias = torch.nn.Parameter(util.apply_gpu(self.get_uniform_prior()))
-            except: import pdb; pdb.set_trace()
         smoothed_english_prior = self.get_smoothed_english_prior()
         if self.hparams.prior_type == 'optimized_data':
             self.prior_param = torch.nn.ParameterDict()
@@ -105,7 +100,7 @@ class VAE(BaseVAE):
         with torch.no_grad():
             loss = {}
             for prior_key, prior in self.fixed_metric_priors.items():
-                loss[f'KL_against_{prior_key}'] = self.calculate_kl_against_prior(batch, log_pi_t, prior).mean()
+                loss[f'KL_against_{prior_key}'] = self.calculate_kl_against_prior(batch, log_pi_t, prior)
             return loss
         
     def calculate_log_pi_t(self, batch, hs):

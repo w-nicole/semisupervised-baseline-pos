@@ -24,7 +24,7 @@ data_path=${5:-"../ud-treebanks-v1.4"}
 
 bs=16
 ep=15
-lr=1e-3
+lr=1e-2
 
 python3 src/train_decoder.py \
     --seed "$seed" \
@@ -41,7 +41,7 @@ python3 src/train_decoder.py \
     --auxiliary_kl_weight 0 \
     --subset_ratio 0.01 \
     --default_save_path "$save_path" \
-    --exp_name fixed_uniform_init_phase_3 \
+    --exp_name fixed_optim_to_uniform_phase_3 \
     --prior_type "fixed_uniform" \
     --gpus 1 \
     --decoder_checkpoint "$decoder_checkpoint" \
