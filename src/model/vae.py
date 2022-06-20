@@ -26,6 +26,11 @@ class VAE(BaseVAE):
     
     def __init__(self, hparams):
         super(VAE, self).__init__(hparams)
+        prior_types = {
+            'optimized_data',
+            'fixed_data',
+            'fixed_uniform',
+        }
         clean_initialization = (not self.hparams.decoder_checkpoint) and (not self.hparams.encoder_checkpoint)
         # Default argument is empty, meaning initialize from random
         if self.hparams.decoder_checkpoint:
@@ -50,13 +55,23 @@ class VAE(BaseVAE):
             encoder.model = self.build_model(self.hparams.pretrain)
             self.freeze_bert(encoder)
             self.model = encoder.model
+            self.classifier = encoder.classifier
+            try:
+                # Below: for debugging only.
+                self.classifier.weight = torch.nn.Parameter(util.apply_gpu(torch.zeros(self.classifier.weight.shape)))
+                self.classifier.bias = torch.nn.Parameter(util.apply_gpu(self.get_uniform_prior()))
+            except: import pdb; pdb.set_trace()
         smoothed_english_prior = self.get_smoothed_english_prior()
-        if not self.hparams.fixed_prior:
+        if self.hparams.prior_type == 'optimized_data':
             self.prior_param = torch.nn.ParameterDict()
             self.prior_param['raw_prior'] = torch.nn.Parameter(smoothed_english_prior, requires_grad = True)
             self.loss_prior = self.prior_param.raw_prior
-        else:
+        elif self.hparams.prior_type == 'fixed_data':
             self.loss_prior = util.apply_gpu(smoothed_english_prior)
+        elif self.hparams.prior_type == 'fixed_uniform':
+            self.loss_prior = util.apply_gpu(self.get_uniform_prior())
+        else:
+            assert self.hparams.prior_type in prior_types, f"Choose prior type from: {prior_types}. Current parameter: {self.hparams.prior_type}"
         self.metric_prior_arguments = [(self.target_language, 'val'), ('English', Split.train)]
         self.fixed_metric_priors = {
             f'{phase}_{lang}' : util.apply_gpu(self.get_smoothed_prior(lang, Split.dev if phase == 'val' else phase))
@@ -90,7 +105,7 @@ class VAE(BaseVAE):
         with torch.no_grad():
             loss = {}
             for prior_key, prior in self.fixed_metric_priors.items():
-                loss[f'KL_against_{prior_key}'] = self.calculate_kl_against_prior(log_pi_t, prior).mean()
+                loss[f'KL_against_{prior_key}'] = self.calculate_kl_against_prior(batch, log_pi_t, prior).mean()
             return loss
         
     def calculate_log_pi_t(self, batch, hs):
@@ -100,20 +115,24 @@ class VAE(BaseVAE):
         log_pi_t = self.set_padded_to_zero(batch, raw_log_pi_t)
         return log_pi_t
         
-    def calculate_kl_against_prior(self, log_q_given_input, raw_prior):
+    def calculate_kl_against_prior(self, batch, log_q_given_input, raw_prior):
         
         prior = raw_prior.softmax(dim=-1)
         repeated_prior = prior.reshape(1, 1, prior.shape[0]).repeat(log_q_given_input.shape[0], log_q_given_input.shape[1], 1)
-        pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
+        raw_pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
+        assert len(raw_pre_sum.shape) == 3, raw_pre_sum.shape
+        mask = self.get_non_pad_label_mask(batch, raw_pre_sum)
+        pre_sum = self.set_padded_to_zero(batch, raw_pre_sum)
         assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
         
         kl_divergence = torch.sum(pre_sum, axis = -1)
-        
         if not torch.all(kl_divergence >= 0):
             import pdb; pdb.set_trace()
-        
         assert len(kl_divergence.shape) == 2, kl_divergence.shape
-        return kl_divergence
+        
+        kl_divergence_mean = torch.sum(pre_sum) / torch.sum(mask)
+        return kl_divergence_mean
+        
         
     def calculate_encoder_loss(self, batch, log_pi_t):
         encoder_loss = F.nll_loss(
@@ -149,7 +168,7 @@ class VAE(BaseVAE):
             pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
             loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
                 
-            loss['loss_KL'] = self.calculate_kl_against_prior(log_pi_t, self.loss_prior).mean()
+            loss['loss_KL'] = self.calculate_kl_against_prior(batch, log_pi_t, self.loss_prior)
             loss['decoder_loss'] = self.hparams.pos_mse_weight * loss['MSE'] + self.hparams.pos_kl_weight * loss['loss_KL']
             if self.use_auxiliary:
                 loss['decoder_loss'] += self.hparams.auxiliary_kl_weight * loss['auxiliary_KL']
@@ -167,14 +186,14 @@ class VAE(BaseVAE):
         
     def training_step(self, batch, batch_idx):
         loss_dict = super().training_step(batch, batch_idx)
-        if self.hparams.log_wandb and batch_idx % self.hparams.log_frequency:
+        if self.hparams.log_wandb and batch_idx % self.hparams.log_frequency == 0:
             wandb.log(loss_dict)
         return loss_dict
         
     @classmethod
     def add_model_specific_args(cls, parser):
         parser.add_argument("--input_frozen_hidden_states", default=False, type=util.str2bool)
-        parser.add_argument("--fixed_prior", default=True, type=util.str2bool)
+        parser.add_argument("--prior_type", default='fixed_data', type=str)
         parser.add_argument("--pos_mse_weight", default=1, type=float)
         parser.add_argument("--pos_kl_weight", default=1, type=float)
         parser.add_argument("--pos_nll_weight", default=0, type=float)
