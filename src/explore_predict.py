@@ -94,8 +94,8 @@ def compare_validation_predictions(model, predictions, checkpoint_path):
 if __name__ == '__main__':
     
     # Decoder
-    model_folder = './experiments/decoder_for_baseline/no_auxiliary_short'
-    checkpoint_name = 'ckpts_epoch=19-decoder_loss=0.066.ckpt'
+    model_folder = './experiments/normal/phase_2/base'
+    checkpoint_name = 'ckpts_epoch=9-val_English_decoder_loss=53.077.ckpt'
     model_type = BaseVAE
     
     checkpoint_path = os.path.join(model_folder, 'ckpts', checkpoint_name)
@@ -110,6 +110,6 @@ if __name__ == '__main__':
     # else:
     #     raw_predictions = torch.load(predictions_path)
     
-    lang = 'Dutch'
+    lang = 'English'
     raw_logits = get_all_base_vae_predictions(model, lang)
     compare_validation_predictions(model, {lang : raw_logits}, checkpoint_path)

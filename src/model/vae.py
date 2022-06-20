@@ -145,8 +145,9 @@ class VAE(BaseVAE):
         hs = self.calculate_hidden_states(batch)
         log_pi_t = self.calculate_log_pi_t(batch, hs)
         
-        # Labeled case
-        if current_language == constant.SUPERVISED_LANGUAGE:
+        # Labeled case,
+        # but if training on English alone, then English should be treated as unsupervised.
+        if current_language == constant.SUPERVISED_LANGUAGE and len(self.hparams.trn_langs) > 1:
             loss, _ = BaseVAE.__call__(self, batch)
             loss['encoder_loss'] = self.calculate_encoder_loss(batch, log_pi_t)
             loss['decoder_loss'] = self.hparams.pos_mse_weight * loss['MSE']
