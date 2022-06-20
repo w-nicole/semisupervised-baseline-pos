@@ -38,6 +38,6 @@ python3 src/train_encoder.py \
     --max_epochs $ep \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
-    --exp_name encoder_for_baseline \
+    --exp_name normal_phase_1 \
     --gpus 1
     

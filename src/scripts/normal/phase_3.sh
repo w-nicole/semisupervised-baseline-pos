@@ -5,43 +5,41 @@
 
 # Changes made relative to original:
 # Changed to python3, directory where this is run
-# Simplified `example/surprising-mbert/evaluate.sh` script due to no need for non-POS evaluation by removing irrelevant code, options, etc.
+# Simplified `example/surprising-mbert/evaluate.sh` script due to no need for non-POS evaluation by removing irrelevant code, variables, options, etc.
 # Added hyperparameters that yield best performance on English val for last layer finetuned BERT.
 # Edited arguments.
-# Edited to run the train_encoder script instead and generate different encoder.
+# Edited to run the train_decoder script instead.
 
 seed=${1:-42}
 model=${2:-"bert-base-multilingual-cased"}
 task=${3:-"udpos"}
-freeze=${4:-"12"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${5:-"./experiments/debug_large_capacity"}
+save_path=${4:-"./experiments/phase_3_variants"}
 
-langs=(English)
-data_path=${6:-"../ud-treebanks-v1.4"}
+src="English Dutch"
+tgt="English Dutch"
+data_path=${5:-"../ud-treebanks-v1.4"}
+decoder_checkpoint=${6:-"./experiments/decoder_for_baseline/version_1/ckpts/ckpts_epoch=15-val_English_decoder_loss=66.886.ckpt"}
 
 bs=16
-ep=3
-lr=5e-5
+ep=10
+lr=1e-2
 
-python3 src/train_encoder.py \
+python3 src/train_decoder.py \
     --seed "$seed" \
     --task "$task" \
     --data_dir "$data_path" \
-    --trn_langs "${langs[@]}" \
-    --val_langs "${langs[@]}" \
+    --trn_langs $src \
+    --val_langs $tgt \
     --pretrain "$model" \
     --batch_size $bs \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
-    --subset_ratio 0.01 \
     --default_save_path "$save_path" \
-    --exp_name phase_1 \
+    --exp_name normal \
     --gpus 1 \
-    --encoder_hidden_layers 1 \
-    --encoder_hidden_size 256 \
-    --encoder_nonlinear_first "n"
-    
+    --decoder_checkpoint "$decoder_checkpoint" \
+    --prior_type "optimized_data"
