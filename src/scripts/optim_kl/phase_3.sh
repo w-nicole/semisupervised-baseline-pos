@@ -44,7 +44,7 @@ python3 src/train_decoder.py \
     --default_save_path "$save_path" \
     --exp_name phase_3 \
     --gpus 1 \
-    --prior_type "fixed_data" \
+    --prior_type "optimized_data" \
     --decoder_checkpoint "$decoder_checkpoint" \
     
     

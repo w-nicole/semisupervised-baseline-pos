@@ -24,7 +24,7 @@ data_path=${5:-"../ud-treebanks-v1.4"}
 
 bs=16
 ep=15
-lr=1e-2
+lr=1e-3
 
 python3 src/train_decoder.py \
     --seed "$seed" \
