@@ -9,6 +9,7 @@
 # Added one layer MLP.
 # Removed irrelevant code, such as outdated classes, imports, etc.
 # and simplified to remove unused parameter choices.
+# Added support for mBERT initialization for upper baselines.
 
 from copy import deepcopy
 from typing import List, Optional, Type
@@ -44,6 +45,14 @@ class Tagger(Model):
         self._nb_labels: Optional[int] = None
         self._nb_labels = UdPOS.nb_labels()
         self._metric = POSMetric()
+        
+        # Reinitialize mBERT alone if given a checkpoint.
+        if self.hparams.mbert_checkpoint:
+            print('got to here!')
+            encoder = Tagger.load_from_checkpoint(self.hparams.mbert_checkpoint)
+            self.freeze_bert(encoder)
+            self.model = encoder.model            
+        # end additions
 
         self.id2label = UdPOS.get_labels()
 
@@ -127,6 +136,9 @@ class Tagger(Model):
         parser.add_argument("--encoder_hidden_layers", default=-1, type=int)
         parser.add_argument("--encoder_hidden_size", default=0, type=int)
         parser.add_argument("--encoder_nonlinear_first", default=False, type=util.str2bool)
+        
+        # No path indicates a fresh initialization from huggingface
+        parser.add_argument("--mbert_checkpoint", default="", type=str)
         return parser
         
     # Below: added
