@@ -80,7 +80,8 @@ class Model(pl.LightningModule):
             assert len(not_supervised_languages) == 1
             self.target_language = not_supervised_languages[0]
         else:
-            self.target_language = constant.SUPERVISED_LANGUAGE
+            self.target_language = constant.SUPERVISED_LANGUAGE if len(self.hparams.val_langs) != 1 else self.hparams.val_langs[0]
+            print(self.target_language)
         # end additions
 
         self.tokenizer = AutoTokenizer.from_pretrained(hparams.pretrain)
