@@ -328,7 +328,9 @@ class Model(pl.LightningModule):
         return loss_dict
         
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.step_helper(batch, "val")
+        loss_dict = self.step_helper(batch, "val")
+        self.log("val_loss", loss_dict[self.optimization_loss])
+        return loss_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         return self.step_helper(batch, "tst")
@@ -474,8 +476,9 @@ class Model(pl.LightningModule):
             )
             interval = "step"
         elif self.hparams.schedule == Schedule.reduceOnPlateau:
+            # Below: changed min_lr to 1e-10
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, factor=0.5, patience=0, min_lr=1e-6, mode="min"
+                optimizer, factor=0.5, patience=0, min_lr=1e-10, mode="min"
             )
             interval = "epoch"
         else:
@@ -485,7 +488,8 @@ class Model(pl.LightningModule):
         self.scheduler = scheduler
         scheduler_dict = {"scheduler": scheduler, "interval": interval}
         if self.hparams.schedule == Schedule.reduceOnPlateau:
-            scheduler_dict["monitor"] = "val_loss"
+            print('Temporarily changed key in base.py configure_optimizers to loss for overfitting!')
+            scheduler_dict["monitor"] = 'loss' # 'val_loss'
         return [optimizer], [scheduler_dict]
 
     def _get_signature(self, params: Dict):

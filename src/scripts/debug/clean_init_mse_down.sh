@@ -16,14 +16,14 @@ task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${4:-"./experiments/debug"}
+save_path=${4:-"./experiments/debug/clean_init_mse_down"}
 
-src="English Dutch"
-tgt="English Dutch"
+src="Dutch"
+tgt="Dutch"
 data_path=${5:-"../ud-treebanks-v1.4"}
 
 bs=16
-ep=15
+ep=100
 lr=1e-2
 
 python3 src/train_decoder.py \
@@ -39,9 +39,10 @@ python3 src/train_decoder.py \
     --warmup_portion 0.1 \
     --pos_nll_weight 0 \
     --pos_kl_weight 0 \
-    --subset_ratio 0.01 \
+    --subset_ratio 0.0001 \
     --default_save_path "$save_path" \
-    --exp_name clean_init_mse_down \
+    --exp_name added_zeroing_padding \
     --gpus 1 \
-    --prior_type "optimized_data"
-    
+    --prior_type "optimized_data" \
+    --schedule "reduceOnPlateau" \
+    --patience 100

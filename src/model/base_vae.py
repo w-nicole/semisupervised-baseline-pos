@@ -61,7 +61,10 @@ class BaseVAE(Tagger):
             else:
                 self.auxiliary_mu = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
                 self.auxiliary_sigma = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
-        self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
+            
+        #self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
+        print('Correct back in BaseVAE.__init__: currently is a single layer')
+        self.decoder_linear = torch.nn.Linear(self.nb_labels, self.hidden_size)
         self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_decoder_loss'
         self._comparison_mode = 'min'
         self.optimization_loss = 'decoder_loss'
@@ -97,8 +100,10 @@ class BaseVAE(Tagger):
         
     def calculate_decoder(self, pi_t):
         # "Reshape" the bidirectional concatenation
-        mu_t_raw, _ = self.decoder_lstm(pi_t)
-        mu_t = self.decoder_linear(mu_t_raw)
+        #mu_t_raw, _ = self.decoder_lstm(pi_t)
+        #mu_t = self.decoder_linear(mu_t_raw)
+        print('Restore calculate_decoder in BaseVAE to ues lstm')
+        mu_t = self.decoder_linear(pi_t)
         return mu_t
         
     def calculate_decoder_loss(self, batch, hs, pi_t):
@@ -129,6 +134,7 @@ class BaseVAE(Tagger):
     def masked_mse_loss(self, batch, padded_mu_t, padded_hs):
         clean_mu_t = self.set_padded_to_zero(batch, padded_mu_t)
         clean_hs = self.set_padded_to_zero(batch, padded_hs)
+        
         clean_difference_sum = torch.sum(torch.pow(clean_mu_t - clean_hs, 2))
         assert clean_hs.shape == clean_mu_t.shape, f'hs: {clean_hs.shape}, mu_t: {clean_mu_t.shape}'
         non_pad_mask = self.get_non_pad_label_mask(batch, clean_hs)

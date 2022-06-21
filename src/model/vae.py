@@ -56,6 +56,7 @@ class VAE(BaseVAE):
             self.freeze_bert(encoder)
             self.model = encoder.model
             self.classifier = encoder.classifier
+    
         smoothed_english_prior = self.get_smoothed_english_prior()
         if self.hparams.prior_type == 'optimized_data':
             self.prior_param = torch.nn.ParameterDict()
@@ -161,8 +162,12 @@ class VAE(BaseVAE):
             noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
             
             unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
-            pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
-            loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
+            raw_pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
+            pi_tilde_t = self.set_padded_to_zero(batch, raw_pi_tilde_t)
+            
+            print('Temporarily omitting noise in VAE optimization!')
+            loss = self.calculate_decoder_loss(batch, hs, log_pi_t)
+            #loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
                 
             loss['loss_KL'] = self.calculate_kl_against_prior(batch, log_pi_t, self.loss_prior)
             loss['decoder_loss'] = self.hparams.pos_mse_weight * loss['MSE'] + self.hparams.pos_kl_weight * loss['loss_KL']
