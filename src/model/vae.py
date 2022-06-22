@@ -131,7 +131,6 @@ class VAE(BaseVAE):
         kl_divergence_mean = torch.sum(pre_sum) / torch.sum(mask)
         return kl_divergence_mean
         
-        
     def calculate_encoder_loss(self, batch, log_pi_t):
         encoder_loss = F.nll_loss(
             log_pi_t.view(-1, self.nb_labels),
@@ -142,17 +141,12 @@ class VAE(BaseVAE):
     
         
     def __call__(self, batch):
-        
+        self.model.eval()
         current_language = batch['lang'][0]
         assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
        
         hs = self.calculate_hidden_states(batch)
-        # if not (hs.shape[0] == 1 and hs.shape[1] == 1):
-        #     import pdb; pdb.set_trace()
-        debug_shape = (1, 768)
-        hs = torch.stack([util.apply_gpu(torch.ones(debug_shape)), util.apply_gpu(2 * torch.ones(debug_shape))], dim = 0)
-        batch['labels'] = torch.Tensor([[1], [2]]).cuda().long()
-        
+
         log_pi_t = self.calculate_log_pi_t(batch, hs)
         
         # Labeled case,

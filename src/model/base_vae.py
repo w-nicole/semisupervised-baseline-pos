@@ -102,8 +102,9 @@ class BaseVAE(Tagger):
         # "Reshape" the bidirectional concatenation
         #mu_t_raw, _ = self.decoder_lstm(pi_t)
         #mu_t = self.decoder_linear(mu_t_raw)
-        print('Restore calculate_decoder in BaseVAE to ues lstm')
-        mu_t = self.decoder_linear(pi_t)
+        print('Inputting directly into a decoder linear, need to organize or restore lstm.')
+        print('Added a softmax onto the decoder linear! Need to take it out to correspond to the original model.')
+        mu_t = self.decoder_linear(F.softmax(pi_t, dim=-1))
         return mu_t
         
     def calculate_decoder_loss(self, batch, hs, pi_t):
@@ -144,6 +145,7 @@ class BaseVAE(Tagger):
         
     # Changed from forward.
     def __call__(self, batch):
+        self.model.eval()
         # Padded true_pi_t will be all 0.
         assert len(batch['labels'].shape) == 2
         true_pi_t = F.one_hot(

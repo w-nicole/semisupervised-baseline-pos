@@ -16,14 +16,14 @@ task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${4:-"./experiments/debug/clean_init_mse_down_single"}
+save_path=${4:-"./experiments/debug/clean_init_mse/single_token"}
 
 src="Dutch"
 tgt="Dutch"
 data_path=${5:-"../ud-debug"}
 
 bs=16
-ep=1000
+ep=600
 lr=1e-3
 
 python3 src/train_decoder.py \
@@ -40,9 +40,9 @@ python3 src/train_decoder.py \
     --pos_nll_weight 0 \
     --pos_kl_weight 0 \
     --default_save_path "$save_path" \
-    --exp_name one_overwrite_token \
+    --exp_name no_overwrite \
     --gpus 1 \
     --prior_type "optimized_data" \
     --schedule "reduceOnPlateau" \
-    --max_trn_len 18 \
-    --patience 300
+    --max_trn_len 1 \
+    --patience $ep
