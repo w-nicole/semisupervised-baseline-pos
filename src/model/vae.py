@@ -150,10 +150,8 @@ class VAE(BaseVAE):
         # if not (hs.shape[0] == 1 and hs.shape[1] == 1):
         #     import pdb; pdb.set_trace()
         debug_shape = (1, 768)
-        # hs = torch.stack([util.apply_gpu(torch.ones(debug_shape)), util.apply_gpu(2 * torch.ones(debug_shape))], dim = 0)
-        # batch['labels'] = torch.Tensor([[1], [2]]).cuda().long()
-        hs = util.apply_gpu(torch.ones(debug_shape)).unsqueeze(0)
-        batch['labels'] = torch.Tensor([[1]]).cuda().long()
+        hs = torch.stack([util.apply_gpu(torch.ones(debug_shape)), util.apply_gpu(2 * torch.ones(debug_shape))], dim = 0)
+        batch['labels'] = torch.Tensor([[1], [2]]).cuda().long()
         
         log_pi_t = self.calculate_log_pi_t(batch, hs)
         
