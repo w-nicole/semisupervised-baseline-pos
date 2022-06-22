@@ -102,8 +102,6 @@ class BaseVAE(Tagger):
         # "Reshape" the bidirectional concatenation
         #mu_t_raw, _ = self.decoder_lstm(pi_t)
         #mu_t = self.decoder_linear(mu_t_raw)
-        print('Inputting directly into a decoder linear, need to organize or restore lstm.')
-        print('Added a softmax onto the decoder linear! Need to take it out to correspond to the original model.')
         mu_t = self.decoder_linear(F.softmax(pi_t, dim=-1))
         return mu_t
         
