@@ -68,7 +68,7 @@ class TaggingDataset(Dataset):
                 continue
             sub_tokens = self.tokenizer.convert_tokens_to_ids(sub_tokens)
 
-            if len(token_ids) + len(sub_tokens) >= self.max_len:
+            if len(token_ids) + len(sub_tokens) > self.max_len:
                 # don't add more token
                 break
 

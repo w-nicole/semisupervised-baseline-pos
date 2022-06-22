@@ -105,7 +105,9 @@ class VAE(BaseVAE):
             return loss
         
     def calculate_log_pi_t(self, batch, hs):
-        logits = self.classifier(hs)
+        try:
+            logits = self.classifier(hs)
+        except: import pdb; pdb.set_trace()
         raw_log_pi_t = F.log_softmax(logits, dim=-1)
         # Need to remove the log_pi_t that do not correspond to real inputs
         log_pi_t = self.set_padded_to_zero(batch, raw_log_pi_t)
@@ -140,10 +142,19 @@ class VAE(BaseVAE):
     
         
     def __call__(self, batch):
+        
         current_language = batch['lang'][0]
         assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
        
         hs = self.calculate_hidden_states(batch)
+        # if not (hs.shape[0] == 1 and hs.shape[1] == 1):
+        #     import pdb; pdb.set_trace()
+        debug_shape = (1, 768)
+        # hs = torch.stack([util.apply_gpu(torch.ones(debug_shape)), util.apply_gpu(2 * torch.ones(debug_shape))], dim = 0)
+        # batch['labels'] = torch.Tensor([[1], [2]]).cuda().long()
+        hs = util.apply_gpu(torch.ones(debug_shape)).unsqueeze(0)
+        batch['labels'] = torch.Tensor([[1]]).cuda().long()
+        
         log_pi_t = self.calculate_log_pi_t(batch, hs)
         
         # Labeled case,

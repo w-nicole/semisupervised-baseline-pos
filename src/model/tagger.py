@@ -156,7 +156,7 @@ class Tagger(Model):
 
     def get_label_counts(self, lang, split):
         numerical_labels = self.get_labels(lang, split)    
-        counts = torch.bincount(numerical_labels, minlength = int(torch.max(numerical_labels)))
+        counts = torch.bincount(numerical_labels, minlength = self.nb_labels)
         return counts
         
     def get_dataset(self, lang, split):

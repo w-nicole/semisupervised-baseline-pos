@@ -4,6 +4,7 @@
 import torch
 import torch.nn.utils
 import constant
+import util
 
 def average_embeddings(padded_embeddings, padded_start_indices, padded_end_indices):
     """
@@ -38,7 +39,7 @@ def average_embeddings(padded_embeddings, padded_start_indices, padded_end_indic
         assert start_indices.shape[0] == len(clean_averaged_embeddings)
        
         # Handle empty sentence examples
-        to_use_embeddings = clean_averaged_embeddings if clean_averaged_embeddings else [torch.zeros((padded_embeddings.shape[-1],))]
+        to_use_embeddings = clean_averaged_embeddings if clean_averaged_embeddings else [util.apply_gpu(torch.zeros((padded_embeddings.shape[-1],)))]
         sentence_embeddings = torch.stack(to_use_embeddings, axis = 0)
 
         all_clean_averaged_embeddings.append(sentence_embeddings)
