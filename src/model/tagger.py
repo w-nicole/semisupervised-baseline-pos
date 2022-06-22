@@ -46,12 +46,19 @@ class Tagger(Model):
         self._nb_labels = UdPOS.nb_labels()
         self._metric = POSMetric()
         
+        self.is_frozen_mbert = self.hparams.mbert_checkpoint or self.hparams.freeze_mbert
+        assert not ((not self.hparams.freeze_mbert) and self.hparams.mbert_checkpoint),\
+            "Mutually exclusive. mbert_checkpoint always automatically frozen."
+            
         # Reinitialize mBERT alone if given a checkpoint.
         if self.hparams.mbert_checkpoint:
             print('got to here!')
             encoder = Tagger.load_from_checkpoint(self.hparams.mbert_checkpoint)
             self.freeze_bert(encoder)
-            self.model = encoder.model            
+            self.model = encoder.model        
+        
+         if self.hparams.freeze_mbert:
+            self.freeze_bert(self.model)
         # end additions
 
         self.id2label = UdPOS.get_labels()
@@ -88,6 +95,9 @@ class Tagger(Model):
         return batch
 
     def __call__(self, batch):
+        if self.is_frozen_mbert:
+            self.model.eval()
+            
         batch = self.preprocess_batch(batch)
         # Updated call arguments
         hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
@@ -136,7 +146,7 @@ class Tagger(Model):
         parser.add_argument("--encoder_hidden_layers", default=-1, type=int)
         parser.add_argument("--encoder_hidden_size", default=0, type=int)
         parser.add_argument("--encoder_nonlinear_first", default=False, type=util.str2bool)
-        
+        parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
         # No path indicates a fresh initialization from huggingface
         parser.add_argument("--mbert_checkpoint", default="", type=str)
         return parser
