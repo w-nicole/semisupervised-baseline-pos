@@ -150,7 +150,15 @@ class Model(pl.LightningModule):
             util.freeze(self.model.embeddings)
         else:
             raise ValueError("Unsupported model")
-
+            
+    def freeze_bert(self, encoder):
+        # Adapted from model/base.py by taking the logic to freeze up to and including a certain layer
+        # Doesn't freeze the pooler, but encode_sent excludes pooler correctly.
+        encoder.freeze_embeddings()
+        for index in range(encoder.model.config.num_hidden_layers + 1):
+            encoder.freeze_layer(index)
+        # end adapted
+        
     def freeze_layer(self, layer):
         if isinstance(self.model, transformers.BertModel) or isinstance(
             self.model, transformers.RobertaModel
@@ -489,7 +497,7 @@ class Model(pl.LightningModule):
         scheduler_dict = {"scheduler": scheduler, "interval": interval}
         if self.hparams.schedule == Schedule.reduceOnPlateau:
             print('Temporarily changed key in base.py configure_optimizers to loss for overfitting!')
-            scheduler_dict["monitor"] = 'loss' # 'val_loss'
+            scheduler_dict["monitor"] = 'val_loss'
         return [optimizer], [scheduler_dict]
 
     def _get_signature(self, params: Dict):

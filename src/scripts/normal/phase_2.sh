@@ -22,11 +22,11 @@ src="English"
 tgt="English Dutch"
 
 data_path=${5:-"../ud-treebanks-v1.4"}
-encoder_checkpoint=${6:-"./experiments/normal_phase_1/version_0/ckpts/ckpts_epoch=2-val_English_acc=97.057.ckpt"}
+encoder_checkpoint=${6:-"./experiments/normal/phase_1/version_0/ckpts/ckpts_epoch=2-val_English_acc=96.807.ckpt"}
 
 bs=16
-ep=10
-lr=1e-2
+ep=5
+lr=1e-1
 
 python3 src/train_decoder_base.py \
     --seed "$seed" \

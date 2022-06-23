@@ -57,8 +57,8 @@ class Tagger(Model):
             self.freeze_bert(encoder)
             self.model = encoder.model        
         
-         if self.hparams.freeze_mbert:
-            self.freeze_bert(self.model)
+        if self.hparams.freeze_mbert:
+            self.freeze_bert(self)
         # end additions
 
         self.id2label = UdPOS.get_labels()

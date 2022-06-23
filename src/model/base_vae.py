@@ -68,14 +68,6 @@ class BaseVAE(Tagger):
         self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_decoder_loss'
         self._comparison_mode = 'min'
         self.optimization_loss = 'decoder_loss'
-
-    def freeze_bert(self, encoder):
-        # Adapted from model/base.py by taking the logic to freeze up to and including a certain layer
-        # Doesn't freeze the pooler, but encode_sent excludes pooler correctly.
-        encoder.freeze_embeddings()
-        for index in range(encoder.model.config.num_hidden_layers + 1):
-            encoder.freeze_layer(index)
-        # end adapted
     
     # Below forward-related methods:
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,

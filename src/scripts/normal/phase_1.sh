@@ -39,6 +39,6 @@ python3 src/train_encoder.py \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
     --exp_name phase_1 \
-    --freeze_bert "n" \
+    --freeze_mbert "n" \
     --gpus 1
     
