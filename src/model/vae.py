@@ -20,8 +20,6 @@ from enumeration import Split
 import constant
 import util
 
-import random
-
 import wandb
 
 class VAE(BaseVAE):
@@ -137,16 +135,10 @@ class VAE(BaseVAE):
 
         log_pi_t = self.calculate_log_pi_t(batch, hs)
         
-        pure_english_case = (len(self.hparams.trn_langs) == 1) and (self.hparams.trn_langs[0] == constant.SUPERVISED_LANGUAGE)
-        if pure_english_case and current_language == constant.SUPERVISED_LANGUAGE:
-            # Equal proportions (roughly, by batch) of two English cases
-            determiner = random.random() < 0.5
-        else:
-            # Labeled case,
-            # but if training on English alone, then English should be treated as unsupervised.
-            determiner = current_language == constant.SUPERVISED_LANGUAGE and len(self.hparams.trn_langs) > 1
-            
-        if determiner:
+        # Labeled case,
+        # but if training on English alone, then English should be treated as unsupervised.
+        # Temporarily always treat English as supervised for one of the baselines
+        if current_language == constant.SUPERVISED_LANGUAGE: #and len(self.hparams.trn_langs) > 1:
             loss, _ = BaseVAE.__call__(self, batch)
             loss['encoder_loss'] = self.calculate_encoder_loss(batch, log_pi_t)
             loss['vae_loss'] = loss['decoder_loss'] + self.hparams.pos_nll_weight * loss['encoder_loss']
