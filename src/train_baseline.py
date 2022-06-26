@@ -94,6 +94,13 @@ def main(hparams):
         amp_backend=hparams.amp_backend,
         amp_level=hparams.amp_level,
     )
+    
+    # added the below
+    if hparams.log_wandb:
+        wandb.init(name=util.get_model_path_section(trainer, hparams))
+        wandb.watch(model, log_freq=1)
+    # end additions
+    
     if hparams.do_train:
         trainer.fit(model)
 

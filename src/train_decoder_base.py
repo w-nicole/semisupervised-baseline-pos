@@ -32,12 +32,6 @@ def main(hparams):
     else:
         assert os.path.isfile(hparams.checkpoint)
         model = BaseVAE.load_from_checkpoint(hparams.checkpoint)
-        
-    # added the below
-    if hparams.log_wandb:
-        wandb.init()
-        wandb.watch(model, log_freq=1)
-    # end additions
 
     os.makedirs(
         os.path.join(hparams.default_save_path, hparams.exp_name), exist_ok=True
@@ -103,6 +97,14 @@ def main(hparams):
         amp_backend=hparams.amp_backend,
         amp_level=hparams.amp_level,
     )
+    
+    # added the below
+    if hparams.log_wandb:
+        name = util.get_model_path_section(trainer, hparams)
+        wandb.init(name=name)
+        wandb.watch(model, log_freq=1)
+    # end additions
+    
     if hparams.do_train:
         trainer.fit(model)
     # Added below if/printout

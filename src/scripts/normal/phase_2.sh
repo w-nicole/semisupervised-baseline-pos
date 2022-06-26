@@ -16,7 +16,7 @@ task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${4:-"./experiments/normal"}
+save_path=${4:-"./experiments/normal/phase_2"}
 
 src="English"
 tgt="English Dutch"
@@ -25,7 +25,7 @@ data_path=${5:-"../ud-treebanks-v1.4"}
 encoder_checkpoint=${6:-"./experiments/normal/phase_1/version_0/ckpts/ckpts_epoch=2-val_English_acc=96.807.ckpt"}
 
 bs=16
-ep=5
+ep=10
 lr=1e-1
 
 python3 src/train_decoder_base.py \
@@ -40,6 +40,6 @@ python3 src/train_decoder_base.py \
     --max_epochs $ep \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
-    --exp_name phase_2 \
+    --exp_name linear_lr_"$lr"_bs"$bs" \
     --gpus 1 \
     --encoder_checkpoint "$encoder_checkpoint"

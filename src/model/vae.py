@@ -34,17 +34,15 @@ class VAE(BaseVAE):
         clean_initialization = (not self.hparams.decoder_checkpoint) and (not self.hparams.encoder_checkpoint)
         # Default argument is empty, meaning initialize from random
         if self.hparams.decoder_checkpoint:
-            decoder = BaseVAE.load_from_checkpoint(self.hparams.decoder_checkpoint)
+            base_decoder = BaseVAE.load_from_checkpoint(self.hparams.decoder_checkpoint)
             # Overwrite all of the attributes
-            self.model = decoder.model
-            self.classifier = decoder.classifier
-            self.decoder_lstm = decoder.decoder_lstm
-            self.decoder_linear = decoder.decoder_linear
-            if decoder.use_auxiliary:
+            self.model = base_decoder.model
+            self.classifier = base_decoder.classifier
+            self.decoder = base_decoder.decoder
+            if base_decoder.use_auxiliary:
                 if not self.hparams.auxiliary_size > 0: print('Overriding hparams on VAE level, always following BaseVAE architecture.')
-                self.use_auxiliary = decoder.use_auxiliary
-                self.auxiliary_mu = decoder.auxiliary_mu
-                self.auxiliary_sigma = decoder.auxiliary_sigma
+                self.use_auxiliary = base_decoder.use_auxiliary
+                self.auxiliary_mu = base_decoder.auxiliary_mu
         if self.hparams.input_frozen_hidden_states or clean_initialization:
             # initialize/overwrite self.model with huggingface BERT
             if self.hparams.encoder_checkpoint:
@@ -77,6 +75,7 @@ class VAE(BaseVAE):
         assert self.target_language != constant.SUPERVISED_LANGUAGE
         self._selection_criterion = f'val_{self.target_language}_acc'
         self._comparison_mode = 'max'
+        self.optimization_loss = 'vae_loss'
         
     def get_uniform_prior(self):
         number_of_labels = len(constant.UD_POS_LABELS)
@@ -114,23 +113,12 @@ class VAE(BaseVAE):
         return log_pi_t
         
     def calculate_kl_against_prior(self, batch, log_q_given_input, raw_prior):
-        
         prior = raw_prior.softmax(dim=-1)
         repeated_prior = prior.reshape(1, 1, prior.shape[0]).repeat(log_q_given_input.shape[0], log_q_given_input.shape[1], 1)
         raw_pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
-        assert len(raw_pre_sum.shape) == 3, raw_pre_sum.shape
-        mask = self.get_non_pad_label_mask(batch, raw_pre_sum)
-        pre_sum = self.set_padded_to_zero(batch, raw_pre_sum)
-        assert pre_sum.shape == log_q_given_input.shape, f'pre_sum: {pre_sum.shape}, q_given_input: {log_q_given_input.shape}'
-        
-        kl_divergence = torch.sum(pre_sum, axis = -1)
-        if not torch.all(kl_divergence >= 0):
-            import pdb; pdb.set_trace()
-        assert len(kl_divergence.shape) == 2, kl_divergence.shape
-        
-        kl_divergence_mean = torch.sum(pre_sum) / torch.sum(mask)
+        kl_divergence_mean = self.calculate_clean_metric(batch, raw_pre_sum)
         return kl_divergence_mean
-        
+
     def calculate_encoder_loss(self, batch, log_pi_t):
         encoder_loss = F.nll_loss(
             log_pi_t.view(-1, self.nb_labels),
@@ -139,7 +127,6 @@ class VAE(BaseVAE):
         )
         return encoder_loss
     
-        
     def __call__(self, batch):
         self.model.eval()
         current_language = batch['lang'][0]
@@ -154,10 +141,7 @@ class VAE(BaseVAE):
         if current_language == constant.SUPERVISED_LANGUAGE and len(self.hparams.trn_langs) > 1:
             loss, _ = BaseVAE.__call__(self, batch)
             loss['encoder_loss'] = self.calculate_encoder_loss(batch, log_pi_t)
-            loss['decoder_loss'] = self.hparams.pos_mse_weight * loss['MSE']
-            if self.use_auxiliary:
-                loss['decoder_loss'] += self.hparams.auxiliary_kl_weight * loss['auxiliary_KL']
-            loss['decoder_loss'] += (self.hparams.pos_nll_weight * loss['encoder_loss'])
+            loss['vae_loss'] = loss['decoder_loss'] + self.hparams.pos_nll_weight * loss['encoder_loss']
         else:
             # Unlabeled case
             # Calculate predicted mean
@@ -168,20 +152,18 @@ class VAE(BaseVAE):
             raw_pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
             pi_tilde_t = self.set_padded_to_zero(batch, raw_pi_tilde_t)
             
-            print('Temporarily disabled noise')
-            loss = self.calculate_decoder_loss(batch, hs, log_pi_t)
-            #loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
+            loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
                 
             loss['loss_KL'] = self.calculate_kl_against_prior(batch, log_pi_t, self.loss_prior)
-            loss['decoder_loss'] = self.hparams.pos_mse_weight * loss['MSE'] + self.hparams.pos_kl_weight * loss['loss_KL']
+            loss['decoder_loss'] = self.hparams.mse_weight * loss['MSE'] + self.hparams.pos_kl_weight * loss['loss_KL']
             if self.use_auxiliary:
                 loss['decoder_loss'] += self.hparams.auxiliary_kl_weight * loss['auxiliary_KL']
-
+            loss['vae_loss'] = loss['decoder_loss']
             with torch.no_grad():
                 loss['encoder_loss'] = self.calculate_encoder_loss(batch, log_pi_t)
         
         loss.update(self.calculate_reference_kl_loss(batch, log_pi_t))    
-        if math.isnan(loss['decoder_loss']): import pdb; pdb.set_trace()
+        if math.isnan(loss['vae_loss']): import pdb; pdb.set_trace()
         self.add_language_to_batch_output(loss, batch)
         return loss, log_pi_t
         
@@ -192,7 +174,6 @@ class VAE(BaseVAE):
     def add_model_specific_args(cls, parser):
         parser.add_argument("--input_frozen_hidden_states", default=False, type=util.str2bool)
         parser.add_argument("--prior_type", default='fixed_data', type=str)
-        parser.add_argument("--pos_mse_weight", default=1, type=float)
         parser.add_argument("--pos_kl_weight", default=1, type=float)
         parser.add_argument("--pos_nll_weight", default=0, type=float)
         return parser

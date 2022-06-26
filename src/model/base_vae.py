@@ -35,13 +35,23 @@ class BaseVAE(Tagger):
         # Overwrite base and tagger attributes so that encode_sent will function correctly
         self.model = encoder.model
         self.classifier = encoder.classifier
-        self.decoder_lstm = torch.nn.LSTM(
-                input_size = len(constant.UD_POS_LABELS) + self.hparams.auxiliary_size,
-                hidden_size = self.hidden_size, # Encoder input size
-                num_layers = self.hparams.decoder_number_of_layers,
-                bidirectional = True
-        )
+        
         self.use_auxiliary = self.hparams.auxiliary_size > 0
+        if (self.hparams.auxiliary_hidden_layers >= 0 or self.hparams.auxiliary_hidden_size > 0) and not self.use_auxiliary:
+            assert False, "Specified sizes for auxiliary network but did not activate usage: set auxiliary_size > 0"
+        
+        decoder_input_size = self.nb_labels + (self.hparams.auxiliary_size if self.use_auxiliary else 0)
+        if self.hparams.decoder_hidden_layers >= 0:
+            self.decoder = self.build_mlp(
+                decoder_input_size,
+                self.hidden_size,
+                self.hparams.decoder_hidden_size,
+                self.hparams.decoder_hidden_layers,
+                nonlinear_first = False
+            )            
+        else:
+            self.decoder = torch.nn.Linear(decoder_input_size, self.hidden_size)
+        
         if self.use_auxiliary:
             if self.hparams.auxiliary_hidden_layers >= 0:
                 self.auxiliary_mu = self.build_mlp(
@@ -51,20 +61,9 @@ class BaseVAE(Tagger):
                     self.hparams.auxiliary_hidden_layers,
                     self.hparams.auxiliary_nonlinear_first
                 )
-                self.auxiliary_sigma = self.build_mlp(
-                    self.hidden_size,
-                    self.hparams.auxiliary_size,
-                    self.hparams.auxiliary_hidden_size,
-                    self.hparams.auxiliary_hidden_layers,
-                    self.hparams.auxiliary_nonlinear_first
-                )
             else:
                 self.auxiliary_mu = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
-                self.auxiliary_sigma = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
-            
-        #self.decoder_linear = torch.nn.Linear(2 * self.hidden_size, self.hidden_size)
-        print('Correct back in BaseVAE.__init__: currently is a single layer')
-        self.decoder_linear = torch.nn.Linear(self.nb_labels, self.hidden_size)
+
         self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_decoder_loss'
         self._comparison_mode = 'min'
         self.optimization_loss = 'decoder_loss'
@@ -91,17 +90,14 @@ class BaseVAE(Tagger):
         return clean_tensor
         
     def calculate_decoder(self, pi_t):
-        # "Reshape" the bidirectional concatenation
-        #mu_t_raw, _ = self.decoder_lstm(pi_t)
-        #mu_t = self.decoder_linear(mu_t_raw)
-        mu_t = self.decoder_linear(F.softmax(pi_t, dim=-1))
+        mu_t = self.decoder(F.softmax(pi_t, dim=-1))
         return mu_t
         
     def calculate_decoder_loss(self, batch, hs, pi_t):
         loss = {}
         if self.use_auxiliary:
             auxiliary_mu_t = self.auxiliary_mu(hs)
-            auxiliary_sigma_t = torch.exp(self.auxiliary_sigma(hs))
+            auxiliary_sigma_t = util.apply_gpu(torch.ones(auxiliary_mu_t.shape)) * self.hparams.auxiliary_sigma
 
             auxiliary_distribution = Normal(auxiliary_mu_t, auxiliary_sigma_t)
             auxiliary = auxiliary_distribution.rsample()
@@ -109,7 +105,9 @@ class BaseVAE(Tagger):
                 util.apply_gpu(torch.zeros(auxiliary.shape)),
                 util.apply_gpu(torch.ones(auxiliary.shape))
             )
-            loss['auxiliary_KL'] = torch.distributions.kl.kl_divergence(auxiliary_distribution, normal_prior).sum(dim=-1).mean()
+            
+            raw_kl_pre_sum = torch.distributions.kl.kl_divergence(auxiliary_distribution, normal_prior)
+            loss['auxiliary_KL'] = self.calculate_clean_metric(batch, raw_kl_pre_sum)
             decoder_input = torch.cat([pi_t, auxiliary], dim = -1)
         else:
             decoder_input = pi_t
@@ -117,20 +115,27 @@ class BaseVAE(Tagger):
         mu_t = self.calculate_decoder(decoder_input)
 
         loss['MSE'] = self.masked_mse_loss(batch, mu_t, hs)
-        auxiliary_loss = self.hparams.auxiliary_kl_weight * loss['auxiliary_KL'] if self.use_auxiliary else 0
-        loss['decoder_loss'] = loss['MSE'] + auxiliary_loss
+        auxiliary_loss = (self.hparams.auxiliary_kl_weight * loss['auxiliary_KL']) if self.use_auxiliary else 0
+        loss['decoder_loss'] = self.hparams.mse_weight * loss['MSE'] + auxiliary_loss
 
         return loss
         
-    def masked_mse_loss(self, batch, padded_mu_t, padded_hs):
-        clean_mu_t = self.set_padded_to_zero(batch, padded_mu_t)
-        clean_hs = self.set_padded_to_zero(batch, padded_hs)
+    def calculate_clean_metric(self, batch, raw_metric_tensor):
+        non_pad_mask = self.get_non_pad_label_mask(batch, raw_metric_tensor)
+        clean_metric_tensor = self.set_padded_to_zero(batch, raw_metric_tensor)
         
-        clean_difference_sum = torch.sum(torch.pow(clean_mu_t - clean_hs, 2))
-        assert clean_hs.shape == clean_mu_t.shape, f'hs: {clean_hs.shape}, mu_t: {clean_mu_t.shape}'
-        non_pad_mask = self.get_non_pad_label_mask(batch, clean_hs)
+        # for KL divergence, but MSE doesn't trigger false positive
+        metric_per_position = torch.sum(clean_metric_tensor, axis = -1)
+        if not torch.all(metric_per_position >= 0):
+            import pdb; pdb.set_trace()
+            
         # Adjust scale to NOT divide out the hidden size representation.
-        clean_mse = clean_difference_sum / torch.sum(non_pad_mask) * padded_hs.shape[-1]
+        clean_average = torch.sum(clean_metric_tensor) / torch.sum(non_pad_mask) * raw_metric_tensor.shape[-1]
+        return clean_average
+        
+    def masked_mse_loss(self, batch, padded_mu_t, padded_hs):
+        raw_metric_tensor = torch.pow(padded_mu_t - padded_hs, 2)
+        clean_mse = self.calculate_clean_metric(batch, raw_metric_tensor)
         return clean_mse
         
     # Changed from forward.
@@ -145,7 +150,6 @@ class BaseVAE(Tagger):
         
         hs = self.calculate_hidden_states(batch)
         loss = self.calculate_decoder_loss(batch, hs, true_pi_t)
-        loss['decoder_loss'] = loss['MSE']
 
         self.add_language_to_batch_output(loss, batch)
         return loss, None
@@ -160,7 +164,9 @@ class BaseVAE(Tagger):
         
     @classmethod
     def add_model_specific_args(cls, parser):
-        parser.add_argument("--auxiliary_kl_weight", default=1, type=int)
+        parser.add_argument("--mse_weight", default=1, type=float)
+        parser.add_argument("--auxiliary_sigma", default=1, type=float)
+        parser.add_argument("--auxiliary_kl_weight", default=1, type=float)
         # auxiliary_hidden_layers = -1 indicates no hidden layers (single linear layer).
         parser.add_argument("--auxiliary_hidden_layers", default=-1, type=int)
         parser.add_argument("--auxiliary_hidden_size", default=0, type=int)
@@ -168,5 +174,7 @@ class BaseVAE(Tagger):
         parser.add_argument("--auxiliary_size", default=0, type=int)
         parser.add_argument("--auxiliary_nonlinear_first", default=False, type=util.str2bool)
         parser.add_argument("--temperature", default=1, type=float)
-        parser.add_argument("--decoder_number_of_layers", default=1, type=int)
+        # -1 indicates a linear decoder.
+        parser.add_argument("--decoder_hidden_layers", default=-1, type=int)
+        parser.add_argument("--decoder_hidden_size", default=0, type=int)
         return parser

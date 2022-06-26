@@ -75,13 +75,16 @@ class Model(pl.LightningModule):
         one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
         valid_val_langs = len(self.hparams.val_langs) == 1 or one_other_target_language
         assert valid_val_langs, "target_language/checkpoint was designed with at most 1 non-source language."
-        if one_other_target_language:
+        # Phase 2 and 3: If it's a pure optimization, then use that language
+        if len(self.hparams.trn_langs) == 1:
+            self.target_language = self.hparams.trn_langs[0]
+        # Otherwise, if mixed training, favor the non-English language
+        elif one_other_target_language:
             not_supervised_languages = list(filter(lambda lang : lang != constant.SUPERVISED_LANGUAGE, self.hparams.val_langs))
             assert len(not_supervised_languages) == 1
             self.target_language = not_supervised_languages[0]
         else:
-            self.target_language = constant.SUPERVISED_LANGUAGE if len(self.hparams.val_langs) != 1 else self.hparams.val_langs[0]
-            print(self.target_language)
+            assert False, "This case for checkpoint language was not considered."
         # end additions
 
         self.tokenizer = AutoTokenizer.from_pretrained(hparams.pretrain)
@@ -319,6 +322,12 @@ class Model(pl.LightningModule):
         self.metrics[prefix][lang].add(batch["labels"], encoder_outputs)
         return loss_dict
     
+    def log_wandb(self, phase, lang, loss_dict):
+        assert len(lang) > 0, lang
+        if self.hparams.log_wandb and not self.trainer.sanity_checking:
+            loss_dict = { f"train_{lang[0]}_{metric}" : value for metric, value in loss_dict.items() }
+            wandb.log(loss_dict)
+        
     # Moved from model/tagger.py.    
     # Changed below to be compatible with later models' loss_dict
     # and to do accuracy updates and wandb logging
@@ -331,13 +340,15 @@ class Model(pl.LightningModule):
             for key, value in loss_dict.items()
         }
         self.log("loss", loss_dict['loss'])
-        if self.hparams.log_wandb and batch_idx % self.hparams.log_frequency == 0:
-            wandb.log(loss_dict)
+        if batch_idx % self.hparams.log_frequency == 0:
+            self.log_wandb('train', batch['lang'], loss_dict)
         return loss_dict
         
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         loss_dict = self.step_helper(batch, "val")
         self.log("val_loss", loss_dict[self.optimization_loss])
+        if batch_idx % self.hparams.log_frequency == 0:
+            self.log_wandb('val', batch['lang'], loss_dict)
         return loss_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
@@ -359,6 +370,7 @@ class Model(pl.LightningModule):
         self, outputs: List[List[Dict[str, Tensor]]], langs: List[str], phase: str
     ):
         aver_result = defaultdict(list)
+        lang_metrics = defaultdict(list)
         for lang, output in zip(langs, outputs):
             for key in output[0]:
                 if 'lang' in key or not isinstance(output[0][key], torch.Tensor): continue
@@ -367,7 +379,7 @@ class Model(pl.LightningModule):
                 except: import pdb; pdb.set_trace()
                 logging_key = f'{phase}_{lang}_{key}'
                 self.log(logging_key, mean_val)
-
+                
                 raw_key = logging_key.replace(f"{lang}_", "")
                 aver_result[raw_key].append(mean_val)
 
@@ -382,6 +394,9 @@ class Model(pl.LightningModule):
             for key, val in metric.get_metric().items():
                 self.log(f"{phase}_{lang}_{key}", val)
                 aver_metric[key].append(val)
+                logging_key = f"{phase}_{lang}_{key}"
+                if self.hparams.log_wandb and not self.trainer.sanity_checking:
+                    wandb.log({logging_key : val})
 
         for key, vals in aver_metric.items():
             self.log(f"{phase}_{key}", torch.stack(vals).mean())
@@ -496,8 +511,8 @@ class Model(pl.LightningModule):
         self.scheduler = scheduler
         scheduler_dict = {"scheduler": scheduler, "interval": interval}
         if self.hparams.schedule == Schedule.reduceOnPlateau:
-            print('Temporarily changed key in base.py configure_optimizers to loss for overfitting!')
-            scheduler_dict["monitor"] = 'val_loss'
+            # Changed below to match new keys.
+            scheduler_dict["monitor"] = f'val_{self.target_language}_{self.optimization_loss}'
         return [optimizer], [scheduler_dict]
 
     def _get_signature(self, params: Dict):
