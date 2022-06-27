@@ -325,7 +325,7 @@ class Model(pl.LightningModule):
     def log_wandb(self, phase, lang, loss_dict):
         assert len(lang) > 0, lang
         if self.hparams.log_wandb and not self.trainer.sanity_checking:
-            loss_dict = { f"train_{lang[0]}_{metric}" : value for metric, value in loss_dict.items() }
+            loss_dict = { f"{phase}_{lang[0]}_{metric}" : value for metric, value in loss_dict.items() }
             wandb.log(loss_dict)
         
     # Moved from model/tagger.py.    
