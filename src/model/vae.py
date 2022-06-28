@@ -43,11 +43,13 @@ class VAE(BaseVAE):
                 if not self.hparams.auxiliary_size > 0: print('Overriding hparams on VAE level, always following BaseVAE architecture.')
                 self.use_auxiliary = base_decoder.use_auxiliary
                 self.auxiliary_mu = base_decoder.auxiliary_mu
+            self.concat_all_hidden_states = base_decoder.concat_all_hidden_states
         if self.hparams.input_frozen_hidden_states or clean_initialization:
             # initialize/overwrite self.model with huggingface BERT
             if self.hparams.encoder_checkpoint:
                 assert self.hparams.encoder_checkpoint == decoder.hparams.encoder_checkpoint, "Inconsistent classifier possible with input_frozen_hidden_states=True."
                 encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
+                self.concat_all_hidden_states = encoder.concat_all_hidden_states
             else:
                 encoder = Tagger(self.hparams)
             encoder.model = self.build_model(self.hparams.pretrain)

@@ -71,6 +71,7 @@ class Model(pl.LightningModule):
         
         # Added the following
         self.run_phases = [Split.train, 'val', Split.test]
+        self.concat_all_hidden_states = self.hparams.concat_all_hidden_states
         
         one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
         valid_val_langs = len(self.hparams.val_langs) == 1 or one_other_target_language
@@ -183,7 +184,7 @@ class Model(pl.LightningModule):
         ):
             # Added logic for concatenated embeddings
             single_layer_size = self.model.config.hidden_size
-            if not self.hparams.concat_all_hidden_states:
+            if not self.concat_all_hidden_states:
                 return single_layer_size
             else:
                 return single_layer_size * (self.model.config.num_hidden_layers + 1)
@@ -305,7 +306,7 @@ class Model(pl.LightningModule):
     def process_feature(self, hidden_states: List[Tensor]):
         if not isinstance(hidden_states, tuple):
             assert len(hidden_states[0].shape) == 2, hidden_states.shape[0]
-        if self.hparams.concat_all_hidden_states:
+        if self.concat_all_hidden_states:
             hs: Tensor = torch.cat(hidden_states, dim = -1)
         else:
             hs = hidden_states[self.hparams.feature_layer]

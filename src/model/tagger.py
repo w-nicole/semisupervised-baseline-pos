@@ -55,7 +55,8 @@ class Tagger(Model):
             print('got to here!')
             encoder = Tagger.load_from_checkpoint(self.hparams.mbert_checkpoint)
             self.freeze_bert(encoder)
-            self.model = encoder.model        
+            self.model = encoder.model
+            self.concat_all_hidden_states = encoder.concat_all_hidden_states
         
         if self.hparams.freeze_mbert:
             self.freeze_bert(self)

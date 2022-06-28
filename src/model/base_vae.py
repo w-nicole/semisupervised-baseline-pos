@@ -35,6 +35,7 @@ class BaseVAE(Tagger):
         # Overwrite base and tagger attributes so that encode_sent will function correctly
         self.model = encoder.model
         self.classifier = encoder.classifier
+        self.concat_all_hidden_states = encoder.concat_all_hidden_states
         
         self.use_auxiliary = self.hparams.auxiliary_size > 0
         if (self.hparams.auxiliary_hidden_layers >= 0 or self.hparams.auxiliary_hidden_size > 0) and not self.use_auxiliary:
