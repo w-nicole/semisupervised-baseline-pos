@@ -102,6 +102,10 @@ class Model(pl.LightningModule):
         # Changed below line
         self.projector = None
         self.dropout = InputVariationalDropout(hparams.input_dropout)
+        
+        # Added below
+        self.iteration_step = 0
+        self.train_step = defaultdict(int)
 
     # Changed below to accept pretrain as argument so classmethod works.
     @classmethod
@@ -320,14 +324,28 @@ class Model(pl.LightningModule):
             len(set(batch["lang"])) == 1
         ), "batch should contain only one language"
         lang = batch["lang"][0]
-        self.metrics[prefix][lang].add(batch["labels"], encoder_outputs)
+        metric_args = (batch["labels"], encoder_outputs)
+        self.metrics[prefix][lang].add(*metric_args)
+        
+        batch_metric = deepcopy(self._metric)
+        batch_metric.add(*metric_args)
+        loss_dict[f'{prefix}_{lang}_acc'] = batch_metric.get_metric()['acc']
         return loss_dict
     
-    def log_wandb(self, phase, lang, loss_dict):
-        assert len(lang) > 0, lang
+    def log_wandb(self, phase, lang_list, loss_dict, batch_idx, dataloader_idx):
+        assert len(set(lang_list)) == 1, lang_list
+        lang = lang_list[0]
+        modifier = f'{phase}_{lang}'
         if self.hparams.log_wandb and not self.trainer.sanity_checking:
-            loss_dict = { f"{phase}_{lang[0]}_{metric}" : value for metric, value in loss_dict.items() }
-            wandb.log(loss_dict)
+            loss_dict = { (f"{modifier}_{metric}" if not metric.startswith(modifier) else metric) : value for metric, value in loss_dict.items() }
+            if phase == 'val':
+                batch_step = batch_idx + self.current_epoch * len(self.trainer.val_dataloaders[dataloader_idx])
+            else:
+                batch_step = self.train_step[lang]
+                self.train_step[lang] += 1
+            loss_dict.update({'epoch' : self.current_epoch, f'{phase}_{lang}_batch' : batch_step})
+            wandb.log(loss_dict, step = self.iteration_step)
+            self.iteration_step += 1 # Increment once per iteration
         
     # Moved from model/tagger.py.    
     # Changed below to be compatible with later models' loss_dict
@@ -342,14 +360,14 @@ class Model(pl.LightningModule):
         }
         self.log("loss", loss_dict['loss'])
         if batch_idx % self.hparams.log_frequency == 0:
-            self.log_wandb('train', batch['lang'], loss_dict)
+            self.log_wandb('train', batch['lang'], loss_dict, batch_idx, None)
         return loss_dict
         
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         loss_dict = self.step_helper(batch, "val")
         self.log("val_loss", loss_dict[self.optimization_loss])
         if batch_idx % self.hparams.log_frequency == 0:
-            self.log_wandb('val', batch['lang'], loss_dict)
+            self.log_wandb('val', batch['lang'], loss_dict, batch_idx, dataloader_idx)
         return loss_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
@@ -395,9 +413,6 @@ class Model(pl.LightningModule):
             for key, val in metric.get_metric().items():
                 self.log(f"{phase}_{lang}_{key}", val)
                 aver_metric[key].append(val)
-                logging_key = f"{phase}_{lang}_{key}"
-                if self.hparams.log_wandb and not self.trainer.sanity_checking:
-                    wandb.log({logging_key : val})
 
         for key, vals in aver_metric.items():
             self.log(f"{phase}_{key}", torch.stack(vals).mean())

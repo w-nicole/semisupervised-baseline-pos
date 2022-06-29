@@ -174,7 +174,6 @@ class BaseVAE(Tagger):
         # auxiliary_size = 0 indicates no auxiliary vector.
         parser.add_argument("--auxiliary_size", default=0, type=int)
         parser.add_argument("--auxiliary_nonlinear_first", default=False, type=util.str2bool)
-        parser.add_argument("--temperature", default=1, type=float)
         # -1 indicates a linear decoder.
         parser.add_argument("--decoder_hidden_layers", default=-1, type=int)
         parser.add_argument("--decoder_hidden_size", default=0, type=int)

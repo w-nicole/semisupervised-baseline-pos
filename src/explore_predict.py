@@ -22,9 +22,10 @@ def get_all_predictions(model, langs):
             print('Skipping English because it is a labeled case.')
             continue
         trainer = pl.Trainer(gpus = 1 if torch.cuda.is_available() else 0)
-        model.reset_metrics()
+        model.reset_metrics('val')
         dataloader = model.get_dataloader(lang, Split.dev)
         predictions[lang] = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
+        predictions[lang] = [output[1] for output in predictions[lang]]
     return predictions
     
 def get_analysis_path(checkpoint_path):
@@ -48,7 +49,7 @@ def clean_padded_labels_and_predictions(model, lang, padded_predictions):
     mask_for_non_pad = (padded_labels != metric.LABEL_PAD_ID)
     labels = padded_labels[mask_for_non_pad]
     outputs = padded_predictions[mask_for_non_pad]
-    return outputs, labels
+    return outputs.cpu(), labels.cpu()
     
 def get_base_vae_prediction(model, batch):
     inputs = { key : util.apply_gpu(item) if isinstance(item, torch.Tensor) else item for key, item in batch.items() }
@@ -56,13 +57,11 @@ def get_base_vae_prediction(model, batch):
     return logits
   
 def get_all_base_vae_predictions(model, lang):
-
     model = util.apply_gpu(model)
     dataloader = model.get_dataloader(lang, Split.dev)
     raw_logits = []
     for batch in dataloader:
         raw_logits.append(util.remove_from_gpu(get_base_vae_prediction(model, batch).reshape(-1, model.nb_labels)))
-    raw_logits = torch.cat(raw_logits, dim = 0)
     return raw_logits
     
 def compare_validation_predictions(model, predictions, checkpoint_path):
@@ -73,7 +72,8 @@ def compare_validation_predictions(model, predictions, checkpoint_path):
         os.makedirs(analysis_path)
     
     for lang, raw_logits in predictions.items():
-        flat_predicted_labels = torch.argmax(raw_logits.softmax(dim=-1), dim=-1)
+        logits = torch.cat(list(map(lambda tensor : tensor.reshape(-1, tensor.shape[-1]), raw_logits)), dim = 0)
+        flat_predicted_labels = torch.argmax(logits.softmax(dim=-1), dim=-1)
         outputs, labels = clean_padded_labels_and_predictions(model, lang, flat_predicted_labels)
 
         plt.hist(outputs.numpy().flat, alpha = 0.5, color = 'r', label = 'predicted')
@@ -94,22 +94,21 @@ def compare_validation_predictions(model, predictions, checkpoint_path):
 if __name__ == '__main__':
     
     # Decoder
-    model_folder = './experiments/normal/phase_2/base'
-    checkpoint_name = 'ckpts_epoch=9-val_English_decoder_loss=53.077.ckpt'
-    model_type = BaseVAE
+    model_folder = './experiments/frozen_concat/phase_1/lr_5e-5_size_0_layers_-1/version_0/'
+    checkpoint_name = 'ckpts_epoch=3-val_English_acc=95.332.ckpt'
+    model_type = Tagger
     
     checkpoint_path = os.path.join(model_folder, 'ckpts', checkpoint_name)
     model = model_type.load_from_checkpoint(checkpoint_path)
     
-    # analysis_path = get_analysis_path(checkpoint_path)
-    # predictions_path = os.path.join(analysis_path, 'predictions.pt')
-    # if not os.path.exists(predictions_path):
-    #     raw_predictions = get_all_predictions(model, ['Dutch'])
-    #     analysis_path = get_analysis_path(checkpoint_path)
-    #     torch.save(raw_predictions, predictions_path)
-    # else:
-    #     raw_predictions = torch.load(predictions_path)
+    analysis_path = get_analysis_path(checkpoint_path)
+    if not os.path.exists(analysis_path): os.makedirs(analysis_path)
+    predictions_path = os.path.join(analysis_path, 'predictions.pt')
+    if True:#not os.path.exists(predictions_path):
+        raw_predictions = get_all_predictions(model, ['Dutch'])
+        analysis_path = get_analysis_path(checkpoint_path)
+        torch.save(raw_predictions, predictions_path)
+    else:
+        raw_predictions = torch.load(predictions_path)
     
-    lang = 'English'
-    raw_logits = get_all_base_vae_predictions(model, lang)
-    compare_validation_predictions(model, {lang : raw_logits}, checkpoint_path)
+    compare_validation_predictions(model, raw_predictions, checkpoint_path)

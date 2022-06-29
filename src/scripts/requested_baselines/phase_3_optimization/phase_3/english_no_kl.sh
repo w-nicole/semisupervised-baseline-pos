@@ -25,7 +25,7 @@ data_path=${5:-"../ud-treebanks-v1.4"}
 decoder_checkpoint=${6:-"./experiments/normal/phase_2/linear_lr_1e-1_bs16/version_0/ckpts/ckpts_epoch=9-val_English_decoder_loss=54.691.ckpt"}
 
 bs=16
-ep=300
+ep=10
 lr=1e-3
 
 python3 src/train_decoder.py \

@@ -149,7 +149,7 @@ class VAE(BaseVAE):
             # Calculate predicted mean
             uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
             noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
-            
+        
             unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
             raw_pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
             pi_tilde_t = self.set_padded_to_zero(batch, raw_pi_tilde_t)
@@ -174,6 +174,8 @@ class VAE(BaseVAE):
         
     @classmethod
     def add_model_specific_args(cls, parser):
+        parser.add_argument("--temperature", default=1, type=float)
+        parser.add_argument("--temperature_decay", default=1, type=float)
         parser.add_argument("--input_frozen_hidden_states", default=False, type=util.str2bool)
         parser.add_argument("--prior_type", default='fixed_data', type=str)
         parser.add_argument("--pos_kl_weight", default=1, type=float)
