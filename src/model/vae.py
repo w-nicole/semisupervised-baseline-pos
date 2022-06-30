@@ -140,13 +140,14 @@ class VAE(BaseVAE):
         # Labeled case,
         # but if training on English alone, then English should be treated as unsupervised.
         # Temporarily always treat English as supervised for one of the baselines
-        if current_language == constant.SUPERVISED_LANGUAGE: #and len(self.hparams.trn_langs) > 1:
+        if current_language == constant.SUPERVISED_LANGUAGE and len(self.hparams.trn_langs) > 1:
             loss, _ = BaseVAE.__call__(self, batch)
             loss['encoder_loss'] = self.calculate_encoder_loss(batch, log_pi_t)
             loss['vae_loss'] = loss['decoder_loss'] + self.hparams.pos_nll_weight * loss['encoder_loss']
         else:
             # Unlabeled case
             # Calculate predicted mean
+            assert self.hparams.temperature == 0.1
             uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
             noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
         
@@ -174,8 +175,9 @@ class VAE(BaseVAE):
         
     @classmethod
     def add_model_specific_args(cls, parser):
-        parser.add_argument("--temperature", default=1, type=float)
-        parser.add_argument("--temperature_decay", default=1, type=float)
+        parser.add_argument("--temperature", default=0.1, type=float)
+        #parser.add_argument("--initial_temperature", default=0.1, type=float)
+        #parser.add_argument("--temperature_decay", default=0.8, type=float)
         parser.add_argument("--input_frozen_hidden_states", default=False, type=util.str2bool)
         parser.add_argument("--prior_type", default='fixed_data', type=str)
         parser.add_argument("--pos_kl_weight", default=1, type=float)

@@ -58,21 +58,33 @@ if __name__ == '__main__':
             with torch.no_grad():
                 for batch in dataloader:
                     # Adapted from `tagger.py`, rearranged/updated the arguments
-                    hs = model.encode_sent(
-                        util.apply_gpu(batch["sent"]),
-                        util.apply_gpu(batch["start_indices"]),
-                        util.apply_gpu(batch["end_indices"]),
-                        batch["lang"]
-                    )
+                    
+                    if isinstance(model, Tagger):
+                        hs = model.encode_sent(
+                            util.apply_gpu(batch["sent"]),
+                            util.apply_gpu(batch["start_indices"]),
+                            util.apply_gpu(batch["end_indices"]),
+                            batch["lang"]
+                        )
+                    else:
+                        assert isinstance(model, BaseVAE)
+                        hs = model.
+                        
                     # end taken
                     flat_states = hs.reshape(-1, hs.shape[-1])
                     all_states.append(flat_states.cpu())
                     all_padded_labels.append(batch['labels'].flatten().cpu())
-                    
-                # Compute MSE per class
+                
                 states = torch.cat(all_states, dim = 0)
                 padded_labels = torch.cat(all_padded_labels, dim = 0)
                 
+                # Compute centroids
+                
+                centroids = {}
+                for label in range(model.nb_labels):
+                    centroids[label] = 
+                
+                # Compute MSE per class
                 average_distances = {}
                 all_distances = 0
                 for label in range(model.nb_labels):
