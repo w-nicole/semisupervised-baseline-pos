@@ -34,8 +34,8 @@ remove_from_gpu = lambda tensor : tensor.detach().cpu() if torch.cuda.is_availab
 # end additions
 
 # added below method
-def get_model_path_section(trainer, hparams):
-    return '/'.join([hparams.default_save_path.replace('./experiments/', ''), hparams.exp_name, f'version_{trainer.logger.version}'])
+def get_model_path_section(version, hparams):
+    return '/'.join([hparams.default_save_path.replace('./experiments/', ''), hparams.exp_name, f'version_{version}'])
 
 # Reorganized below from the train file in original.
 def add_training_arguments(parser):
@@ -76,6 +76,9 @@ def add_training_arguments(parser):
     # below: added
     parser.add_argument("--log_wandb", default=True, type=str2bool)
     parser.add_argument("--log_frequency", default=1, type=int)
+    parser.add_argument("--wandb_group", default="", type=str)
+    parser.add_argument("--wandb_job_type", default="", type=str)
+     
     # end added
     return parser
     

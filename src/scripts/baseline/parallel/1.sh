@@ -1,9 +1,0 @@
-#!/bin/bash
-./src/scripts/baseline/Dutch/mbert_pretrained/encoder_pretrained/decoder_pretrained/kl_1.sh
-./src/scripts/baseline/Dutch/mbert_pretrained/encoder_pretrained/decoder_random/kl_0.1.sh
-./src/scripts/baseline/Dutch/mbert_pretrained/encoder_pretrained/decoder_random/kl_0.sh
-./src/scripts/baseline/Dutch/mbert_pretrained/encoder_pretrained/decoder_random/kl_1.sh
-./src/scripts/baseline/English/mbert_fixed/encoder_pretrained/decoder_pretrained/kl_0.1.sh
-./src/scripts/baseline/English/mbert_fixed/encoder_pretrained/decoder_pretrained/kl_0.sh
-./src/scripts/baseline/English/mbert_fixed/encoder_pretrained/decoder_pretrained/kl_1.sh
-./src/scripts/baseline/English/mbert_fixed/encoder_pretrained/decoder_random/kl_0.1.sh

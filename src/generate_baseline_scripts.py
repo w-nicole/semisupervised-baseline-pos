@@ -12,7 +12,7 @@ import json
 import subprocess
 import os
 
-def create_single_script(language, mbert_type, encoder_type, decoder_type, kl, exp_name):
+def create_single_script(language, mbert_type, encoder_type, decoder_type, kl, exp_name, group, job_type):
     content_path = './script_content'
     with open(os.path.join(content_path, 'paths.json'), 'r') as f:
         paths = json.load(f)
@@ -52,6 +52,8 @@ def create_single_script(language, mbert_type, encoder_type, decoder_type, kl, e
         f'\npython3 src/train_decoder.py \\'
     ]
     command_variables = [
+        f'\t--wandb_group {group}',
+        f'\t--wandb_job_type {job_type}'
         f'\t--data_dir "$data_path"',
         f'\t--trn_langs $train_languages',
         f'\t--val_langs $val_languages',
@@ -90,11 +92,12 @@ if __name__ == '__main__':
         
     # Add the necessary languages
     exp_name = 'linear'
+    group = 'pure_baseline'
     for train_language in ['English', 'Dutch']:
         for mbert in ['fixed', 'pretrained']:
             for encoder in ['pretrained']:
                 for decoder in ['random', 'pretrained']:
                     for kl in [0, 0.1, 1]:
                         print(f'Processing: {train_language}, {mbert}, {encoder}, {decoder}, {kl}')
-                        create_single_script(train_language, mbert, encoder, decoder, kl, exp_name)
+                        create_single_script(train_language, mbert, encoder, decoder, kl, exp_name, group, train_language)
     

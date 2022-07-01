@@ -71,7 +71,7 @@ class VAE(BaseVAE):
             for lang, phase in self.metric_prior_arguments
         }
 
-        self._selection_criterion = f'val_{self.target_language}_acc'
+        self._selection_criterion = f'val_{self.target_language}_acc_epoch'
         self._comparison_mode = 'max'
         self.optimization_loss = 'vae_loss'
         

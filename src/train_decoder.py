@@ -4,6 +4,8 @@
 # Changes made relative to original:
 # Changed amp_level to be dependent on CPU to permit running on CPU.
 # Removed testing and irrelevant code (such as unsupported methods from the previous codebase)
+# Removed resume training, caching.
+# Added wandb code, removed Tensorboard.
 # Added imports as needed
 # Changed comparsion -> comparison_mode
 
@@ -23,23 +25,20 @@ import wandb
 # Added
 
 def main(hparams):
-    if hparams.cache_dataset:
-        if not hparams.cache_path:
-            hparams.cache_path = os.path.join(os.path.expanduser("~"), ".cache/clnlp")
-        os.makedirs(hparams.cache_path, exist_ok=True)
-
-    if hparams.do_train:
-        model = VAE(hparams)
-    else:
-        assert os.path.isfile(hparams.checkpoint)
-        model = VAE.load_from_checkpoint(hparams.checkpoint)
-
+    
+    model = VAE(hparams)
     os.makedirs(
         os.path.join(hparams.default_save_path, hparams.exp_name), exist_ok=True
     )
-    logger = pl.loggers.TensorBoardLogger(
-        hparams.default_save_path, name=hparams.exp_name, version=None
+    logger = pl.loggers.WandbLogger(
+        name = util.get_model_path_section(trainer, hparams)
+        save_dir = hparams.default_save_path, name=hparams.exp_name
     )
+    args = { 'name' : util.get_model_path_section(logger.version, hparams) }
+    if hparams.wandb_group: args['group'] = hparams.wandb_group
+    if hparams.wandb_job_type: args['job_type'] = hparams.wandb_job_type
+    wandb.init(**args)
+    logger.watch(model, log_freq=5)
 
     early_stopping = pl.callbacks.EarlyStopping(
         monitor=model.selection_criterion,
@@ -49,7 +48,6 @@ def main(hparams):
         mode=model.comparison_mode,
         strict=True,
     )
-
     base_dir = os.path.join(
         hparams.default_save_path,
         hparams.exp_name,
@@ -98,13 +96,6 @@ def main(hparams):
         amp_backend=hparams.amp_backend,
         amp_level=hparams.amp_level,
     )
-    
-    # added the below
-    if hparams.log_wandb:
-        wandb.init(name=util.get_model_path_section(trainer, hparams))
-        wandb.watch(model, log_freq=1)
-    # end additions
-    
     if hparams.do_train:
         trainer.fit(model)
     # Added below if/printout

@@ -10,6 +10,8 @@
 # Changed `comparsion` to `comparison_mode`
 # Added support for logging train metrics.
 # Changed forward to __call__.
+# Changed to log batchwise via wandb.
+# Changed to log separate batch accuracy metrics (for monitoring) and epoch metrics (for equivalent checkpointing).
 
 import hashlib
 import json
@@ -336,7 +338,7 @@ class Model(pl.LightningModule):
         assert len(set(lang_list)) == 1, lang_list
         lang = lang_list[0]
         modifier = f'{phase}_{lang}'
-        if self.hparams.log_wandb and not self.trainer.sanity_checking:
+        if not self.trainer.sanity_checking:
             loss_dict = { (f"{modifier}_{metric}" if not metric.startswith(modifier) else metric) : value for metric, value in loss_dict.items() }
             if phase == 'val':
                 batch_step = batch_idx + self.current_epoch * len(self.trainer.val_dataloaders[dataloader_idx])
@@ -379,31 +381,7 @@ class Model(pl.LightningModule):
         loss_dict.update({'lang' : batch['lang'][0]})
 
     # Changed training_epoch_end
-
-    # Changed all of below to account for language sorting and training logging,
-    # as well as updates to arguments to reflect meaning of parameters.
-    # Changes to logging for phase and language separation,
-    # and renaming of language-aggregated metrics to '_all' modifier,
-    # and ignoring added language differentiator from forward call
-    def aggregate_outputs(
-        self, outputs: List[List[Dict[str, Tensor]]], langs: List[str], phase: str
-    ):
-        aver_result = defaultdict(list)
-        lang_metrics = defaultdict(list)
-        for lang, output in zip(langs, outputs):
-            for key in output[0]:
-                if 'lang' in key or not isinstance(output[0][key], torch.Tensor): continue
-                try:
-                    mean_val = torch.stack([x[key] for x in output]).mean()
-                except: import pdb; pdb.set_trace()
-                logging_key = f'{phase}_{lang}_{key}'
-                self.log(logging_key, mean_val)
-                
-                raw_key = logging_key.replace(f"{lang}_", "")
-                aver_result[raw_key].append(mean_val)
-
-        for key, vals in aver_result.items():
-            self.log(f'{key}_all', torch.stack(vals).mean())
+    # Removed aggregate_outputs due to batch-wise logging
 
     # Changed prefix to phase to mark meaning
     def aggregate_metrics(self, langs: List[str], phase: str):
@@ -411,11 +389,11 @@ class Model(pl.LightningModule):
         for lang in langs:
             metric = self.metrics[phase][lang]
             for key, val in metric.get_metric().items():
-                self.log(f"{phase}_{lang}_{key}", val)
+                self.log(f"{phase}_{lang}_{key}_epoch", val)
                 aver_metric[key].append(val)
 
         for key, vals in aver_metric.items():
-            self.log(f"{phase}_{key}", torch.stack(vals).mean())
+            self.log(f"{phase}_{key}_epoch", torch.stack(vals).mean())
             
     # Added training_epoch_end, adapted from the epoch_end functions below,
     # which has output sorting by language
@@ -434,7 +412,6 @@ class Model(pl.LightningModule):
             for batch_index, batch_outputs in enumerate(lang_outputs):
                 if self.hparams.trn_langs[lang_index] != batch_outputs['lang']:
                     import pdb; pdb.set_trace()
-        self.aggregate_outputs(filtered_outputs, self.hparams.trn_langs, Split.train)
         self.aggregate_metrics(self.hparams.trn_langs, Split.train)
         return
 
@@ -442,14 +419,12 @@ class Model(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         if len(self.hparams.val_langs) == 1:
             outputs = [outputs]
-        self.aggregate_outputs(outputs, self.hparams.val_langs, 'val')
         self.aggregate_metrics(self.hparams.val_langs, 'val')
         return
 
     def test_epoch_end(self, outputs):
         if len(self.hparams.tst_langs) == 1:
             outputs = [outputs]
-        self.aggregate_outputs(outputs, self.hparams.tst_langs, Split.test)
         self.aggregate_metrics(self.hparams.tst_langs, Split.test)
         return
     # end changes

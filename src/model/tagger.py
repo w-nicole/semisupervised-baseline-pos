@@ -10,6 +10,7 @@
 # Removed irrelevant code, such as outdated classes, imports, etc.
 # and simplified to remove unused parameter choices.
 # Added support for mBERT initialization for upper baselines.
+# Changed to consider epoch metrics instead for equivalent checkpointing.
 
 from copy import deepcopy
 from typing import List, Optional, Type
