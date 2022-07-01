@@ -27,14 +27,13 @@ class BaseVAE(Tagger):
     
     def __init__(self, hparams):
         super(BaseVAE, self).__init__(hparams)
-        if self.hparams.encoder_checkpoint:
-            encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
+        if self.hparams.mbert_checkpoint:
+            encoder = Tagger.load_from_checkpoint(self.hparams.mbert_checkpoint)
         else:
             encoder = Tagger(self.hparams)
         self.freeze_bert(encoder)
         # Overwrite base and tagger attributes so that encode_sent will function correctly
         self.model = encoder.model
-        self.classifier = encoder.classifier
         self.concat_all_hidden_states = encoder.concat_all_hidden_states
         
         self.use_auxiliary = self.hparams.auxiliary_size > 0
@@ -165,6 +164,7 @@ class BaseVAE(Tagger):
         
     @classmethod
     def add_model_specific_args(cls, parser):
+        parser = Tagger.add_model_specific_args(parser)
         parser.add_argument("--mse_weight", default=1, type=float)
         parser.add_argument("--auxiliary_sigma", default=1, type=float)
         parser.add_argument("--auxiliary_kl_weight", default=1, type=float)

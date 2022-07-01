@@ -114,50 +114,9 @@ def main(hparams):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    # Added the below lines until the divider.
-    parser.add_argument("--encoder_checkpoint", default="", type=str)
-    ############################################################################
-    parser.add_argument("--exp_name", default="default", type=str)
-    parser.add_argument("--min_delta", default=1e-3, type=float)
-    parser.add_argument("--patience", default=10, type=int)
-    parser.add_argument("--save_last", default=False, type=util.str2bool)
-    parser.add_argument("--save_top_k", default=1, type=int)
-    parser.add_argument("--do_train", default=True, type=util.str2bool)
-    # Below: changed do_test to False as this script doesn't support testing.
-    parser.add_argument("--do_test", default=False, type=util.str2bool)
-    parser.add_argument("--checkpoint", default="", type=str)
-    parser.add_argument("--cache_dataset", default=False, type=util.str2bool)
-    parser.add_argument("--cache_path", default="", type=str)
-    ############################################################################
-    parser.add_argument("--default_save_path", default="./", type=str)
-    parser.add_argument("--gradient_clip_val", default=0, type=float)
-    parser.add_argument("--num_nodes", default=1, type=int)
-    parser.add_argument("--gpus", default=None, type=int)
-    parser.add_argument("--overfit_batches", default=0.0, type=float)
-    parser.add_argument("--track_grad_norm", default=-1, type=int)
-    parser.add_argument("--check_val_every_n_epoch", default=1, type=int)
-    parser.add_argument("--fast_dev_run", default=False, type=util.str2bool)
-    parser.add_argument("--accumulate_grad_batches", default=1, type=int)
-    parser.add_argument("--max_epochs", default=1000, type=int)
-    parser.add_argument("--min_epochs", default=1, type=int)
-    parser.add_argument("--max_steps", default=None, type=int)
-    parser.add_argument("--min_steps", default=None, type=int)
-    parser.add_argument("--val_check_interval", default=1.0, type=float)
-    parser.add_argument("--log_every_n_steps", default=10, type=int)
-    parser.add_argument("--accelerator", default=None, type=str)
-    parser.add_argument("--precision", default=32, type=int)
-    parser.add_argument("--resume_from_checkpoint", default=None, type=str)
-    parser.add_argument("--amp_backend", default="native", type=str)
-    # only used for non-native amp
-    # Changed to below to permit running on CPU
-    parser.add_argument("--amp_level", default="01" if torch.cuda.is_available() else None, type=str)
-    # below: added
-    parser.add_argument("--log_wandb", default=True, type=util.str2bool)
-    parser.add_argument("--log_frequency", default=1, type=int)
-    # end added
-    ############################################################################
-    parser = Model.add_model_specific_args(parser)
-    parser = Tagger.add_model_specific_args(parser)
+    # Moved below logic to util.py
+    parser = util.add_training_arguments(parser)
+    # Moved argument adding logic to model-internal
     parser = BaseVAE.add_model_specific_args(parser)
     hparams = parser.parse_args()
     # Added below line

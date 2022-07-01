@@ -63,17 +63,9 @@ class Tagger(Model):
         # end additions
 
         self.id2label = UdPOS.get_labels()
-
+        self.classifier = self.build_classifier()
         # Added/edited
-        if self.hparams.encoder_hidden_layers >= 0:
-            self.classifier = self.build_mlp(
-                self.hidden_size, self.nb_labels,
-                self.hparams.encoder_hidden_size, self.hparams.encoder_hidden_layers,
-                self.hparams.encoder_nonlinear_first
-            )
-        # end additions
-        else:
-            self.classifier = nn.Linear(self.hidden_size, self.nb_labels)
+        
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
@@ -86,6 +78,17 @@ class Tagger(Model):
         # optimization loss added
         self.optimization_loss = 'pos_nll_loss'
         self.setup_metrics()
+        
+    # Below: added
+    def build_classifier(self):
+        if self.hparams.encoder_hidden_layers >= 0:
+            return self.build_mlp(
+                self.hidden_size, self.nb_labels,
+                self.hparams.encoder_hidden_size, self.hparams.encoder_hidden_layers,
+                self.hparams.encoder_nonlinear_first
+            )
+        else:
+            return nn.Linear(self.hidden_size, self.nb_labels)
 
     @property
     def nb_labels(self):
@@ -144,6 +147,7 @@ class Tagger(Model):
     def add_model_specific_args(cls, parser):
         # Added these arguments, removed crf argument
         # -1 indicates a linear layer alone (no input layer).
+        parser = Model.add_model_specific_args(parser)
         parser.add_argument("--encoder_hidden_layers", default=-1, type=int)
         parser.add_argument("--encoder_hidden_size", default=0, type=int)
         parser.add_argument("--encoder_nonlinear_first", default=False, type=util.str2bool)

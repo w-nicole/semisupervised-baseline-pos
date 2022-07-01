@@ -659,7 +659,8 @@ class Model(pl.LightningModule):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
         # fmt: off
         # shared
-        parser.add_argument("--task", required=True, choices=Task().choices(), type=str)
+        # below: changed to default
+        parser.add_argument("--task", default="udpos", type=str)
         parser.add_argument("--data_dir", required=True, type=str)
         parser.add_argument("--trn_langs", required=True, nargs="+", type=str)
         parser.add_argument("--val_langs", required=True, nargs="+", type=str)
@@ -671,7 +672,8 @@ class Model(pl.LightningModule):
         parser.add_argument("--subset_seed", default=42, type=int)
         # Removed mix_sampling.
         # encoder
-        parser.add_argument("--pretrain", required=True, type=str)
+        # Changed pretrain to be set to default.
+        parser.add_argument("--pretrain", default="bert-base-multilingual-cased", type=str)
         parser.add_argument("--freeze_layer", default=-1, type=int)
         parser.add_argument("--feature_layer", default=-1, type=int)
         # Below additions

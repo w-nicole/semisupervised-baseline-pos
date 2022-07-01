@@ -31,31 +31,28 @@ class VAE(BaseVAE):
             'fixed_data',
             'fixed_uniform',
         }
-        clean_initialization = (not self.hparams.decoder_checkpoint) and (not self.hparams.encoder_checkpoint)
-        # Default argument is empty, meaning initialize from random
+        
+        # mBERT initialization, random decoder initialization is handled by BaseVAE initialization.
         if self.hparams.decoder_checkpoint:
             base_decoder = BaseVAE.load_from_checkpoint(self.hparams.decoder_checkpoint)
             # Overwrite all of the attributes
-            self.model = base_decoder.model
-            self.classifier = base_decoder.classifier
             self.decoder = base_decoder.decoder
             if base_decoder.use_auxiliary:
                 if not self.hparams.auxiliary_size > 0: print('Overriding hparams on VAE level, always following BaseVAE architecture.')
                 self.use_auxiliary = base_decoder.use_auxiliary
                 self.auxiliary_mu = base_decoder.auxiliary_mu
-            self.concat_all_hidden_states = base_decoder.concat_all_hidden_states
-        if self.hparams.input_frozen_hidden_states or clean_initialization:
-            # initialize/overwrite self.model with huggingface BERT
-            if self.hparams.encoder_checkpoint:
-                assert self.hparams.encoder_checkpoint == decoder.hparams.encoder_checkpoint, "Inconsistent classifier possible with input_frozen_hidden_states=True."
-                encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
-                self.concat_all_hidden_states = encoder.concat_all_hidden_states
-            else:
-                encoder = Tagger(self.hparams)
-            encoder.model = self.build_model(self.hparams.pretrain)
-            self.freeze_bert(encoder)
-            self.model = encoder.model
-            self.classifier = encoder.classifier
+            # Set by mBERT type (if that not present: argument), which is set by base internally.
+            assert base_decoder.concat_all_hidden_states == self.concat_all_hidden_states,\
+                f'Base decoder: {base_decoder.concat_all_hidden_states}, self: {self.concat_all_hidden_states}'
+            
+        # Encoder initialization
+        if self.hparams.encoder_checkpoint:
+            base_encoder = Tagger.load_from_checkpoint(self.hparams.encoder_checkpoint)
+            self.classifier = base_encoder.classifier
+            assert base_encoder.concat_all_hidden_states == self.concat_all_hidden_states,\
+                f'Base encoder: {base_encoder.concat_all_hidden_states}, self: {self.concat_all_hidden_states}'
+        else:
+            self.classifier = self.build_classifier()
     
         smoothed_english_prior = self.get_smoothed_english_prior()
         if self.hparams.prior_type == 'optimized_data':
@@ -105,9 +102,7 @@ class VAE(BaseVAE):
             return loss
         
     def calculate_log_pi_t(self, batch, hs):
-        try:
-            logits = self.classifier(hs)
-        except: import pdb; pdb.set_trace()
+        logits = self.classifier(hs)
         raw_log_pi_t = F.log_softmax(logits, dim=-1)
         # Need to remove the log_pi_t that do not correspond to real inputs
         log_pi_t = self.set_padded_to_zero(batch, raw_log_pi_t)
@@ -137,14 +132,16 @@ class VAE(BaseVAE):
         log_pi_t = self.calculate_log_pi_t(batch, hs)
         
         # Calculate predicted mean
-
-        uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
-        noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
-    
-        unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
-        raw_pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
-        pi_tilde_t = self.set_padded_to_zero(batch, raw_pi_tilde_t)
+        if self.hparams.pos_kl_weight > 0:
+            uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
+            noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
         
+            unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
+            raw_pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
+            pi_tilde_t = self.set_padded_to_zero(batch, raw_pi_tilde_t)
+        else:
+            pi_tilde_t = log_pi_t
+            
         loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
             
         loss['loss_KL'] = self.calculate_kl_against_prior(batch, log_pi_t, self.loss_prior)
@@ -165,14 +162,14 @@ class VAE(BaseVAE):
         
     @classmethod
     def add_model_specific_args(cls, parser):
-        parser.add_argument("--mBERT_checkpoint", default='', type=str)
+        parser = BaseVAE.add_model_specific_args(parser)
         parser.add_argument("--encoder_checkpoint", default='', type=str)
         parser.add_argument("--decoder_checkpoint", default='', type=str)
         parser.add_argument("--pos_kl_weight", default=1, type=float)
         
         parser.add_argument("--pos_nll_weight", default=0, type=float)
         parser.add_argument("--temperature", default=0.1, type=float)
-        parser.add_argument("--prior_type", default='fixed_data', type=str)
+        parser.add_argument("--prior_type", default='optimized_data', type=str)
         return parser
     
     def train_dataloader(self):

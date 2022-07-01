@@ -1,0 +1,11 @@
+{
+    "encoder" : {
+        "mbert_pretrained" : "./experiments/components/mbert_pretrained/encoder/linear/version_0/ckpts/ckpts_epoch=2-val_English_acc=96.807.ckpt",
+        "mbert_fixed" : "./experiments/components/mbert_fixed/encoder/linear/version_0/ckpts/ckpts_epoch=3-val_English_acc=95.332.ckpt"
+    },
+    "decoder" : {
+        "mbert_pretrained" : "./experiments/components/mbert_pretrained/decoder/linear/version_1/ckpts/ckpts_epoch=9-val_English_decoder_loss=63.230.ckpt",
+        "mbert_fixed" : "./experiments/components/mbert_fixed/decoder/linear/version_1/ckpts/ckpts_epoch=9-val_English_decoder_loss=3812.927.ckpt"
+    },
+    "data_path": "../ud-treebanks-v1.4"
+}

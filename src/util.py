@@ -37,6 +37,48 @@ remove_from_gpu = lambda tensor : tensor.detach().cpu() if torch.cuda.is_availab
 def get_model_path_section(trainer, hparams):
     return '/'.join([hparams.default_save_path.replace('./experiments/', ''), hparams.exp_name, f'version_{trainer.logger.version}'])
 
+# Reorganized below from the train file in original.
+def add_training_arguments(parser):
+    parser.add_argument("--exp_name", default="default", type=str)
+    parser.add_argument("--min_delta", default=1e-3, type=float)
+    parser.add_argument("--patience", default=10, type=int)
+    parser.add_argument("--save_last", default=False, type=str2bool)
+    parser.add_argument("--save_top_k", default=1, type=int)
+    parser.add_argument("--do_train", default=True, type=str2bool)
+    # Below: changed do_test to False as this script doesn't support testing.
+    parser.add_argument("--do_test", default=False, type=str2bool)
+    parser.add_argument("--checkpoint", default="", type=str)
+    parser.add_argument("--cache_dataset", default=False, type=str2bool)
+    parser.add_argument("--cache_path", default="", type=str)
+    ############################################################################
+    parser.add_argument("--default_save_path", default="./", type=str)
+    parser.add_argument("--gradient_clip_val", default=0, type=float)
+    parser.add_argument("--num_nodes", default=1, type=int)
+    parser.add_argument("--gpus", default=None, type=int)
+    parser.add_argument("--overfit_batches", default=0.0, type=float)
+    parser.add_argument("--track_grad_norm", default=-1, type=int)
+    parser.add_argument("--check_val_every_n_epoch", default=1, type=int)
+    parser.add_argument("--fast_dev_run", default=False, type=str2bool)
+    parser.add_argument("--accumulate_grad_batches", default=1, type=int)
+    parser.add_argument("--max_epochs", default=1000, type=int)
+    parser.add_argument("--min_epochs", default=1, type=int)
+    parser.add_argument("--max_steps", default=None, type=int)
+    parser.add_argument("--min_steps", default=None, type=int)
+    parser.add_argument("--val_check_interval", default=1.0, type=float)
+    parser.add_argument("--log_every_n_steps", default=10, type=int)
+    parser.add_argument("--accelerator", default=None, type=str)
+    parser.add_argument("--precision", default=32, type=int)
+    parser.add_argument("--resume_from_checkpoint", default=None, type=str)
+    parser.add_argument("--amp_backend", default="native", type=str)
+    # only used for non-native amp
+    # Changed to below to permit running on CPU
+    parser.add_argument("--amp_level", default="01" if torch.cuda.is_available() else None, type=str)
+    # below: added
+    parser.add_argument("--log_wandb", default=True, type=str2bool)
+    parser.add_argument("--log_frequency", default=1, type=int)
+    # end added
+    return parser
+    
 def str2bool(v):
     if isinstance(v, bool):
         return v
