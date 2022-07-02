@@ -7,6 +7,7 @@
 # Removed resume training, caching.
 # Added wandb code, removed Tensorboard.
 # Added imports as needed
+# Added explicit model directory creation code and removed previous version
 # Changed comparsion -> comparison_mode
 
 import os
@@ -27,18 +28,15 @@ import wandb
 def main(hparams):
     
     model = VAE(hparams)
-    os.makedirs(
-        os.path.join(hparams.default_save_path, hparams.exp_name), exist_ok=True
-    )
     logger = pl.loggers.WandbLogger(
-        name = util.get_model_path_section(trainer, hparams)
-        save_dir = hparams.default_save_path, name=hparams.exp_name
+        name = util.get_model_path_section(hparams),
+        save_dir = hparams.default_save_path
     )
-    args = { 'name' : util.get_model_path_section(logger.version, hparams) }
+    args = { 'name' : logger.name }
     if hparams.wandb_group: args['group'] = hparams.wandb_group
     if hparams.wandb_job_type: args['job_type'] = hparams.wandb_job_type
     wandb.init(**args)
-    logger.watch(model, log_freq=5)
+    logger.watch(model)
 
     early_stopping = pl.callbacks.EarlyStopping(
         monitor=model.selection_criterion,
@@ -53,6 +51,7 @@ def main(hparams):
         hparams.exp_name,
         f"version_{logger.version}" if logger.version is not None else "",
     )
+    if not os.path.exists(base_dir): os.makedirs(base_dir)
     model.base_dir = base_dir
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         dirpath=os.path.join(base_dir, "ckpts"),
@@ -96,6 +95,7 @@ def main(hparams):
         amp_backend=hparams.amp_backend,
         amp_level=hparams.amp_level,
     )
+    trainer.validate(model)
     if hparams.do_train:
         trainer.fit(model)
     # Added below if/printout

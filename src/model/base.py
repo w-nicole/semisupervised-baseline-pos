@@ -2,7 +2,7 @@
 # Taken from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
 
-# Changes made relative to original:
+# Changes made relative to original include:
 # Changed hyperparameters to match those in the paper,
 # Added averaging behavior.
 # Changed to not support weighted features, but instead a concatenation of all hidden representations.
@@ -11,7 +11,10 @@
 # Added support for logging train metrics.
 # Changed forward to __call__.
 # Changed to log batchwise via wandb.
-# Changed to log separate batch accuracy metrics (for monitoring) and epoch metrics (for equivalent checkpointing).
+# Changed to log separate batch accuracy metrics (for monitoring) and epoch metrics (for equivalent checkpointing)
+# Changed to log aligned train and validation curves.
+# Removed epochwise train metrics.
+# Changed checkpointing metric for compatibility with wandb logging.
 
 import hashlib
 import json
@@ -328,11 +331,14 @@ class Model(pl.LightningModule):
         lang = batch["lang"][0]
         metric_args = (batch["labels"], encoder_outputs)
         self.metrics[prefix][lang].add(*metric_args)
-        
-        batch_metric = deepcopy(self._metric)
-        batch_metric.add(*metric_args)
-        loss_dict[f'{prefix}_{lang}_acc'] = batch_metric.get_metric()['acc']
+        if not self.is_initial_validation():
+            batch_metric = deepcopy(self._metric)
+            batch_metric.add(*metric_args)
+            loss_dict[f'{prefix}_{lang}_acc'] = batch_metric.get_metric()['acc']
         return loss_dict
+        
+    def get_global_train_step(self):
+        return sum(self.train_step.values())        
     
     def log_wandb(self, phase, lang_list, loss_dict, batch_idx, dataloader_idx):
         assert len(set(lang_list)) == 1, lang_list
@@ -345,13 +351,15 @@ class Model(pl.LightningModule):
             else:
                 batch_step = self.train_step[lang]
                 self.train_step[lang] += 1
-            loss_dict.update({'epoch' : self.current_epoch, f'{phase}_{lang}_batch' : batch_step})
+            loss_dict.update({'epoch' : self.current_epoch, f'{phase}_{lang}_batch' : batch_step, 'train_step' : self.get_global_train_step()})
             wandb.log(loss_dict, step = self.iteration_step)
             self.iteration_step += 1 # Increment once per iteration
+        return loss_dict
         
     # Moved from model/tagger.py.    
     # Changed below to be compatible with later models' loss_dict
     # and to do accuracy updates and wandb logging
+    # Removed train self.log of loss
     def training_step(self, batch, batch_idx): 
         loss_dict = self.step_helper(batch, 'train')
         loss_dict['loss'] = loss_dict[self.optimization_loss]
@@ -360,16 +368,22 @@ class Model(pl.LightningModule):
             key : value.detach() if key not in ['lang', 'loss'] else value
             for key, value in loss_dict.items()
         }
-        self.log("loss", loss_dict['loss'])
         if batch_idx % self.hparams.log_frequency == 0:
             self.log_wandb('train', batch['lang'], loss_dict, batch_idx, None)
         return loss_dict
         
+    # added below
+    def is_initial_validation(self):
+        return all([step == 0 for step in self.train_step.values()])
+        
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        # Do not log initial validation batchwise because would be overwritten by epoch 0 metrics.
         loss_dict = self.step_helper(batch, "val")
-        self.log("val_loss", loss_dict[self.optimization_loss])
-        if batch_idx % self.hparams.log_frequency == 0:
-            self.log_wandb('val', batch['lang'], loss_dict, batch_idx, dataloader_idx)
+        initial_validation = self.is_initial_validation()
+        if not initial_validation:
+            self.log("val_loss", loss_dict[self.optimization_loss])
+            if not batch_idx % self.hparams.log_frequency == 0:
+                loss_dict = self.log_wandb('val', batch['lang'], loss_dict, batch_idx, dataloader_idx)
         return loss_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
@@ -381,51 +395,80 @@ class Model(pl.LightningModule):
         loss_dict.update({'lang' : batch['lang'][0]})
 
     # Changed training_epoch_end
-    # Removed aggregate_outputs due to batch-wise logging
+    # Changed all of below to account for language sorting and training logging,
+    # as well as updates to arguments to reflect meaning of parameters.
+    # Changes to logging for phase and language separation,
+    # and renaming of language-aggregated metrics to '_all' modifier,
+    # and ignoring added language differentiator from forward call
+    # and added global train step
+    def aggregate_outputs(
+        self, outputs: List[List[Dict[str, Tensor]]], langs: List[str], phase: str, global_train_step: int
+    ):
+        aver_result = defaultdict(list)
+        lang_metrics = defaultdict(list)
+        for lang, output in zip(langs, outputs):
+            for key in output[0]:
+                if 'lang' in key or not isinstance(output[0][key], torch.Tensor): continue
+                try:
+                    mean_val = torch.stack([x[key] for x in output]).mean()
+                except: import pdb; pdb.set_trace()
+                logging_key = f'{phase}_{lang}_{key}_epoch'
+                wandb.log({
+                    logging_key : mean_val,
+                    'train_step' : global_train_step
+                })
+                raw_key = logging_key.replace(f"{lang}_", "")
+                aver_result[raw_key].append(mean_val)
+
+        for key, vals in aver_result.items():
+            wandb.log({
+                f'{key}_all': torch.stack(vals).mean(),
+                'train_step' : global_train_step
+            })
 
     # Changed prefix to phase to mark meaning
-    def aggregate_metrics(self, langs: List[str], phase: str):
+    # Added global train step
+    def aggregate_metrics(self, langs: List[str], phase: str, global_train_step : int):
         aver_metric = defaultdict(list)
         for lang in langs:
             metric = self.metrics[phase][lang]
             for key, val in metric.get_metric().items():
-                self.log(f"{phase}_{lang}_{key}_epoch", val)
+                logging_key = f"{phase}_{lang}_{key}_epoch"
+                wandb.log({
+                    logging_key : val,
+                    'train_step' : global_train_step
+                })
                 aver_metric[key].append(val)
+                self.log(logging_key+'_ckpts', val)
 
         for key, vals in aver_metric.items():
-            self.log(f"{phase}_{key}_epoch", torch.stack(vals).mean())
+            wandb.log({
+                f"{key}_all" : torch.stack(vals).mean(),
+                'train_step' : global_train_step
+            })
             
-    # Added training_epoch_end, adapted from the epoch_end functions below,
-    # which has output sorting by language
-    def training_epoch_end(self, outputs):
-        if len(self.hparams.trn_langs) == 1:
-            filtered_outputs = [outputs]
-        else:
-            filtered_outputs = [[] for _ in self.hparams.trn_langs]
-            # Need to filter the outputs, such that they belong to a single language
-            lang_to_index = { lang : index for index, lang in enumerate(self.hparams.trn_langs) } 
-            for batch_outputs in outputs:
-                lang = batch_outputs['lang']
-                filtered_outputs[lang_to_index[lang]].append(batch_outputs)
-        # Enforce correctness of filtered outputs
-        for lang_index, lang_outputs in enumerate(filtered_outputs):
-            for batch_index, batch_outputs in enumerate(lang_outputs):
-                if self.hparams.trn_langs[lang_index] != batch_outputs['lang']:
-                    import pdb; pdb.set_trace()
-        self.aggregate_metrics(self.hparams.trn_langs, Split.train)
-        return
-
+    # Removed training_epoch_end, use batch accuracy with aggregation instead
+    # Added skip sanity check in logging
     # Below functions: fixed strings to phase names
     def validation_epoch_end(self, outputs):
+        if self.trainer.sanity_checking: return
+        global_train_step = self.get_global_train_step()
+        if 'train_step' in outputs[0][0]:
+            all_train_steps = [this_dict['train_step'] for output in outputs for this_dict in output]
+            if not all([global_train_step == step for step in all_train_steps]):
+                import pdb; pdb.set_trace()
+        print('Past the set trace!')
         if len(self.hparams.val_langs) == 1:
             outputs = [outputs]
-        self.aggregate_metrics(self.hparams.val_langs, 'val')
-        return
+        self.aggregate_outputs(outputs, self.hparams.val_langs, 'val', global_train_step)
+        self.aggregate_metrics(self.hparams.val_langs, 'val', global_train_step)
 
     def test_epoch_end(self, outputs):
+        global_train_step = self.get_global_train_step()
         if len(self.hparams.tst_langs) == 1:
             outputs = [outputs]
-        self.aggregate_metrics(self.hparams.tst_langs, Split.test)
+        self.aggregate_outputs(outputs, self.hparams.val_langs, 'val', global_train_step)
+        self.aggregate_metrics(self.hparams.tst_langs, Split.test, global_train_step)
         return
     # end changes
 

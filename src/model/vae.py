@@ -71,7 +71,7 @@ class VAE(BaseVAE):
             for lang, phase in self.metric_prior_arguments
         }
 
-        self._selection_criterion = f'val_{self.target_language}_acc_epoch'
+        self._selection_criterion = f'val_{self.target_language}_acc_epoch_ckpts'
         self._comparison_mode = 'max'
         self.optimization_loss = 'vae_loss'
         
@@ -152,7 +152,6 @@ class VAE(BaseVAE):
         with torch.no_grad():
             loss['encoder_loss'] = self.calculate_encoder_loss(batch, log_pi_t)
         
-        loss.update(self.calculate_reference_kl_loss(batch, log_pi_t))    
         if math.isnan(loss['vae_loss']): import pdb; pdb.set_trace()
         self.add_language_to_batch_output(loss, batch)
         return loss, log_pi_t

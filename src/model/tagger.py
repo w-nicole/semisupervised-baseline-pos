@@ -11,6 +11,7 @@
 # and simplified to remove unused parameter choices.
 # Added support for mBERT initialization for upper baselines.
 # Changed to consider epoch metrics instead for equivalent checkpointing.
+# Changed checkpointing metric for compatibility with wandb logging.
 
 from copy import deepcopy
 from typing import List, Optional, Type
@@ -42,7 +43,7 @@ class Tagger(Model):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
         self._comparison_mode = 'max'
-        self._selection_criterion = f'val_{self.target_language}_acc'
+        self._selection_criterion = f'val_{self.target_language}_acc_epoch_ckpts'
         self._nb_labels: Optional[int] = None
         self._nb_labels = UdPOS.nb_labels()
         self._metric = POSMetric()
