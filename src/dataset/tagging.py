@@ -8,6 +8,7 @@
 # Changed labels to not use first subtoken marking via padding, but just to be labels.
 # Changed to return start/end indices.
 # Updated imports
+# Removed irrelevant code
 
 import glob
 from collections import defaultdict
@@ -19,7 +20,7 @@ import numpy as np
 import constant
 from dataset.base import DUMMY_LABEL, Dataset
 from enumeration import Split
-from metric import LABEL_PAD_ID, convert_bio_to_spans
+from metric import LABEL_PAD_ID
 
 import torch
 
@@ -195,71 +196,6 @@ class WikiAnnNER(TaggingDataset):
         for word, label in zip(example["sent"], example["labels"]):
             print(f"_:{word}\t{label}", file=file_handler)
         print("", file=file_handler)
-
-    @classmethod
-    def project_label(
-        cls, example: Dict, translation: List[str], mapping: List[Tuple]
-    ) -> Dict:
-        # span projection
-        src2tgt = defaultdict(list)
-        for src_idx, tgt_idx in mapping:
-            src2tgt[src_idx].append(tgt_idx)
-
-        raw_labels = defaultdict(list)
-        for entity, start, end in convert_bio_to_spans(example["labels"]):
-            idx = set()
-            for pos in range(start, end):
-                for tgt_idx in src2tgt[pos]:
-                    idx.add(tgt_idx)
-            if not idx:  # no alignment
-                continue
-            tgt_start = min(idx)
-            tgt_end = max(idx) + 1
-            if (tgt_end - tgt_start) / len(idx) > 5:
-                continue
-            # new_span => (entity, tgt_start, tgt_end)
-            for i, pos in enumerate(range(tgt_start, tgt_end)):
-                if i == 0:
-                    raw_labels[pos].append(f"B-{entity}")
-                else:
-                    raw_labels[pos].append(f"I-{entity}")
-
-        words: List[str] = []
-        labels: List[str] = []
-        for i, word in enumerate(translation):
-            raw_label = set(raw_labels[i])
-            if not raw_label:
-                silver_label = "O"
-                # silver_label = DUMMY_LABEL
-            elif len(raw_label) == 1:
-                silver_label = list(raw_label)[0]
-            else:
-                begin, inside = set(), set()
-                for label in raw_label:
-                    if label.startswith("B"):
-                        begin.add(label)
-                    elif label.startswith("I"):
-                        inside.add(label)
-                if len(begin) > 0:
-                    silver_label = list(begin)[0]
-                elif len(inside) > 0:
-                    silver_label = list(inside)[0]
-                else:
-                    raise ValueError("Impossible case")
-
-            words.append(word)
-            labels.append(silver_label)
-
-        clean_labels: List[str] = deepcopy(labels)
-        clean_spans = convert_bio_to_spans(labels)
-        for entity, start, end in clean_spans:
-            for i, pos in enumerate(range(start, end)):
-                if i == 0:
-                    clean_labels[pos] = f"B-{entity}"
-                else:
-                    clean_labels[pos] = f"I-{entity}"
-
-        return {"sent": words, "labels": clean_labels}
 
     @classmethod
     def get_file(cls, path: str, lang: str, split: str) -> Optional[str]:

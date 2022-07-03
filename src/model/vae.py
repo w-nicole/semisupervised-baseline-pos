@@ -65,15 +65,24 @@ class VAE(BaseVAE):
             self.loss_prior = util.apply_gpu(self.get_uniform_prior())
         else:
             assert self.hparams.prior_type in prior_types, f"Choose prior type from: {prior_types}. Current parameter: {self.hparams.prior_type}"
-        self.metric_prior_arguments = [(self.target_language, 'val'), ('English', Split.train)]
-        self.fixed_metric_priors = {
-            f'{phase}_{lang}' : util.apply_gpu(self.get_smoothed_prior(lang, Split.dev if phase == 'val' else phase))
-            for lang, phase in self.metric_prior_arguments
-        }
 
-        self._selection_criterion = f'val_{self.target_language}_acc_epoch_monitor'
+        checkpoint_metric = 'acc' if self.hparams.encoder_checkpoint else 'nmi_added'
+        self._selection_criterion = f'val_{self.target_language}_{checkpoint_metric}_epoch_monitor'
         self._comparison_mode = 'max'
         self.optimization_loss = 'vae_loss'
+        self.metric_names = [
+            'loss_KL',
+            'decoder_loss',
+            'vae_loss',
+            'encoder_loss',
+            'MSE',
+            'acc',
+            'nmi'
+        ]
+        print('arrived after VAE metric names')
+        if self.use_auxiliary:
+            self.metric_names.append('auxiliary_KL')
+        self.setup_metrics()
         
     def get_uniform_prior(self):
         number_of_labels = len(constant.UD_POS_LABELS)
@@ -93,13 +102,6 @@ class VAE(BaseVAE):
     def get_smoothed_english_prior(self):
         prior = self.get_smoothed_prior('English', Split.train)
         return prior
-
-    def calculate_reference_kl_loss(self, batch, log_pi_t):
-        with torch.no_grad():
-            loss = {}
-            for prior_key, prior in self.fixed_metric_priors.items():
-                loss[f'KL_against_{prior_key}'] = self.calculate_kl_against_prior(batch, log_pi_t, prior)
-            return loss
         
     def calculate_log_pi_t(self, batch, hs):
         logits = self.classifier(hs)
@@ -108,8 +110,7 @@ class VAE(BaseVAE):
         log_pi_t = self.set_padded_to_zero(batch, raw_log_pi_t)
         return log_pi_t
         
-    def calculate_kl_against_prior(self, batch, log_q_given_input, raw_prior):
-        prior = raw_prior.softmax(dim=-1)
+    def calculate_kl_against_prior(self, batch, log_q_given_input, prior):
         repeated_prior = prior.reshape(1, 1, prior.shape[0]).repeat(log_q_given_input.shape[0], log_q_given_input.shape[1], 1)
         raw_pre_sum = torch.exp(log_q_given_input) * (log_q_given_input - torch.log(repeated_prior))
         kl_divergence_mean = self.calculate_clean_metric(batch, raw_pre_sum)
@@ -143,8 +144,10 @@ class VAE(BaseVAE):
             pi_tilde_t = log_pi_t
             
         loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
-            
-        loss['loss_KL'] = self.calculate_kl_against_prior(batch, log_pi_t, self.loss_prior)
+    
+        # Only softmax if the prior is optimized (otherwise it's already probability)
+        prior = self.loss_prior if self.hparams.prior_type != 'optimized_data' else torch.log(self.loss_prior).softmax(dim=-1)
+        loss['loss_KL'] = self.calculate_kl_against_prior(batch, log_pi_t, prior)
         loss['decoder_loss'] = self.hparams.mse_weight * loss['MSE'] + self.hparams.pos_kl_weight * loss['loss_KL']
         if self.use_auxiliary:
             loss['decoder_loss'] += self.hparams.auxiliary_kl_weight * loss['auxiliary_KL']

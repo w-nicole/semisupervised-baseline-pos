@@ -30,15 +30,34 @@ class Metric(object):
     @staticmethod
     def unpack(*tensors: torch.Tensor):
         return (x.detach().cpu() if isinstance(x, torch.Tensor) else x for x in tensors) 
+
+# Begin added metrics
+
+class AverageMetric(Metric):
+    def __init__(self, metric_name):
+        self.metric_name = metric_name
+        self.number_of_tokens = 0
+        self.total_metric = 0
         
-# Added below metric
+    def add(self, averaged_value, batch_number_of_tokens):
+        self.total_metric += averaged_value * batch_number_of_tokens
+        self.number_of_tokens = batch_number_of_tokens
+    
+    @to_tensor
+    def get_metric(self):
+        if self.number_of_tokens == 0: return { self.metric_name : 0 }
+        return { self.metric_name : self.total_metric / self.number_of_tokens }
+        
+    def reset(self):
+        self.number_of_tokens = 0
+        self.total_metric = 0
+
 class NMIMetric(Metric):
     def __init__(self):
         self.number_of_labels = len(constant.UD_POS_LABELS)
         self.predicted_by_label_counts = torch.zeros((self.number_of_labels, self.number_of_labels))
 
     def add(self, padded_labels, encoder_log_probs):
-        
         # Convert to predictions
         to_token_dims = lambda tensor : tensor.reshape(-1, tensor.shape[-1])
         padded_labels, padded_log_probs = self.unpack(to_token_dims(padded_labels), to_token_dims(encoder_log_probs))
@@ -75,15 +94,16 @@ class NMIMetric(Metric):
         h_predicted = entropy(predicted_distribution)
         eps = 1e-10
         return {
-            'raw' : mi,
-            'norm_added': 2 * mi / ( (h_label + h_predicted) + eps ),
-            'norm_min' : mi / ( min(h_label, h_predicted) + eps )
+            'mi' : mi,
+            'nmi_added': 2 * mi / ( (h_label + h_predicted) + eps ),
+            'nmi_min' : mi / ( min(h_label, h_predicted) + eps )
         }
         
     def reset(self):
         self.predicted_by_label_counts.fill_(0)
         
-        
+# End added metrics
+
 class POSMetric(Metric):
     def __init__(self):
         self.num_correct = 0

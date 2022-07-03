@@ -67,6 +67,12 @@ class BaseVAE(Tagger):
         self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_decoder_loss_epoch_monitor'
         self._comparison_mode = 'min'
         self.optimization_loss = 'decoder_loss'
+        self.metric_names = [
+            'MSE',
+            'decoder_loss',
+        ]
+        if self.use_auxiliary:
+            self.metric_names.append('auxiliary_KL')
     
     # Below forward-related methods:
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,

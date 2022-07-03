@@ -12,6 +12,7 @@
 # Added support for mBERT initialization for upper baselines.
 # Changed to consider epoch metrics instead for equivalent checkpointing.
 # Changed checkpointing metric for compatibility with wandb logging.
+# Removed _metric.
 
 from copy import deepcopy
 from typing import List, Optional, Type
@@ -25,7 +26,6 @@ import util
 from metric import LABEL_PAD_ID # changed this from dataset import
 from dataset import Dataset, UdPOS
 from enumeration import Split, Task
-from metric import POSMetric
 from model.base import Model
 
 # added below
@@ -46,7 +46,6 @@ class Tagger(Model):
         self._selection_criterion = f'val_{self.target_language}_acc_epoch_monitor'
         self._nb_labels: Optional[int] = None
         self._nb_labels = UdPOS.nb_labels()
-        self._metric = POSMetric()
         
         self.is_frozen_mbert = self.hparams.mbert_checkpoint or self.hparams.freeze_mbert
         assert not ((not self.hparams.freeze_mbert) and self.hparams.mbert_checkpoint),\
@@ -54,7 +53,6 @@ class Tagger(Model):
             
         # Reinitialize mBERT alone if given a checkpoint.
         if self.hparams.mbert_checkpoint:
-            print('got to here!')
             encoder = Tagger.load_from_checkpoint(self.hparams.mbert_checkpoint)
             self.freeze_bert(encoder)
             self.model = encoder.model
@@ -79,6 +77,10 @@ class Tagger(Model):
         }
         # optimization loss added
         self.optimization_loss = 'pos_nll_loss'
+        self.metric_names = [
+            self.optimization_loss,
+            'acc'
+        ]
         self.setup_metrics()
         
     # Below: added

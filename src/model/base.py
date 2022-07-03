@@ -8,13 +8,14 @@
 # Changed to not support weighted features, but instead a concatenation of all hidden representations.
 # Changed to support single hidden layer MLP.
 # Changed `comparsion` to `comparison_mode`
-# Added support for logging train metrics.
+# Added support for logging train metrics and non-accuracy metrics.
 # Changed forward to __call__.
 # Changed to log batchwise via wandb.
 # Changed to log separate batch accuracy metrics (for monitoring) and epoch metrics (for equivalent checkpointing)
 # Changed to log aligned train and validation curves.
 # Removed epochwise train metrics.
 # Changed checkpointing metric for compatibility with wandb logging.
+# Removed ._metric
 
 import hashlib
 import json
@@ -39,22 +40,21 @@ import constant
 import util
 from dataset.base import Dataset
 from enumeration import Schedule, Split, Task
-from metric import Metric
+import metric
+from metric import Metric, POSMetric, AverageMetric, NMIMetric
 from model.module import Identity, InputVariationalDropout, MeanPooling, Transformer
 
-# Below: added imports
 from dataset import collate
 import wandb
-# end imports
 
 class Model(pl.LightningModule):
     def __init__(self, hparams):
         super(Model, self).__init__()
         self.optimizer = None
         self.scheduler = None
-        self._metric: Optional[Metric] = None
-        # Changed below to account for train.
-        self.metrics: Dict[str, Dict[str, Metric]] = defaultdict(dict)
+        self.metric_names = None
+        # Changed below to account for train and other metrics.
+        self.metrics: Dict[str, Dict[str, Dict[str, Metric]]] = defaultdict(dict)
         self.trn_datasets: List[Dataset] = None
         self.val_datasets: List[Dataset] = None
         self.tst_datasets: List[Dataset] = None
@@ -110,6 +110,10 @@ class Model(pl.LightningModule):
         
         # Added below
         self.train_step = defaultdict(int)
+        self.name_to_metric = {
+            'acc' : POSMetric(),
+            'nmi' : NMIMetric()
+        }
 
     # Changed below to accept pretrain as argument so classmethod works.
     @classmethod
@@ -170,37 +174,21 @@ class Model(pl.LightningModule):
         for index in range(encoder.model.config.num_hidden_layers + 1):
             encoder.freeze_layer(index)
         # end adapted
-        
+   
     def freeze_layer(self, layer):
-        if isinstance(self.model, transformers.BertModel) or isinstance(
-            self.model, transformers.RobertaModel
-        ):
-            util.freeze(self.model.encoder.layer[layer - 1])
-        elif isinstance(self.model, transformers.XLMModel):
-            util.freeze(self.model.attentions[layer - 1])
-            util.freeze(self.model.layer_norm1[layer - 1])
-            util.freeze(self.model.ffns[layer - 1])
-            util.freeze(self.model.layer_norm2[layer - 1])
-        else:
-            raise ValueError("Unsupported model")
-
+        util.freeze(self.model.encoder.layer[layer - 1])
+        
     @property
     def hidden_size(self):
         # hidden_size = the input to the classifier
-        if isinstance(self.model, transformers.BertModel) or isinstance(
-            self.model, transformers.RobertaModel
-        ):
-            # Added logic for concatenated embeddings
-            single_layer_size = self.model.config.hidden_size
-            if not self.concat_all_hidden_states:
-                return single_layer_size
-            else:
-                return single_layer_size * (self.model.config.num_hidden_layers + 1)
-            # end added
-        elif isinstance(self.model, transformers.XLMModel):
-            return self.model.dim
+        # Added logic for concatenated embeddings
+        single_layer_size = self.model.config.hidden_size
+        if not self.concat_all_hidden_states:
+            return single_layer_size
         else:
-            raise ValueError("Unsupported model")
+            return single_layer_size * (self.model.config.num_hidden_layers + 1)
+        # end added
+        
 
     @property
     def batch_per_epoch(self):
@@ -223,19 +211,22 @@ class Model(pl.LightningModule):
         assert self._comparison_mode is not None
         return self._comparison_mode
 
-    # Below: changes due to 2d metric dict
+    # Below: changes due to 3d metric dict and no ._metric
     def setup_metrics(self):
-        assert self._metric is not None
         langs = self.hparams.trn_langs + self.hparams.val_langs + self.hparams.tst_langs
         langs = sorted(list(set(langs)))
         for phase in self.run_phases:
             for lang in langs:
-                self.metrics[phase][lang] = deepcopy(self._metric)
+                self.metrics[phase][lang] = {}
+                for metric_key in self.metric_names:
+                    metric = self.name_to_metric[metric_key] if metric_key in self.name_to_metric else AverageMetric(metric_key)
+                    self.metrics[phase][lang][metric_key] = metric
 
     # Below: changed to permit train logging
     def reset_metrics(self, phase):
-        for metric in self.metrics[phase].values():
-            metric.reset()
+        for all_metrics in self.metrics[phase].values():
+            for metric in all_metrics.values():
+                metric.reset()
 
     def get_mask(self, sent: Tensor):
         mask = (sent != self.tokenizer.pad_token_id).long()
@@ -328,12 +319,23 @@ class Model(pl.LightningModule):
             len(set(batch["lang"])) == 1
         ), "batch should contain only one language"
         lang = batch["lang"][0]
-        metric_args = (batch["labels"], encoder_outputs)
-        self.metrics[prefix][lang].add(*metric_args)
+        accuracy_type_metric_args = (batch["labels"], encoder_outputs)
+        pos_metric_args = (batch["labels"], encoder_outputs)
+        self.metrics[prefix][lang]['acc'].add(*accuracy_type_metric_args)
+        try:
+            self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
+        except: import pdb; pdb.set_trace()
+        
+        number_of_true_labels = (batch['labels'] != metric.LABEL_PAD_ID).sum()
+        for metric in loss_dict: # Doesn't include accuracy or nmi yet
+            assert 'acc' not in loss_dict and 'nmi' not in loss_dict
+            self.metrics[prefix][lang][metric].add(loss_dict[metric], number_of_true_labels)
+            
         if not self.is_initial_validation():
-            batch_metric = deepcopy(self._metric)
-            batch_metric.add(*metric_args)
-            loss_dict[f'{prefix}_{lang}_acc'] = batch_metric.get_metric()['acc']
+            for metric_type, batch_metric in zip(['acc', 'nmi'], [POSMetric(), NMIMetric()]):
+                batch_metric.add(*accuracy_type_metric_args)
+                for specific_metric, value in batch_metric.get_metric().items():
+                    loss_dict[f'{prefix}_{lang}_{specific_metric}'] = value
         return loss_dict
         
     def get_global_train_step(self):
@@ -344,17 +346,17 @@ class Model(pl.LightningModule):
         lang = lang_list[0]
         modifier = f'{phase}_{lang}'
         if not self.trainer.sanity_checking:
-            loss_dict = { (f"{modifier}_{metric}" if not metric.startswith(modifier) else metric) : value for metric, value in loss_dict.items() }
+            modified_loss_dict = { (f"{modifier}_{metric}" if not metric.startswith(modifier) else metric) : value for metric, value in loss_dict.items() }
             if phase == 'val':
                 batch_step = batch_idx + self.current_epoch * len(self.trainer.val_dataloaders[dataloader_idx])
             else:
                 batch_step = self.train_step[lang]
                 self.train_step[lang] += 1
-            loss_dict.update({f'{phase}_{lang}_batch' : batch_step})
+            modified_loss_dict.update({f'{phase}_{lang}_batch' : batch_step})
             if phase == 'train':
-                loss_dict.update({'train_step' : self.get_global_train_step()})
-            wandb.log(loss_dict)
-        return loss_dict
+                modified_loss_dict.update({'train_step' : self.get_global_train_step()})
+            wandb.log(modified_loss_dict)
+        return modified_loss_dict
         
     # Moved from model/tagger.py.    
     # Changed below to be compatible with later models' loss_dict
@@ -397,57 +399,27 @@ class Model(pl.LightningModule):
 
     # Changed training_epoch_end
     # Removed aggregate_outputs and moved logic to be weighted losses on aggregate_metrics.
-    # Changed all of below to account for language sorting and training logging,
-    # as well as updates to arguments to reflect meaning of parameters.
-    # Changes to logging for phase and language separation,
-    # and renaming of language-aggregated metrics to '_all' modifier,
-    # and ignoring added language differentiator from forward call
-    # and added global train step
-    def aggregate_outputs(
-        self, outputs: List[List[Dict[str, Tensor]]], langs: List[str], phase: str, global_train_step: int
-    ):
-        aver_result = defaultdict(list)
-        lang_metrics = defaultdict(list)
-        for lang, output in zip(langs, outputs):
-            for key in output[0]:
-                # Don't report acc here because avoid reporting two metrics in two different places.
-                if 'lang' in key or 'acc' in key not isinstance(output[0][key], torch.Tensor): continue
-                try:
-                    mean_val = torch.stack([x[key] for x in output]).mean()
-                except: import pdb; pdb.set_trace()
-                logging_key = f'{phase}_{lang}_{key}_epoch'
-                wandb.log({
-                    logging_key : mean_val,
-                    'train_step' : global_train_step
-                })
-                self.log(logging_key+'_epoch_monitor', mean_val)
-                raw_key = logging_key.replace(f"{lang}_", "")
-                aver_result[raw_key].append(mean_val)
-
-        for key, vals in aver_result.items():
-            wandb.log({
-                f'{key}_all': torch.stack(vals).mean(),
-                'train_step' : global_train_step
-            })
 
     # Changed prefix to phase to mark meaning
     # Added global train step
     def aggregate_metrics(self, langs: List[str], phase: str, global_train_step : int):
         aver_metric = defaultdict(list)
         for lang in langs:
-            metric = self.metrics[phase][lang]
-            for key, val in metric.get_metric().items():
-                logging_key = f"{phase}_{lang}_{key}_epoch"
-                wandb.log({
-                    logging_key : val,
-                    'train_step' : global_train_step
-                })
-                aver_metric[key].append(val)
-                self.log(logging_key+'_monitor', val)
+            for metric_key in self.metric_names:
+                metric = self.metrics[phase][lang][metric_key]
+                for key, val in metric.get_metric().items():
+                    logging_key = f"{phase}_{lang}_{key}_epoch"
+                    log_values = { logging_key : val }
+                    # Don't let the final global train step be overwritten twice.
+                    if phase != 'train':
+                        log_values.update({'train_step' : global_train_step})
+                    wandb.log(log_values)
+                    aver_metric[key].append(val)
+                    self.log(logging_key+'_monitor', val)
 
         for key, vals in aver_metric.items():
             wandb.log({
-                f"{key}_all" : torch.stack(vals).mean(),
+                f"{phase}_{key}_all" : torch.stack(vals).mean(),
                 'train_step' : global_train_step
             })
             
@@ -459,14 +431,12 @@ class Model(pl.LightningModule):
         global_train_step = self.get_global_train_step()
         if len(self.hparams.val_langs) == 1:
             outputs = [outputs]
-        self.aggregate_outputs(outputs, self.hparams.val_langs, 'val', global_train_step)
         self.aggregate_metrics(self.hparams.val_langs, 'val', global_train_step)
 
     def test_epoch_end(self, outputs):
         global_train_step = self.get_global_train_step()
         if len(self.hparams.tst_langs) == 1:
             outputs = [outputs]
-        self.aggregate_outputs(outputs, self.hparams.val_langs, 'val', global_train_step)
         self.aggregate_metrics(self.hparams.tst_langs, Split.test, global_train_step)
         return
     # end changes
