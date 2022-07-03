@@ -59,10 +59,9 @@ class NMIMetric(Metric):
 
     def add(self, padded_labels, encoder_log_probs):
         # Convert to predictions
-        to_token_dims = lambda tensor : tensor.reshape(-1, tensor.shape[-1])
-        padded_labels, padded_log_probs = self.unpack(to_token_dims(padded_labels), to_token_dims(encoder_log_probs))
-        padded_predictions = torch.argmax(padded_log_probs.log_softmax(dim=-1), dim=-1)
-
+        padded_labels, encoder_log_probs = self.unpack(padded_labels, encoder_log_probs)
+        padded_predictions = torch.argmax(encoder_log_probs.log_softmax(dim=-1), dim=-1)
+        
         # Cut out padding
         mask_for_non_pad = (padded_labels != LABEL_PAD_ID)
         labels = padded_labels[mask_for_non_pad]

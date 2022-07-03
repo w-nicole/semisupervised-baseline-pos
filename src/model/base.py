@@ -40,8 +40,7 @@ import constant
 import util
 from dataset.base import Dataset
 from enumeration import Schedule, Split, Task
-import metric
-from metric import Metric, POSMetric, AverageMetric, NMIMetric
+from metric import Metric, POSMetric, AverageMetric, NMIMetric, LABEL_PAD_ID
 from model.module import Identity, InputVariationalDropout, MeanPooling, Transformer
 
 from dataset import collate
@@ -322,15 +321,15 @@ class Model(pl.LightningModule):
         accuracy_type_metric_args = (batch["labels"], encoder_outputs)
         pos_metric_args = (batch["labels"], encoder_outputs)
         self.metrics[prefix][lang]['acc'].add(*accuracy_type_metric_args)
-        try:
-            self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
-        except: import pdb; pdb.set_trace()
+        self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
         
-        number_of_true_labels = (batch['labels'] != metric.LABEL_PAD_ID).sum()
-        for metric in loss_dict: # Doesn't include accuracy or nmi yet
-            assert 'acc' not in loss_dict and 'nmi' not in loss_dict
-            self.metrics[prefix][lang][metric].add(loss_dict[metric], number_of_true_labels)
-            
+        number_of_true_labels = (batch['labels'] != LABEL_PAD_ID).sum()
+        try:
+            for metric_key in loss_dict: # Doesn't include accuracy or nmi yet
+                if metric_key == 'lang': continue
+                assert 'acc' not in loss_dict and 'nmi' not in loss_dict, loss_dict.keys()
+                self.metrics[prefix][lang][metric_key].add(loss_dict[metric_key], number_of_true_labels)
+        except: import pdb; pdb.set_trace()
         if not self.is_initial_validation():
             for metric_type, batch_metric in zip(['acc', 'nmi'], [POSMetric(), NMIMetric()]):
                 batch_metric.add(*accuracy_type_metric_args)
