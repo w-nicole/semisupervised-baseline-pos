@@ -43,5 +43,4 @@ python3 src/train_decoder_base.py \
     --exp_name linear \
     --freeze_mbert "y" \
     --gpus 1 \
-    --schedule "reduceOnPlateau" \
     --mbert_checkpoint "$mbert_checkpoint"

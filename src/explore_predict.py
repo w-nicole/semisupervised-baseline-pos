@@ -17,15 +17,13 @@ from pprint import pprint
 
 def get_all_predictions(model, langs):
     predictions = {}
+    assert not isinstance(model, BaseVAE), "Not designed for outputs of type logits."
     for lang in langs:
-        if lang == "English" and isinstance(model, VAE):
-            print('Skipping English because it is a labeled case.')
-            continue
         trainer = pl.Trainer(gpus = 1 if torch.cuda.is_available() else 0)
         model.reset_metrics('val')
         dataloader = model.get_dataloader(lang, Split.dev)
         predictions[lang] = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
-        predictions[lang] = [output[1] for output in predictions[lang]]
+        predictions[lang] = [output[1].exp() for output in predictions[lang]]
     return predictions
     
 def get_analysis_path(checkpoint_path):

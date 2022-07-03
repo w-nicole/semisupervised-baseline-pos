@@ -109,7 +109,6 @@ class Model(pl.LightningModule):
         self.dropout = InputVariationalDropout(hparams.input_dropout)
         
         # Added below
-        self.iteration_step = 0
         self.train_step = defaultdict(int)
 
     # Changed below to accept pretrain as argument so classmethod works.
@@ -351,9 +350,10 @@ class Model(pl.LightningModule):
             else:
                 batch_step = self.train_step[lang]
                 self.train_step[lang] += 1
-            loss_dict.update({'epoch' : self.current_epoch, f'{phase}_{lang}_batch' : batch_step, 'train_step' : self.get_global_train_step()})
-            wandb.log(loss_dict, step = self.iteration_step)
-            self.iteration_step += 1 # Increment once per iteration
+            loss_dict.update({f'{phase}_{lang}_batch' : batch_step})
+            if phase == 'train':
+                loss_dict.update({'train_step' : self.get_global_train_step()})
+            wandb.log(loss_dict)
         return loss_dict
         
     # Moved from model/tagger.py.    
@@ -370,6 +370,7 @@ class Model(pl.LightningModule):
         }
         if batch_idx % self.hparams.log_frequency == 0:
             self.log_wandb('train', batch['lang'], loss_dict, batch_idx, None)
+        lang = batch["lang"][0]
         return loss_dict
         
     # added below
@@ -395,6 +396,7 @@ class Model(pl.LightningModule):
         loss_dict.update({'lang' : batch['lang'][0]})
 
     # Changed training_epoch_end
+    # Removed aggregate_outputs and moved logic to be weighted losses on aggregate_metrics.
     # Changed all of below to account for language sorting and training logging,
     # as well as updates to arguments to reflect meaning of parameters.
     # Changes to logging for phase and language separation,
@@ -408,7 +410,8 @@ class Model(pl.LightningModule):
         lang_metrics = defaultdict(list)
         for lang, output in zip(langs, outputs):
             for key in output[0]:
-                if 'lang' in key or not isinstance(output[0][key], torch.Tensor): continue
+                # Don't report acc here because avoid reporting two metrics in two different places.
+                if 'lang' in key or 'acc' in key not isinstance(output[0][key], torch.Tensor): continue
                 try:
                     mean_val = torch.stack([x[key] for x in output]).mean()
                 except: import pdb; pdb.set_trace()
@@ -417,6 +420,7 @@ class Model(pl.LightningModule):
                     logging_key : mean_val,
                     'train_step' : global_train_step
                 })
+                self.log(logging_key+'_epoch_monitor', mean_val)
                 raw_key = logging_key.replace(f"{lang}_", "")
                 aver_result[raw_key].append(mean_val)
 
@@ -439,7 +443,7 @@ class Model(pl.LightningModule):
                     'train_step' : global_train_step
                 })
                 aver_metric[key].append(val)
-                self.log(logging_key+'_ckpts', val)
+                self.log(logging_key+'_monitor', val)
 
         for key, vals in aver_metric.items():
             wandb.log({
@@ -453,11 +457,6 @@ class Model(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         if self.trainer.sanity_checking: return
         global_train_step = self.get_global_train_step()
-        if 'train_step' in outputs[0][0]:
-            all_train_steps = [this_dict['train_step'] for output in outputs for this_dict in output]
-            if not all([global_train_step == step for step in all_train_steps]):
-                import pdb; pdb.set_trace()
-        print('Past the set trace!')
         if len(self.hparams.val_langs) == 1:
             outputs = [outputs]
         self.aggregate_outputs(outputs, self.hparams.val_langs, 'val', global_train_step)
@@ -546,7 +545,7 @@ class Model(pl.LightningModule):
         scheduler_dict = {"scheduler": scheduler, "interval": interval}
         if self.hparams.schedule == Schedule.reduceOnPlateau:
             # Changed below to match new keys.
-            scheduler_dict["monitor"] = f'val_{self.target_language}_{self.optimization_loss}'
+            scheduler_dict["monitor"] = 'val_loss'
         return [optimizer], [scheduler_dict]
 
     def _get_signature(self, params: Dict):

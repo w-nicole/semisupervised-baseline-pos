@@ -64,7 +64,7 @@ class BaseVAE(Tagger):
             else:
                 self.auxiliary_mu = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
 
-        self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_decoder_loss'
+        self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_decoder_loss_epoch_monitor'
         self._comparison_mode = 'min'
         self.optimization_loss = 'decoder_loss'
     

@@ -72,7 +72,6 @@ def create_single_script(language, mbert_type, encoder_type, decoder_type, kl, e
             command_variables.append(f'\t--{checkpoint_type}_checkpoint ${checkpoint_type}_checkpoint')
     command_variables.extend([
         f'\t--pos_kl_weight {kl}',
-        f'\t--schedule "reduceOnPlateau"',
         f'\t--prior_type "optimized_data"'
     ])
     command_variables = list(map(lambda s : s + " \\", command_variables[:-1])) + [command_variables[-1]]

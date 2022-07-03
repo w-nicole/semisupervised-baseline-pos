@@ -23,7 +23,7 @@ langs=(English)
 data_path=${6:-"../ud-treebanks-v1.4"}
 
 bs=16
-ep=4
+ep=3
 lr=5e-5
 
 python3 src/train_encoder.py \
