@@ -94,7 +94,7 @@ if __name__ == '__main__':
     group = 'pure_baseline'
     for train_language in ['English', 'Dutch']:
         for mbert in ['fixed', 'pretrained']:
-            for encoder in ['pretrained']:
+            for encoder in ['random', 'pretrained']:
                 for decoder in ['random', 'pretrained']:
                     for kl in [0, 0.1, 1]:
                         print(f'Processing: {train_language}, {mbert}, {encoder}, {decoder}, {kl}')

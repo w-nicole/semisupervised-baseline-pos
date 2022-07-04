@@ -57,8 +57,8 @@ class VAE(BaseVAE):
         smoothed_english_prior = self.get_smoothed_english_prior()
         if self.hparams.prior_type == 'optimized_data':
             self.prior_param = torch.nn.ParameterDict()
-            self.prior_param['raw_prior'] = torch.nn.Parameter(smoothed_english_prior, requires_grad = True)
-            self.loss_prior = self.prior_param.raw_prior
+            self.prior_param['log_prior'] = torch.nn.Parameter(torch.log(smoothed_english_prior), requires_grad = True)
+            self.loss_prior = self.prior_param.log_prior
         elif self.hparams.prior_type == 'fixed_data':
             self.loss_prior = util.apply_gpu(smoothed_english_prior)
         elif self.hparams.prior_type == 'fixed_uniform':
@@ -79,7 +79,6 @@ class VAE(BaseVAE):
             'acc',
             'nmi'
         ]
-        print('arrived after VAE metric names')
         if self.use_auxiliary:
             self.metric_names.append('auxiliary_KL')
         self.setup_metrics()
@@ -146,7 +145,7 @@ class VAE(BaseVAE):
         loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
     
         # Only softmax if the prior is optimized (otherwise it's already probability)
-        prior = self.loss_prior if self.hparams.prior_type != 'optimized_data' else torch.log(self.loss_prior).softmax(dim=-1)
+        prior = self.loss_prior if self.hparams.prior_type != 'optimized_data' else self.loss_prior.softmax(dim=-1)
         loss['loss_KL'] = self.calculate_kl_against_prior(batch, log_pi_t, prior)
         loss['decoder_loss'] = self.hparams.mse_weight * loss['MSE'] + self.hparams.pos_kl_weight * loss['loss_KL']
         if self.use_auxiliary:
@@ -170,7 +169,7 @@ class VAE(BaseVAE):
         parser.add_argument("--pos_kl_weight", default=1, type=float)
         
         parser.add_argument("--pos_nll_weight", default=0, type=float)
-        parser.add_argument("--temperature", default=0.1, type=float)
+        parser.add_argument("--temperature", default=1, type=float)
         parser.add_argument("--prior_type", default='optimized_data', type=str)
         return parser
     

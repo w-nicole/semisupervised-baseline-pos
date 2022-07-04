@@ -45,6 +45,7 @@ from model.module import Identity, InputVariationalDropout, MeanPooling, Transfo
 
 from dataset import collate
 import wandb
+import math
 
 class Model(pl.LightningModule):
     def __init__(self, hparams):
@@ -320,20 +321,25 @@ class Model(pl.LightningModule):
         lang = batch["lang"][0]
         accuracy_type_metric_args = (batch["labels"], encoder_outputs)
         pos_metric_args = (batch["labels"], encoder_outputs)
+
         self.metrics[prefix][lang]['acc'].add(*accuracy_type_metric_args)
+        nmi_start_time = time.time()
         self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
-        
         number_of_true_labels = (batch['labels'] != LABEL_PAD_ID).sum()
-        try:
-            for metric_key in loss_dict: # Doesn't include accuracy or nmi yet
-                if metric_key == 'lang': continue
-                assert 'acc' not in loss_dict and 'nmi' not in loss_dict, loss_dict.keys()
-                self.metrics[prefix][lang][metric_key].add(loss_dict[metric_key], number_of_true_labels)
-        except: import pdb; pdb.set_trace()
+
+        for metric_key in loss_dict: # Doesn't include accuracy or nmi yet
+            if metric_key == 'lang': continue
+            assert 'acc' not in loss_dict and 'nmi' not in loss_dict, loss_dict.keys()
+            value = loss_dict[metric_key]
+            if math.isnan(value): import pdb; pdb.set_trace()
+            self.metrics[prefix][lang][metric_key].add(value, number_of_true_labels)
+        
+        batch_time = time.time()
         if not self.is_initial_validation():
             for metric_type, batch_metric in zip(['acc', 'nmi'], [POSMetric(), NMIMetric()]):
                 batch_metric.add(*accuracy_type_metric_args)
                 for specific_metric, value in batch_metric.get_metric().items():
+                    if math.isnan(value): import pdb; pdb.set_trace()
                     loss_dict[f'{prefix}_{lang}_{specific_metric}'] = value
         return loss_dict
         
