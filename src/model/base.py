@@ -323,7 +323,6 @@ class Model(pl.LightningModule):
         pos_metric_args = (batch["labels"], encoder_outputs)
 
         self.metrics[prefix][lang]['acc'].add(*accuracy_type_metric_args)
-        nmi_start_time = time.time()
         self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
         number_of_true_labels = (batch['labels'] != LABEL_PAD_ID).sum()
 
@@ -334,7 +333,6 @@ class Model(pl.LightningModule):
             if math.isnan(value): import pdb; pdb.set_trace()
             self.metrics[prefix][lang][metric_key].add(value, number_of_true_labels)
         
-        batch_time = time.time()
         if not self.is_initial_validation():
             for metric_type, batch_metric in zip(['acc', 'nmi'], [POSMetric(), NMIMetric()]):
                 batch_metric.add(*accuracy_type_metric_args)

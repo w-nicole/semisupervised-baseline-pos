@@ -73,18 +73,14 @@ class NMIMetric(Metric):
         for label, prediction in zip(labels, predictions):
             self.predicted_by_label_counts[label][prediction] += 1
         
-    def compute_zero_log_zero(self, coefficient, log_term, mask = None):
-        if mask is None:
-            mask = (coefficient == 0) & (log_term == 0)
-        filter_zero_log_zero = lambda tensor, mask : torch.where(mask, torch.zeros(tensor.shape), tensor)
-        filtered_coefficient = filter_zero_log_zero(coefficient, mask)
-        filtered_log_term = filter_zero_log_zero(log_term, mask)
-        return filtered_coefficient, filtered_log_term
+    def filter_zero_log_zero(self, tensor, mask):
+        return torch.where(mask, torch.zeros(tensor.shape), tensor)
         
     def compute_entropy(self, raw_distribution):
-        filtered_distribution, _ = self.compute_zero_log_zero(raw_distribution, raw_distribution)
-        entropy = lambda distribution : -(distribution * torch.log(distribution)).sum()
-        return entropy(filtered_distribution)
+        entropy_vector = lambda distribution : -(distribution * torch.log(distribution))
+        mask = (raw_distribution == 0)
+        filtered_entropy_vector = self.filter_zero_log_zero(entropy_vector(raw_distribution), mask)
+        return filtered_entropy_vector.sum()
         
     @to_tensor
     def get_metric(self):
@@ -101,9 +97,9 @@ class NMIMetric(Metric):
         # if p(x) = 0, or p(y) = 0, it is covered by this case.
         # therefore using the joint alone for the log_term is valid.
         mask = (joint_distribution == 0)    
-        _, log_term_joint = self.compute_zero_log_zero(joint_distribution, torch.log(joint_distribution), mask)
-        _, log_term_label = self.compute_zero_log_zero(joint_distribution, torch.log(repeated_label), mask)
-        _, log_term_predicted = self.compute_zero_log_zero(joint_distribution, torch.log(repeated_predicted), mask)
+        log_term_joint = self.filter_zero_log_zero(torch.log(joint_distribution), mask)
+        log_term_label = self.filter_zero_log_zero(torch.log(repeated_label), mask)
+        log_term_predicted = self.filter_zero_log_zero(torch.log(repeated_predicted), mask)
         
         log_term = log_term_joint - log_term_label - log_term_predicted
         pre_sum = joint_distribution * log_term
