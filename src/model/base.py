@@ -16,6 +16,8 @@
 # Removed epochwise train metrics.
 # Changed checkpointing metric for compatibility with wandb logging.
 # Removed ._metric
+# Added manual dump of yaml.
+# Plateau monitor changed to be epoch, on target language.
 
 import hashlib
 import json
@@ -46,6 +48,7 @@ from model.module import Identity, InputVariationalDropout, MeanPooling, Transfo
 from dataset import collate
 import wandb
 import math
+import yaml
 
 class Model(pl.LightningModule):
     def __init__(self, hparams):
@@ -70,7 +73,6 @@ class Model(pl.LightningModule):
         
         if isinstance(hparams, dict):
             hparams = Namespace(**hparams)
-        # self.hparams: Namespace = hparams
         self.save_hyperparameters(hparams)
         pl.seed_everything(hparams.seed)
         
@@ -219,7 +221,7 @@ class Model(pl.LightningModule):
             for lang in langs:
                 self.metrics[phase][lang] = {}
                 for metric_key in self.metric_names:
-                    metric = self.name_to_metric[metric_key] if metric_key in self.name_to_metric else AverageMetric(metric_key)
+                    metric = deepcopy(self.name_to_metric[metric_key]) if metric_key in self.name_to_metric else AverageMetric(metric_key)
                     self.metrics[phase][lang][metric_key] = metric
 
     # Below: changed to permit train logging
@@ -323,22 +325,17 @@ class Model(pl.LightningModule):
         pos_metric_args = (batch["labels"], encoder_outputs)
 
         self.metrics[prefix][lang]['acc'].add(*accuracy_type_metric_args)
-        self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
+        if 'nmi' in self.metric_names:
+            self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
         number_of_true_labels = (batch['labels'] != LABEL_PAD_ID).sum()
 
+        assert 'acc' not in loss_dict and 'nmi' not in loss_dict, loss_dict.keys()
         for metric_key in loss_dict: # Doesn't include accuracy or nmi yet
-            if metric_key == 'lang': continue
-            assert 'acc' not in loss_dict and 'nmi' not in loss_dict, loss_dict.keys()
+            if metric_key in 'lang': continue
             value = loss_dict[metric_key]
             if math.isnan(value): import pdb; pdb.set_trace()
             self.metrics[prefix][lang][metric_key].add(value, number_of_true_labels)
         
-        if not self.is_initial_validation():
-            for metric_type, batch_metric in zip(['acc', 'nmi'], [POSMetric(), NMIMetric()]):
-                batch_metric.add(*accuracy_type_metric_args)
-                for specific_metric, value in batch_metric.get_metric().items():
-                    if math.isnan(value): import pdb; pdb.set_trace()
-                    loss_dict[f'{prefix}_{lang}_{specific_metric}'] = value
         return loss_dict
         
     def get_global_train_step(self):
@@ -349,18 +346,24 @@ class Model(pl.LightningModule):
         lang = lang_list[0]
         modifier = f'{phase}_{lang}'
         if not self.trainer.sanity_checking:
-            modified_loss_dict = { (f"{modifier}_{metric}" if not metric.startswith(modifier) else metric) : value for metric, value in loss_dict.items() }
+            modify_metric = lambda modifier, metric : f"{modifier}_{metric}" if not metric.startswith(modifier) else metric
+            running_loss_dict = {}
+            for metric_group in self.metric_names:
+                if metric_group in {'lang'}: continue
+                running_loss_dict.update({
+                    modify_metric(modifier, metric) : value
+                    for metric, value in self.metrics[phase][lang][metric_group].get_metric().items()
+                })
             if phase == 'val':
                 batch_step = batch_idx + self.current_epoch * len(self.trainer.val_dataloaders[dataloader_idx])
             else:
                 batch_step = self.train_step[lang]
                 self.train_step[lang] += 1
-            modified_loss_dict.update({f'{phase}_{lang}_batch' : batch_step})
+            running_loss_dict.update({f'{phase}_{lang}_batch' : batch_step})
             if phase == 'train':
-                modified_loss_dict.update({'train_step' : self.get_global_train_step()})
-            wandb.log(modified_loss_dict)
-        return modified_loss_dict
-        
+                running_loss_dict.update({'train_step' : self.get_global_train_step()})
+            wandb.log(running_loss_dict)
+
     # Moved from model/tagger.py.    
     # Changed below to be compatible with later models' loss_dict
     # and to do accuracy updates and wandb logging
@@ -375,7 +378,7 @@ class Model(pl.LightningModule):
         }
         if batch_idx % self.hparams.log_frequency == 0:
             self.log_wandb('train', batch['lang'], loss_dict, batch_idx, None)
-        lang = batch["lang"][0]
+        
         return loss_dict
         
     # added below
@@ -387,9 +390,8 @@ class Model(pl.LightningModule):
         loss_dict = self.step_helper(batch, "val")
         initial_validation = self.is_initial_validation()
         if not initial_validation:
-            self.log("val_loss", loss_dict[self.optimization_loss])
-            if not batch_idx % self.hparams.log_frequency == 0:
-                loss_dict = self.log_wandb('val', batch['lang'], loss_dict, batch_idx, dataloader_idx)
+            if batch_idx % self.hparams.log_frequency == 0:
+                self.log_wandb('val', batch['lang'], loss_dict, batch_idx, dataloader_idx)
         return loss_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
@@ -422,7 +424,7 @@ class Model(pl.LightningModule):
 
         for key, vals in aver_metric.items():
             wandb.log({
-                f"{phase}_{key}_all" : torch.stack(vals).mean(),
+                f"{phase}_{key}_all_epoch" : torch.stack(vals).mean(),
                 'train_step' : global_train_step
             })
             
@@ -517,9 +519,10 @@ class Model(pl.LightningModule):
         self.scheduler = scheduler
         scheduler_dict = {"scheduler": scheduler, "interval": interval}
         if self.hparams.schedule == Schedule.reduceOnPlateau:
-            # Changed below to match new keys.
-            scheduler_dict["monitor"] = 'val_loss'
+            # Changed below key
+            scheduler_dict["monitor"] = f"val_{self.target_language}_{self.optimization_loss}_epoch_monitor"
         return [optimizer], [scheduler_dict]
+        
 
     def _get_signature(self, params: Dict):
         def md5_helper(obj):

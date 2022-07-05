@@ -114,7 +114,6 @@ class NMIMetric(Metric):
             'nmi_added': 2 * mi / ( (h_label + h_predicted) + eps ),
             'nmi_min' : mi / ( min(h_label, h_predicted) + eps )
         }
-        import pdb; pdb.set_trace()
         return metrics
         
     def reset(self):

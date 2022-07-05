@@ -9,6 +9,7 @@
 # Added imports as needed
 # Added explicit model directory creation code and removed previous version
 # Changed comparsion -> comparison_mode
+# Added manual hparam to yaml save
 
 import os
 from argparse import ArgumentParser, Namespace
@@ -32,6 +33,7 @@ def main(hparams):
         name = util.get_model_path_section(hparams),
         save_dir = hparams.default_save_path
     )
+
     args = { 'name' : logger.name }
     if hparams.wandb_group: args['group'] = hparams.wandb_group
     if hparams.wandb_job_type: args['job_type'] = hparams.wandb_job_type
@@ -51,7 +53,12 @@ def main(hparams):
         hparams.exp_name,
         f"version_{logger.version}" if logger.version is not None else "",
     )
+
     if not os.path.exists(base_dir): os.makedirs(base_dir)
+    yaml_path = os.path.join(base_dir, 'hparams.yaml')
+    with open(yaml_path, 'w') as f:
+        yaml.dump(hparams, f)
+        
     model.base_dir = base_dir
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         dirpath=os.path.join(base_dir, "ckpts"),

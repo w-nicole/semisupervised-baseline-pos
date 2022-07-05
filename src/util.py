@@ -33,7 +33,7 @@ apply_gpu = lambda item : item.cuda() if torch.cuda.is_available() else item
 remove_from_gpu = lambda tensor : tensor.detach().cpu() if torch.cuda.is_available() else tensor.detach()
 # end additions
 
-# added below method
+# added below methods
 def get_model_path_section(hparams):
     return '/'.join([hparams.default_save_path.replace('./experiments/', ''), hparams.exp_name])
 
@@ -82,6 +82,8 @@ def add_training_arguments(parser):
     # end added
     return parser
     
+# end added methods
+
 def str2bool(v):
     if isinstance(v, bool):
         return v
