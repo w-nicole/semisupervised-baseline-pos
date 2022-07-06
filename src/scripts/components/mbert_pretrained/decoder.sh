@@ -22,7 +22,7 @@ src="English"
 tgt="English Dutch"
 
 data_path=${5:-"../ud-treebanks-v1.4"}
-mbert_checkpoint=${6:-"./experiments/components/mbert_pretrained/encoder/linear/version_0/ckpts/ckpts_epoch=2-val_English_acc=96.807.ckpt"}
+mbert_checkpoint=${6:-"./experiments/components/mbert_pretrained/encoder/linear/version_17h7usu3/ckpts/ckpts_epoch=2-val_English_acc_epoch_monitor=96.807.ckpt"}
 
 bs=16
 ep=10

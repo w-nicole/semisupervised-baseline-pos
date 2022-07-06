@@ -1,11 +1,11 @@
 {
     "encoder" : {
-        "mbert_pretrained" : "./experiments/components/mbert_pretrained/encoder/linear/version_0/ckpts/ckpts_epoch=2-val_English_acc=96.807.ckpt",
-        "mbert_fixed" : "./experiments/components/mbert_fixed/encoder/linear/version_0/ckpts/ckpts_epoch=3-val_English_acc=95.332.ckpt"
+        "mbert_pretrained" : "./experiments/components/mbert_pretrained/encoder/linear/version_17h7usu3/ckpts/ckpts_epoch=2-val_English_acc_epoch_monitor=96.807.ckpt",
+        "mbert_fixed" : "./experiments/components/mbert_fixed/encoder/linear/version_2y7fjzrp/ckpts/ckpts_epoch=2-val_English_acc_epoch_monitor=95.077.ckpt"
     },
     "decoder" : {
-        "mbert_pretrained" : "./experiments/components/mbert_pretrained/decoder/linear/version_1/ckpts/ckpts_epoch=9-val_English_decoder_loss=63.230.ckpt",
-        "mbert_fixed" : "./experiments/components/mbert_fixed/decoder/linear/version_1/ckpts/ckpts_epoch=9-val_English_decoder_loss=3812.927.ckpt"
+        "mbert_pretrained" : "./experiments/components/mbert_pretrained/decoder/linear/version_34s3w16b/ckpts/ckpts_epoch=1-val_English_decoder_loss_epoch_monitor=53.564.ckpt",
+        "mbert_fixed" : "./experiments/components/mbert_fixed/decoder/linear/version_3cew21wr/ckpts/ckpts_epoch=9-val_English_decoder_loss_epoch_monitor=3822.150.ckpt"
     },
     "data_path": "../ud-treebanks-v1.4"
 }

@@ -42,7 +42,7 @@ class AverageMetric(Metric):
         
     def add(self, averaged_value, batch_number_of_tokens):
         self.total_metric += averaged_value * batch_number_of_tokens
-        self.number_of_tokens = batch_number_of_tokens
+        self.number_of_tokens += batch_number_of_tokens
     
     @to_tensor
     def get_metric(self):

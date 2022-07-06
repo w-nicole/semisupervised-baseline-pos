@@ -40,6 +40,6 @@ python3 src/train_encoder.py \
     --default_save_path "$save_path" \
     --exp_name "linear" \
     --freeze_mbert "y" \
-    --concat_all_hidden_states "y"
+    --concat_all_hidden_states "y" \
     --gpus 1
     

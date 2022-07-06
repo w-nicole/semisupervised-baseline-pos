@@ -321,12 +321,14 @@ class Model(pl.LightningModule):
             len(set(batch["lang"])) == 1
         ), "batch should contain only one language"
         lang = batch["lang"][0]
-        accuracy_type_metric_args = (batch["labels"], encoder_outputs)
-        pos_metric_args = (batch["labels"], encoder_outputs)
-
-        self.metrics[prefix][lang]['acc'].add(*accuracy_type_metric_args)
-        if 'nmi' in self.metric_names:
-            self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
+        
+        if encoder_outputs is not None:
+            accuracy_type_metric_args = (batch["labels"], encoder_outputs)
+            pos_metric_args = (batch["labels"], encoder_outputs)
+    
+            self.metrics[prefix][lang]['acc'].add(*accuracy_type_metric_args)
+            if 'nmi' in self.metric_names:
+                self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
         number_of_true_labels = (batch['labels'] != LABEL_PAD_ID).sum()
 
         assert 'acc' not in loss_dict and 'nmi' not in loss_dict, loss_dict.keys()

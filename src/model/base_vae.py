@@ -64,16 +64,17 @@ class BaseVAE(Tagger):
             else:
                 self.auxiliary_mu = torch.nn.Linear(self.hidden_size, self.hparams.auxiliary_size)
 
-        self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_decoder_loss_epoch_monitor'
-        self._comparison_mode = 'min'
         self.optimization_loss = 'decoder_loss'
+        self._selection_criterion = f'val_{self.hparams.trn_langs[0]}_{self.optimization_loss}_epoch_monitor'
+        self._comparison_mode = 'min'
         self.metric_names = [
             'MSE',
             'decoder_loss',
         ]
         if self.use_auxiliary:
             self.metric_names.append('auxiliary_KL')
-    
+        self.setup_metrics()
+        
     # Below forward-related methods:
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
     # and variables renamed for notation consistency.
@@ -95,10 +96,6 @@ class BaseVAE(Tagger):
         )
         return clean_tensor
         
-    def calculate_decoder(self, pi_t):
-        mu_t = self.decoder(F.softmax(pi_t, dim=-1))
-        return mu_t
-        
     def calculate_decoder_loss(self, batch, hs, pi_t):
         loss = {}
         if self.use_auxiliary:
@@ -118,7 +115,7 @@ class BaseVAE(Tagger):
         else:
             decoder_input = pi_t
 
-        mu_t = self.calculate_decoder(decoder_input)
+        mu_t = self.decoder(decoder_input)
 
         loss['MSE'] = self.masked_mse_loss(batch, mu_t, hs)
         auxiliary_loss = (self.hparams.auxiliary_kl_weight * loss['auxiliary_KL']) if self.use_auxiliary else 0
@@ -159,15 +156,8 @@ class BaseVAE(Tagger):
 
         self.add_language_to_batch_output(loss, batch)
         return loss, None
-        
     # end forward-related methods
     
-    # Renamed variables, function, direct return of loss_dict, no self.log for loss
-    # Updated assert message and metrics indexing
-    def step_helper(self, batch, prefix):
-        loss_dict, _ = self.__call__(batch)
-        return loss_dict
-        
     @classmethod
     def add_model_specific_args(cls, parser):
         parser = Tagger.add_model_specific_args(parser)

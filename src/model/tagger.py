@@ -105,7 +105,6 @@ class Tagger(Model):
     def __call__(self, batch):
         if self.is_frozen_mbert:
             self.model.eval()
-            
         batch = self.preprocess_batch(batch)
         # Updated call arguments
         hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])

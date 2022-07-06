@@ -122,6 +122,12 @@ class VAE(BaseVAE):
             ignore_index=LABEL_PAD_ID,
         )
         return encoder_loss
+        
+    def calculate_one_hot_from_probabilities(self, pi_tilde_t):
+        predicted_labels = pi_tilde_t.argmax(dim=-1)
+        one_hot_predictions = F.one_hot(predicted_labels, num_classes = self.nb_labels)
+        assert pi_tilde_t.shape == one_hot_predictions.shape, f'pi_tilde_t: {pi_tilde_t.shape}, one_hot: {one_hot_predictions.shape}'
+        return one_hot_predictions
     
     def __call__(self, batch):
         self.model.eval()
@@ -132,16 +138,23 @@ class VAE(BaseVAE):
         log_pi_t = self.calculate_log_pi_t(batch, hs)
         
         # Calculate predicted mean
-        if self.hparams.pos_kl_weight > 0:
+        assert self.classifier.training == self.decoder.training
+        is_train = self.classifier.training
+        if self.hparams.pos_kl_weight > 0 and is_train:
             uniform_sample = Uniform(torch.zeros(log_pi_t.shape), torch.ones(log_pi_t.shape)).rsample()
             noise = util.apply_gpu(-torch.log(-torch.log(uniform_sample)))
         
             unnormalized_pi_tilde_t = (log_pi_t + noise) / self.hparams.temperature
             raw_pi_tilde_t = F.softmax(unnormalized_pi_tilde_t, dim=-1)
-            pi_tilde_t = self.set_padded_to_zero(batch, raw_pi_tilde_t)
         else:
-            pi_tilde_t = log_pi_t
+            raw_pi_tilde_t = torch.exp(log_pi_t)
+        
+        # For eval, do NOT add noise, but DO convert to one-hot representation
+        if not is_train:
+            # Need float for compatibility in cleaning later (as model input)
+            raw_pi_tilde_t = self.calculate_one_hot_from_probabilities(raw_pi_tilde_t).float()
             
+        pi_tilde_t = self.set_padded_to_zero(batch, raw_pi_tilde_t)
         loss = self.calculate_decoder_loss(batch, hs, pi_tilde_t)
     
         # Only softmax if the prior is optimized (otherwise it's already probability)
