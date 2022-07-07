@@ -33,6 +33,7 @@ python3 src/train_decoder.py \
 	--exp_name linear \
 	--gpus 1 \
 	--freeze_mbert "y" \
+	--mbert_checkpoint $mbert_checkpoint \
 	--encoder_checkpoint $encoder_checkpoint \
 	--decoder_checkpoint $decoder_checkpoint \
 	--pos_kl_weight 1 \
