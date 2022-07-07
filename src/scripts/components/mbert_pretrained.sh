@@ -13,15 +13,13 @@
 seed=${1:-42}
 model=${2:-"bert-base-multilingual-cased"}
 task=${3:-"udpos"}
-freeze=${4:-"12"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
 
-save_path=${5:-"./experiments/explore_phase_1"}
+save_path=${4:-"./experiments/components/mbert_pretrained"}
 
-langs=(Dutch)
-data_path=${6:-"../ud-treebanks-v1.4"}
-encoder_checkpoint=${7:"./experiments/normal_phase_1/version_0/ckpts/ckpts_epoch=2-val_English_acc=97.057.ckpt"}
+langs=(English)
+data_path=${5:-"../ud-treebanks-v1.4"}
 
 bs=16
 ep=3
@@ -39,7 +37,7 @@ python3 src/train_encoder.py \
     --max_epochs $ep \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
-    --exp_name dutch \
-    --mbert_checkpoint "$encoder_checkpoint" \
+    --exp_name "linear" \
+    --freeze_mbert "n" \
     --gpus 1
     

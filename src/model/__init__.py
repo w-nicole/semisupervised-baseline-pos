@@ -1,9 +1,8 @@
 # Taken from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
-# removed irrelevant classes
+# removed irrelevant classes and added new ones
 
 from model.base import Model  # noqa: F401
 from model.tagger import Tagger  # noqa: F401
-# below: all added
-from model.base_vae import BaseVAE
-from model.vae import VAE
+from model.base_tagger import BaseTagger
+from model.latent_to_pos import LatentToPOS

@@ -42,8 +42,8 @@ import constant
 import util
 from dataset.base import Dataset
 from enumeration import Schedule, Split, Task
-from metric import Metric, POSMetric, AverageMetric, NMIMetric, LABEL_PAD_ID
-from model.module import Identity, InputVariationalDropout, MeanPooling, Transformer
+from metric import Metric, POSMetric, AverageMetric, LABEL_PAD_ID
+from model.module import InputVariationalDropout
 
 from dataset import collate
 import wandb
@@ -100,21 +100,13 @@ class Model(pl.LightningModule):
         self.model = self.build_model(self.hparams.pretrain)
         self.freeze_layers()
 
-        self.mapping = None
-        if hparams.mapping:
-            assert os.path.isfile(hparams.mapping)
-            self.mapping = torch.load(hparams.mapping)
-            util.freeze(self.mapping)
-
         # Changed below line
-        self.projector = None
         self.dropout = InputVariationalDropout(hparams.input_dropout)
         
         # Added below
         self.train_step = defaultdict(int)
         self.name_to_metric = {
-            'acc' : POSMetric(),
-            'nmi' : NMIMetric()
+            'acc' : POSMetric()
         }
 
     # Changed below to accept pretrain as argument so classmethod works.
@@ -126,6 +118,16 @@ class Model(pl.LightningModule):
         model = AutoModel.from_pretrained(pretrain, config=config)
         return model
         
+    def build_layer_stack(self, input_size, output_size, hidden_size, hidden_layers, nonlinear_first):
+        if hidden_layers >= 0:
+            return self.build_mlp(
+                input_size, output_size,
+                hidden_size, hidden_layers,
+                nonlinear_first
+            )
+        else:
+            return nn.Linear(input_size, output_size)
+            
     def build_mlp(self, input_size, output_size, hidden_size, hidden_layers, nonlinear_first):
         layers = []
         if nonlinear_first:
@@ -181,7 +183,7 @@ class Model(pl.LightningModule):
         util.freeze(self.model.encoder.layer[layer - 1])
         
     @property
-    def hidden_size(self):
+    def mbert_output_size(self):
         # hidden_size = the input to the classifier
         # Added logic for concatenated embeddings
         single_layer_size = self.model.config.hidden_size
@@ -243,66 +245,20 @@ class Model(pl.LightningModule):
         # end changes
         langs: Optional[List[str]] = None,
         segment: Optional[Tensor] = None,
-        model: Optional[transformers.PreTrainedModel] = None,
-        return_raw_hidden_states: bool = False,
+        model: Optional[transformers.PreTrainedModel] = None
     ):
         if model is None:
             model = self.model
         mask = self.get_mask(sent)
-        if isinstance(model, transformers.BertModel) or isinstance(
-            self.model, transformers.RobertaModel
-        ):
-            output = model(input_ids=sent, attention_mask=mask, token_type_ids=segment)
-        elif isinstance(model, transformers.XLMModel):
-            lang_ids: Optional[torch.Tensor]
-            if langs is not None:
-                try:
-                    batch_size, seq_len = sent.shape
-                    lang_ids = torch.tensor(
-                        [self.tokenizer.lang2id[lang] for lang in langs],
-                        dtype=torch.long,
-                        device=sent.device,
-                    )
-                    lang_ids = lang_ids.unsqueeze(1).expand(batch_size, seq_len)
-                except KeyError as e:
-                    print(f"KeyError with missing language {e}")
-                    lang_ids = None
-            output = model(
-                input_ids=sent,
-                attention_mask=mask,
-                langs=lang_ids,
-                token_type_ids=segment,
-            )
-        else:
-            raise ValueError("Unsupported model")
+        output = model(input_ids=sent, attention_mask=mask, token_type_ids=segment)
 
-        if return_raw_hidden_states:
-            return output["hidden_states"]
-
-        hs = self.map_feature(output["hidden_states"], langs)
-        hs = self.process_feature(hs)
+        hs = self.process_feature(output['hidden_states'])
         hs = self.dropout(hs)
-        # Removed projector.
         
         # Below: added averaging.
         averaged_hs = collate.average_embeddings(hs, start_indices, end_indices)
         return averaged_hs
         # end changes
-
-    def map_feature(self, hidden_states: List[Tensor], langs):
-        if self.mapping is None:
-            return hidden_states
-
-        assert len(set(langs)) == 1, "a batch should contain only one language"
-        lang = langs[0]
-        lang = constant.LANGUAGE_TO_ISO639.get(lang, lang)
-        if lang not in self.mapping:
-            return hidden_states
-
-        hs = []
-        for h, m in zip(hidden_states, self.mapping[lang]):
-            hs.append(m(h))
-        return hs
 
     def process_feature(self, hidden_states: List[Tensor]):
         if not isinstance(hidden_states, tuple):
@@ -327,12 +283,10 @@ class Model(pl.LightningModule):
             pos_metric_args = (batch["labels"], encoder_outputs)
     
             self.metrics[prefix][lang]['acc'].add(*accuracy_type_metric_args)
-            if 'nmi' in self.metric_names:
-                self.metrics[prefix][lang]['nmi'].add(*accuracy_type_metric_args)
         number_of_true_labels = (batch['labels'] != LABEL_PAD_ID).sum()
 
-        assert 'acc' not in loss_dict and 'nmi' not in loss_dict, loss_dict.keys()
-        for metric_key in loss_dict: # Doesn't include accuracy or nmi yet
+        assert 'acc' not in loss_dict, loss_dict.keys()
+        for metric_key in loss_dict:
             if metric_key in 'lang': continue
             value = loss_dict[metric_key]
             if math.isnan(value): import pdb; pdb.set_trace()
@@ -648,9 +602,17 @@ class Model(pl.LightningModule):
             )
             for tst_dataset in self.tst_datasets
         ]
+        
+    @classmethod
+    def add_layer_stack_args(cls, parser, modifier):
+        parser.add_argument(f"--{modifier}_hidden_layers", default=-1, type=int)
+        parser.add_argument(f"--{modifier}_hidden_size", default=0, type=int)
+        parser.add_argument(f"--{modifier}_nonlinear_first", default=False, type=util.str2bool)
+        return parser
 
     @classmethod
     def add_model_specific_args(cls, parent_parser):
+        # Changes: Removed irrelevant arguments generally here.
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
         # fmt: off
         # shared
@@ -677,14 +639,8 @@ class Model(pl.LightningModule):
         # end additions
         # Below line: changed from providing weighted features to a concatenated all hidden states
         parser.add_argument("--concat_all_hidden_states", default=False, type=util.str2bool)
-        parser.add_argument("--projector", default="id", choices=["id", "meanpool", "transformer"], type=str)
-        parser.add_argument("--projector_trm_hidden_size", default=3072, type=int)
-        parser.add_argument("--projector_trm_num_heads", default=12, type=int)
-        parser.add_argument("--projector_trm_num_layers", default=4, type=int)
         # Changed to remove all types of dropout that are specified separate from BERT (i.e. set them to zero)
-        parser.add_argument("--projector_dropout", default=0, type=float)
         parser.add_argument("--input_dropout", default=0, type=float)
-        parser.add_argument("--mapping", default="", type=str)
         # misc
         parser.add_argument("--seed", default=42, type=int)
         parser.add_argument("--learning_rate", default=5e-5, type=float)
