@@ -194,7 +194,7 @@ def add_training_arguments(parser):
     parser.add_argument("--log_frequency", default=1, type=int)
     parser.add_argument("--wandb_group", default="", type=str)
     parser.add_argument("--wandb_job_type", default="", type=str)
-     
+    parser.add_argument("--sampling", default=True, type=str2bool)
     # end added
     return parser
     

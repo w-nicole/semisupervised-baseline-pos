@@ -63,7 +63,6 @@ class LatentToPOS(BaseTagger):
             'acc'
         ]
         self.setup_metrics()
-        import pdb; pdb.set_trace()
         
     # Below forward-related methods:
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
@@ -141,11 +140,14 @@ class LatentToPOS(BaseTagger):
         hs = self.calculate_hidden_states(batch)
         latent_mean = self.encoder(hs)
         latent_sample = self.get_latent_distribution(latent_mean).rsample()
-        predicted_hs = self.decoder_reconstruction(latent_sample)
+        reconstruction_input = latent_sample\
+            if not self.hparams.softmax_before_reconstruction\
+            else F.softmax(latent_sample, dim = -1)
+        predicted_hs = self.decoder_reconstruction(reconstruction_input)
         
         loss['latent_KL'] = self.calculate_latent_kl(batch, latent_mean)
         loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, hs) 
-        unlabeled_loss = self.hparams.pos_nll_weight * loss['latent_KL'] + self.hparams.mse_weight * loss['MSE']
+        unlabeled_loss = self.hparams.latent_kl_weight * loss['latent_KL'] + self.hparams.mse_weight * loss['MSE']
         
         # Labeled case,
         # but if training on English alone, then English should be treated as unsupervised.
@@ -172,5 +174,6 @@ class LatentToPOS(BaseTagger):
         parser.add_argument("--pos_nll_weight", default=1, type=float)
         parser.add_argument("--latent_kl_weight", default=1, type=float)
         parser.add_argument("--mse_weight", default=1, type=float)
+        parser.add_argument("--softmax_before_reconstruction", default=False, type=util.str2bool)
         return parser
         
