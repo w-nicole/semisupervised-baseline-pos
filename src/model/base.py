@@ -290,6 +290,7 @@ class Model(pl.LightningModule):
             if metric_key in 'lang': continue
             value = loss_dict[metric_key]
             self.metrics[prefix][lang][metric_key].add(value, number_of_true_labels)
+
         return loss_dict
         
     def get_global_train_step(self):

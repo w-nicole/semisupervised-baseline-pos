@@ -46,6 +46,21 @@ class Tagger(BaseTagger):
         self._comparison_mode = 'max'
         self._selection_criterion = f'val_{self.target_language}_acc_epoch_monitor'
 
+        self.is_frozen_mbert = self.hparams.mbert_checkpoint or self.hparams.freeze_mbert
+        assert not ((not self.hparams.freeze_mbert) and self.hparams.mbert_checkpoint),\
+            "Mutually exclusive. mbert_checkpoint always automatically frozen."
+            
+        # Reinitialize mBERT alone if given a checkpoint.
+        if self.hparams.mbert_checkpoint:
+            encoder = Tagger.load_from_checkpoint(self.hparams.mbert_checkpoint)
+            self.freeze_bert(encoder)
+            self.model = encoder.model
+            self.concat_all_hidden_states = encoder.concat_all_hidden_states
+        
+        if self.hparams.freeze_mbert:
+            self.freeze_bert(self)
+        # end additions
+
         self.id2label = UdPOS.get_labels()
         self.classifier = self.build_layer_stack(
             self.mbert_output_size, self.nb_labels,
@@ -60,7 +75,6 @@ class Tagger(BaseTagger):
             'acc'
         ]
         self.setup_metrics()
-        
     
     def __call__(self, batch):
         if self.is_frozen_mbert:
@@ -86,7 +100,9 @@ class Tagger(BaseTagger):
     def add_model_specific_args(cls, parser):
         # Added these arguments, removed crf argument
         # -1 indicates a linear layer alone (no input layer).
-        parser = BaseTagger.add_model_specific_args(parser)
+        parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
+        parser.add_argument("--mbert_checkpoint", default="", type=str)
+        parser = Model.add_model_specific_args(parser)
         parser = Model.add_layer_stack_args(parser, 'pretrained')
         return parser
         

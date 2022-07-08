@@ -48,7 +48,7 @@ class LatentToPOS(BaseTagger):
             self.hparams.decoder_pos_nonlinear_first
         )
         self.decoder_reconstruction = self.build_layer_stack(
-            self.hparams.latent_size, self.nb_labels,
+            self.hparams.latent_size, self.mbert_output_size,
             self.hparams.decoder_reconstruction_hidden_size, self.hparams.decoder_reconstruction_hidden_layers,
             self.hparams.decoder_reconstruction_nonlinear_first
         )
@@ -57,12 +57,13 @@ class LatentToPOS(BaseTagger):
         self._comparison_mode = 'max'
         self.metric_names = [
             'latent_KL',
-            'pos_nll'
+            'pos_nll',
             'total_loss',
             'MSE',
             'acc'
         ]
         self.setup_metrics()
+        import pdb; pdb.set_trace()
         
     # Below forward-related methods:
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
@@ -105,11 +106,11 @@ class LatentToPOS(BaseTagger):
     def get_latent_distribution(self, latent_mean):
         return Normal(
             latent_mean,
-            util.apply_gpu(torch.ones(latent_mean.shape)) * self.hparams.latent_sigma
+            util.apply_gpu(torch.ones(latent_mean.shape))
         )
         
     def calculate_latent_kl(self, batch, latent_mean):
-        latent_distribution = self.get_latent_distribution(self, latent_mean)
+        latent_distribution = self.get_latent_distribution(latent_mean)
         normal_prior = Normal(
                 util.apply_gpu(torch.zeros(latent_mean.shape)),
                 util.apply_gpu(torch.ones(latent_mean.shape))
@@ -127,7 +128,7 @@ class LatentToPOS(BaseTagger):
         
     def calculate_encoder_outputs(self, batch, latent_sample):
         pos_log_probs = F.log_softmax(self.decoder_pos(latent_sample), dim = -1)
-        loss = self.encoder_loss(batch, pos_log_probs)
+        loss = self.calculate_encoder_loss(batch, pos_log_probs)
         return pos_log_probs, loss
         
     # Changed from forward.
@@ -144,7 +145,7 @@ class LatentToPOS(BaseTagger):
         
         loss['latent_KL'] = self.calculate_latent_kl(batch, latent_mean)
         loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, hs) 
-        unlabeled_loss = self.hparams.nll_weight * loss['latent_KL'] + self.hparams.mse_weight * loss['MSE']
+        unlabeled_loss = self.hparams.pos_nll_weight * loss['latent_KL'] + self.hparams.mse_weight * loss['MSE']
         
         # Labeled case,
         # but if training on English alone, then English should be treated as unsupervised.
@@ -152,11 +153,12 @@ class LatentToPOS(BaseTagger):
         if labeled_case:
             with torch.no_grad():
                 pos_log_probs, encoder_loss = self.calculate_encoder_outputs(batch, latent_sample)
-            loss['total_loss'] = self.hparams.pos_nll_weight * loss['pos_nll'] + unlabeled_loss
+            loss['total_loss'] = self.hparams.pos_nll_weight * encoder_loss + unlabeled_loss
         else:
             pos_log_probs, encoder_loss = self.calculate_encoder_outputs(batch, latent_sample)
             loss['total_loss'] = unlabeled_loss
             
+        loss['pos_nll'] = encoder_loss
         self.add_language_to_batch_output(loss, batch)
         return loss, pos_log_probs
         
@@ -164,7 +166,6 @@ class LatentToPOS(BaseTagger):
     def add_model_specific_args(cls, parser):
         parser = Tagger.add_model_specific_args(parser)
         parser.add_argument("--latent_size", default=64, type=int)
-        parser.add_argument("--latent_sigma", default=1, type=float)
         parser = Model.add_layer_stack_args(parser, 'encoder')
         parser = Model.add_layer_stack_args(parser, 'decoder_pos')
         parser = Model.add_layer_stack_args(parser, 'decoder_reconstruction')

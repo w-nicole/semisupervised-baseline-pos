@@ -45,21 +45,6 @@ class BaseTagger(Model):
         self._nb_labels: Optional[int] = None
         self._nb_labels = UdPOS.nb_labels()
         
-        self.is_frozen_mbert = self.hparams.mbert_checkpoint or self.hparams.freeze_mbert
-        assert not ((not self.hparams.freeze_mbert) and self.hparams.mbert_checkpoint),\
-            "Mutually exclusive. mbert_checkpoint always automatically frozen."
-            
-        # Reinitialize mBERT alone if given a checkpoint.
-        if self.hparams.mbert_checkpoint:
-            encoder = Tagger.load_from_checkpoint(self.hparams.mbert_checkpoint)
-            self.freeze_bert(encoder)
-            self.model = encoder.model
-            self.concat_all_hidden_states = encoder.concat_all_hidden_states
-        
-        if self.hparams.freeze_mbert:
-            self.freeze_bert(self)
-        # end additions
-
         # Added/edited
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
@@ -98,16 +83,6 @@ class BaseTagger(Model):
             )
         else:
             raise ValueError(f"Unsupported split: {hparams.split}")
-
-    @classmethod
-    def add_model_specific_args(cls, parser):
-        # Added these arguments, removed crf argument
-        # -1 indicates a linear layer alone (no input layer).
-        parser = Model.add_model_specific_args(parser)
-        parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
-        # No path indicates a fresh initialization from huggingface
-        parser.add_argument("--mbert_checkpoint", default="", type=str)
-        return parser
         
     # Below: added
     def get_labels(self, lang, split):
