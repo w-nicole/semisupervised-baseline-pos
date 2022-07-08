@@ -10,7 +10,7 @@
 # Changed to not have source/target but train/val languages.
 # Simplified `example/surprising-mbert/evaluate.sh` script to remove irrelevant code.
 
-save_path=${1:-"./experiments/debug/English_Dutch/pretrained"}
+save_path=${1:-"./experiments/normal/pretrained"}
 train_languages="English Dutch"
 val_languages="English Dutch"
 data_path=${2:-"../ud-treebanks-v1.4"}
@@ -22,8 +22,8 @@ lr=0.005
 latent=64
 pos_hidden_layers=-1
 pos_hidden_size=0
-mbert_hidden_size=1
-mbert_hidden_layers=64
+mbert_hidden_size=-1
+mbert_hidden_layers=0
 
 python3 src/train_latent_to_pos.py \
     --data_dir "$data_path" \

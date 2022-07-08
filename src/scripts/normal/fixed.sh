@@ -10,7 +10,7 @@
 # Changed to not have source/target but train/val languages.
 # Simplified `example/surprising-mbert/evaluate.sh` script to remove irrelevant code.
 
-save_path=${1:-"./experiments/debug/English_Dutch/fixed"}
+save_path=${1:-"./experiments/normal/fixed"}
 train_languages="English Dutch"
 val_languages="English Dutch"
 data_path=${2:-"../ud-treebanks-v1.4"}

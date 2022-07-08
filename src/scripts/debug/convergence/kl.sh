@@ -34,5 +34,6 @@ python3 src/train_latent_to_pos.py \
     --exp_name decoder_pos_"$pos_hidden_layers","$pos_hidden_size"_mbert_"$mbert_hidden_layers","$mbert_hidden_size" \
     --mbert_checkpoint $mbert_checkpoint \
     --gpus 1 \
+    --save_top_k $ep \
     --freeze_mbert "y" \
     --sampling "n"
