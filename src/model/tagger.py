@@ -80,7 +80,7 @@ class Tagger(BaseTagger):
         if self.is_frozen_mbert:
             self.model.eval()
         # Updated call arguments
-        hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
+        hs = self.encode_sent(self.model, batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
         # end updates
         # removed use_crf
         logits = self.classifier(hs)

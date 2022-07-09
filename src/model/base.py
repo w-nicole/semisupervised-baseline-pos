@@ -235,22 +235,21 @@ class Model(pl.LightningModule):
     def get_mask(self, sent: Tensor):
         mask = (sent != self.tokenizer.pad_token_id).long()
         return mask
-
+    
+    # Changed below to make the model explicitly specified.
     def encode_sent(
         self,
+        mbert: transformers.PreTrainedModel,
         sent: Tensor,
         # added below
         start_indices : Tensor,
         end_indices : Tensor,
         # end changes
         langs: Optional[List[str]] = None,
-        segment: Optional[Tensor] = None,
-        model: Optional[transformers.PreTrainedModel] = None
+        segment: Optional[Tensor] = None
     ):
-        if model is None:
-            model = self.model
         mask = self.get_mask(sent)
-        output = model(input_ids=sent, attention_mask=mask, token_type_ids=segment)
+        output = mbert(input_ids=sent, attention_mask=mask, token_type_ids=segment)
 
         hs = self.process_feature(output['hidden_states'])
         hs = self.dropout(hs)

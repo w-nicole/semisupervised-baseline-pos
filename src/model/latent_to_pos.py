@@ -27,16 +27,24 @@ class LatentToPOS(BaseTagger):
     
     def __init__(self, hparams):
         super(LatentToPOS, self).__init__(hparams)
-        if self.hparams.mbert_checkpoint:
-            mbert = Tagger.load_from_checkpoint(self.hparams.mbert_checkpoint)
-        else:
-            mbert = Tagger(self.hparams)
-        self.freeze_bert(mbert)
-        # Overwrite base and tagger attributes so that encode_sent will function correctly
-        self.model = mbert.model
-        self.concat_all_hidden_states = mbert.concat_all_hidden_states
+        load_tagger = lambda checkpoint : Tagger.load_from_checkpoint(checkpoint) if checkpoint else Tagger(self.hparams)
+        # Target
+        target_tagger = load_tagger(self.hparams.target_mbert_checkpoint)
+        self.freeze_bert(target_tagger)
+        self.target_mbert = target_tagger.model
+        # Encoder
+        encoder_tagger = load_tagger(self.hparams.encoder_mbert_checkpoint)
+        # Below does not necessarily always have to be true -- if needs to be untrue, check the inner frozen/outer unfrozen case
+        assert not (encoder_tagger.is_frozen_mbert and not self.hparams.freeze_mbert),\
+            f"Inner: {encoder_tagger.freeze_mbert}, Outer: {self.hparams.freeze_mbert}"
+        if self.hparams.freeze_mbert:
+            self.freeze_bert(encoder_tagger)
+        self.encoder_mbert = encoder_tagger.model
+        # Check concat status
+        self.concat_all_hidden_states = target_tagger.concat_all_hidden_states
+        assert self.concat_all_hidden_states == encoder_tagger.concat_all_hidden_states,\
+            f'target: {target_tagger.concat_all_hidden_states}, encoder: {encoder_tagger.concat_all_hidden_states}'
         
-        decoder_input_size = self.nb_labels
         self.encoder = self.build_layer_stack(
             self.mbert_output_size, self.hparams.latent_size,
             self.hparams.encoder_hidden_size, self.hparams.encoder_hidden_layers,
@@ -68,9 +76,9 @@ class LatentToPOS(BaseTagger):
     # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
     # and variables renamed for notation consistency.
     
-    def calculate_hidden_states(self, batch):
+    def calculate_hidden_states(self, mbert, batch):
         # Updated call arguments
-        hs = self.encode_sent(batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
+        hs = self.encode_sent(mbert, batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
         return hs
         
     def get_non_pad_label_mask(self, batch, tensor):
@@ -132,13 +140,14 @@ class LatentToPOS(BaseTagger):
         
     # Changed from forward.
     def __call__(self, batch):
-        self.model.eval()
+        if self.hparams.freeze_mbert:
+            self.encoder_mbert.eval()
         current_language = batch['lang'][0]
         assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
         
         loss = {} 
-        hs = self.calculate_hidden_states(batch)
-        latent_mean = self.encoder(hs)
+        encoder_hs = self.calculate_hidden_states(self.encoder_mbert, batch)
+        latent_mean = self.encoder(encoder_hs)
         latent_sample = self.get_latent_distribution(latent_mean).rsample()
         reconstruction_input = latent_sample\
             if not self.hparams.softmax_before_reconstruction\
@@ -146,7 +155,10 @@ class LatentToPOS(BaseTagger):
         predicted_hs = self.decoder_reconstruction(reconstruction_input)
         
         loss['latent_KL'] = self.calculate_latent_kl(batch, latent_mean)
-        loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, hs) 
+        with torch.no_grad():
+            self.target_mbert.eval()
+            target_hs = self.calculate_hidden_states(self.target_mbert, batch)
+        loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, target_hs)
         unlabeled_loss = self.hparams.latent_kl_weight * loss['latent_KL'] + self.hparams.mse_weight * loss['MSE']
         
         # Labeled case,
@@ -167,6 +179,8 @@ class LatentToPOS(BaseTagger):
     @classmethod
     def add_model_specific_args(cls, parser):
         parser = Tagger.add_model_specific_args(parser)
+        parser.add_argument('--encoder_mbert_checkpoint', default='', type=str)
+        parser.add_argument('--target_mbert_checkpoint', default='', type=str)
         parser.add_argument("--latent_size", default=64, type=int)
         parser = Model.add_layer_stack_args(parser, 'encoder')
         parser = Model.add_layer_stack_args(parser, 'decoder_pos')
