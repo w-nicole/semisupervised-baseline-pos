@@ -174,6 +174,7 @@ class LatentToPOS(BaseTagger):
             
         loss['pos_nll'] = encoder_loss
         self.add_language_to_batch_output(loss, batch)
+        import pdb; pdb.set_trace()
         return loss, pos_log_probs
         
     @classmethod

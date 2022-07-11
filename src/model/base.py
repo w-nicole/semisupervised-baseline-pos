@@ -18,6 +18,7 @@
 # Removed ._metric
 # Added manual dump of yaml.
 # Plateau monitor changed to be epoch, on target language.
+# Added extra custom logging maintenance and logic
 
 import hashlib
 import json
@@ -49,6 +50,7 @@ from dataset import collate
 import wandb
 import math
 import yaml
+import plotly.express as px
 
 class Model(pl.LightningModule):
     def __init__(self, hparams):
@@ -108,6 +110,9 @@ class Model(pl.LightningModule):
         self.name_to_metric = {
             'acc' : POSMetric()
         }
+        
+        # Structure: dict[phase][lang] = [{metric_key : value}]
+        self.custom_logs = defaultdict(dict)
 
     # Changed below to accept pretrain as argument so classmethod works.
     @classmethod
@@ -222,9 +227,10 @@ class Model(pl.LightningModule):
         for phase in self.run_phases:
             for lang in langs:
                 self.metrics[phase][lang] = {}
+                self.custom_logs[phase][lang] = []
                 for metric_key in self.metric_names:
                     metric = deepcopy(self.name_to_metric[metric_key]) if metric_key in self.name_to_metric else AverageMetric(metric_key)
-                    self.metrics[phase][lang][metric_key] = metric
+                    self.metrics[phase][lang][metric_key] = metric 
 
     # Below: changed to permit train logging
     def reset_metrics(self, phase):
@@ -295,6 +301,15 @@ class Model(pl.LightningModule):
     def get_global_train_step(self):
         return sum(self.train_step.values())        
     
+    def detensor_results(self, metrics):
+        try:
+            return {
+                k : v.cpu().item()
+                if isinstance(v, torch.Tensor) else v
+                for k, v in metrics.items()
+            }
+        except: import pdb; pdb.set_trace()
+                
     def log_wandb(self, phase, lang_list, loss_dict, batch_idx, dataloader_idx):
         assert len(set(lang_list)) == 1, lang_list
         lang = lang_list[0]
@@ -316,7 +331,12 @@ class Model(pl.LightningModule):
             running_loss_dict.update({f'{phase}_{lang}_batch' : batch_step})
             if phase == 'train':
                 running_loss_dict.update({'train_step' : self.get_global_train_step()})
-            wandb.log(running_loss_dict)
+            self.custom_logs[phase][lang].append(self.detensor_results(running_loss_dict))
+            modified_loss_dict = {
+                modify_metric(modifier, key) if key in self.metric_names else key : value
+                for key, value in running_loss_dict.items()
+            }
+            wandb.log(modified_loss_dict)
 
     # Moved from model/tagger.py.    
     # Changed below to be compatible with later models' loss_dict
@@ -363,7 +383,9 @@ class Model(pl.LightningModule):
     # Added global train step
     def aggregate_metrics(self, langs: List[str], phase: str, global_train_step : int):
         aver_metric = defaultdict(list)
+        
         for lang in langs:
+            current_metrics = {}
             for metric_key in self.metric_names:
                 metric = self.metrics[phase][lang][metric_key]
                 for key, val in metric.get_metric().items():
@@ -373,9 +395,12 @@ class Model(pl.LightningModule):
                     if phase != 'train':
                         log_values.update({'train_step' : global_train_step})
                     wandb.log(log_values)
+                    current_metrics.update(log_values)
                     aver_metric[key].append(val)
                     self.log(logging_key+'_monitor', val)
-
+            if phase == 'val': # Don't log for train, as it is per-step.
+                custom_log_dict = self.detensor_results(current_metrics)
+                self.custom_logs[phase][lang].append(custom_log_dict)
         for key, vals in aver_metric.items():
             wandb.log({
                 f"{phase}_{key}_all_epoch" : torch.stack(vals).mean(),

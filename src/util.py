@@ -150,9 +150,14 @@ def train_main(hparams, model_class):
     trainer.validate(model)
     if hparams.do_train:
         trainer.fit(model)
+    import pdb; pdb.set_trace()
     # Added below if/printout
     if hparams.do_test:
         print('Will not perform testing, as this script does not test.')
+    print('Temporary custom logs saving directly!')
+    custom_logs_path = os.path.join(base_dir, 'custom_logs.pt')
+    torch.save(custom_logs_path, model.custom_logs)
+    print(f'Custom logs written to {custom_logs_path}')
         
 def add_training_arguments(parser):
     parser.add_argument("--exp_name", default="default", type=str)
