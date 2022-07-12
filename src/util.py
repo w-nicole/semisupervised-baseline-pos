@@ -150,14 +150,11 @@ def train_main(hparams, model_class):
     trainer.validate(model)
     if hparams.do_train:
         trainer.fit(model)
-    import pdb; pdb.set_trace()
     # Added below if/printout
     if hparams.do_test:
         print('Will not perform testing, as this script does not test.')
-    print('Temporary custom logs saving directly!')
-    custom_logs_path = os.path.join(base_dir, 'custom_logs.pt')
-    torch.save(custom_logs_path, model.custom_logs)
-    print(f'Custom logs written to {custom_logs_path}')
+    from analysis import custom_plots
+    custom_plots.save_custom_plots(model.custom_logs, model.metric_names, base_dir)
         
 def add_training_arguments(parser):
     parser.add_argument("--exp_name", default="default", type=str)
@@ -235,15 +232,17 @@ class Logging(Callback):
             logs["step"] = trainer.global_step
             print(json.dumps(logs), file=fp)
             
-    def on_train_start(self, trainer, pl_module):
+    def on_train_epoch_start(self, trainer, pl_module):
         pl_module.reset_metrics('train')
+        import pdb; pdb.set_trace()
     
-    def on_train_end(self, trainer, pl_module):
+    def on_train_epoch_end(self, trainer, pl_module):
         self.on_run_end(trainer, pl_module, 'train')
     
     def on_validation_start(self, trainer, pl_module):
         """Called when the validation loop begins."""
         pl_module.reset_metrics('val')
+        import pdb; pdb.set_trace()
 
     def on_validation_end(self, trainer, pl_module):
         self.on_run_end(trainer, pl_module, 'val')

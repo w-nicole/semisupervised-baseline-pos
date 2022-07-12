@@ -302,13 +302,12 @@ class Model(pl.LightningModule):
         return sum(self.train_step.values())        
     
     def detensor_results(self, metrics):
-        try:
-            return {
-                k : v.cpu().item()
-                if isinstance(v, torch.Tensor) else v
-                for k, v in metrics.items()
-            }
-        except: import pdb; pdb.set_trace()
+        return {
+            k : v.cpu().item()
+            if isinstance(v, torch.Tensor) else v
+            for k, v in metrics.items()
+        }
+
                 
     def log_wandb(self, phase, lang_list, loss_dict, batch_idx, dataloader_idx):
         assert len(set(lang_list)) == 1, lang_list
@@ -331,7 +330,7 @@ class Model(pl.LightningModule):
             running_loss_dict.update({f'{phase}_{lang}_batch' : batch_step})
             if phase == 'train':
                 running_loss_dict.update({'train_step' : self.get_global_train_step()})
-            self.custom_logs[phase][lang].append(self.detensor_results(running_loss_dict))
+                self.custom_logs[phase][lang].append(self.detensor_results(running_loss_dict))
             modified_loss_dict = {
                 modify_metric(modifier, key) if key in self.metric_names else key : value
                 for key, value in running_loss_dict.items()
@@ -352,7 +351,6 @@ class Model(pl.LightningModule):
         }
         if batch_idx % self.hparams.log_frequency == 0:
             self.log_wandb('train', batch['lang'], loss_dict, batch_idx, None)
-        
         return loss_dict
         
     # added below
