@@ -234,7 +234,6 @@ class Logging(Callback):
             
     def on_train_epoch_start(self, trainer, pl_module):
         pl_module.reset_metrics('train')
-        import pdb; pdb.set_trace()
     
     def on_train_epoch_end(self, trainer, pl_module):
         self.on_run_end(trainer, pl_module, 'train')
@@ -242,7 +241,6 @@ class Logging(Callback):
     def on_validation_start(self, trainer, pl_module):
         """Called when the validation loop begins."""
         pl_module.reset_metrics('val')
-        import pdb; pdb.set_trace()
 
     def on_validation_end(self, trainer, pl_module):
         self.on_run_end(trainer, pl_module, 'val')
