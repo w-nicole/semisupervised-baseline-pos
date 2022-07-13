@@ -295,7 +295,6 @@ class Model(pl.LightningModule):
             if metric_key in 'lang': continue
             value = loss_dict[metric_key]
             self.metrics[prefix][lang][metric_key].add(value, number_of_true_labels)
-
         return loss_dict
         
     def get_global_train_step(self):
@@ -381,7 +380,6 @@ class Model(pl.LightningModule):
     # Added global train step
     def aggregate_metrics(self, langs: List[str], phase: str, global_train_step : int):
         aver_metric = defaultdict(list)
-        
         for lang in langs:
             current_metrics = {}
             for metric_key in self.metric_names:
