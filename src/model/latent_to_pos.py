@@ -163,8 +163,8 @@ class LatentToPOS(BaseTagger):
         
         # Labeled case,
         # but if training on English alone, then English should be treated as unsupervised.
-        labeled_case = current_language == constant.SUPERVISED_LANGUAGE and len(self.hparams.trn_langs) > 1
-        if labeled_case or self.hparams.english_alone_as_supervised:
+        labeled_case = current_language == constant.SUPERVISED_LANGUAGE and (len(self.hparams.trn_langs) > 1 or self.hparams.english_alone_as_supervised)
+        if labeled_case:
             pos_log_probs, encoder_loss = self.calculate_encoder_outputs(batch, latent_sample)
             loss['total_loss'] = self.hparams.pos_nll_weight * encoder_loss + unlabeled_loss
         else:
