@@ -8,6 +8,7 @@
 # Changed labels to not use first subtoken marking via padding, but just to be labels.
 # Changed to return start/end indices.
 # Updated imports
+# Added lengths as dataloader output
 # Removed irrelevant code
 
 import glob
@@ -51,6 +52,7 @@ class TaggingDataset(Dataset):
     # to not use any sliding window,
     # to add labels per token directly, rather than using subtokens,
     # to create start/end indices.
+    # added lengths.
     def _process_example_helper(
         self, sent: List, labels: List
     ) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
@@ -95,7 +97,8 @@ class TaggingDataset(Dataset):
         start_indices = pad_indices(start_indices)
         end_indices = pad_indices(end_indices)
         
-        yield (token_ids, label_ids, start_indices, end_indices)
+        assert len(label_ids.shape) == 1, label_ids.shape
+        yield (token_ids, label_ids, start_indices, end_indices, label_ids.shape[0])
         
         # end changes
         
@@ -106,108 +109,15 @@ class TaggingDataset(Dataset):
         data: List[Dict] = []
         if not sent:
             return data
-        # Changed below to accomodate averaging_indices
-        for src, tgt, start_indices, end_indices in self._process_example_helper(sent, labels):
+        # Changed below to accomodate averaging_indices, lengths
+        for src, tgt, start_indices, end_indices, length in self._process_example_helper(sent, labels):
             data.append({
                 "sent": src, "labels": tgt, "lang": self.lang,
-                "start_indices" : start_indices, "end_indices" : end_indices
+                "start_indices" : start_indices, "end_indices" : end_indices,
+                "length" : length
             })
         # end changes
         return data
-
-
-class ConllNER(TaggingDataset):
-    @classmethod
-    def get_labels(cls):
-        return [
-            "B-LOC",
-            "B-MISC",
-            "B-ORG",
-            "B-PER",
-            "I-LOC",
-            "I-MISC",
-            "I-ORG",
-            "I-PER",
-            "O",
-        ]
-
-    @classmethod
-    def read_file(cls, filepath: str, lang: str, split: str) -> Iterator[Dict]:
-        """Reads an empty line seperated data (word \t label)."""
-        words: List[str] = []
-        labels: List[str] = []
-        with open(filepath, "r") as f:
-            for line in f.readlines():
-                line = line.strip()
-                if not line:
-                    assert len(words) == len(labels)
-                    yield {"sent": words, "labels": labels}
-                    words, labels = [], []
-                else:
-                    word, label = line.split("\t")
-                    words.append(word)
-                    labels.append(label)
-            if len(words) == len(labels) and words:
-                yield {"sent": words, "labels": labels}
-
-    @classmethod
-    def get_file(cls, path: str, lang: str, split: str) -> Optional[str]:
-        if split == Split.train:
-            fp = f"{path}/{lang}/train.iob2.txt"
-        elif split == Split.dev:
-            fp = f"{path}/{lang}/dev.iob2.txt"
-        elif split == Split.test:
-            fp = f"{path}/{lang}/test.iob2.txt"
-        else:
-            raise ValueError(f"Unsupported split: {split}")
-        return fp
-
-
-class WikiAnnNER(TaggingDataset):
-    @classmethod
-    def get_labels(cls):
-        return ["B-LOC", "B-ORG", "B-PER", "I-LOC", "I-ORG", "I-PER", "O"]
-
-    @classmethod
-    def read_file(cls, filepath: str, lang: str, split: str) -> Iterator[Dict]:
-        """Reads an empty line seperated data (word \t label)."""
-        words: List[str] = []
-        labels: List[str] = []
-        with open(filepath, "r") as f:
-            for line in f.readlines():
-                line = line.strip()
-                if not line:
-                    assert len(words) == len(labels)
-                    yield {"sent": words, "labels": labels}
-                    words, labels = [], []
-                else:
-                    word, label = line.split("\t")
-                    word = word.split(":", 1)[1]
-                    words.append(word)
-                    labels.append(label)
-            if len(words) == len(labels) and words:
-                yield {"sent": words, "labels": labels}
-
-    @classmethod
-    def write_example(cls, example: Dict, file_handler):
-        assert "sent" in example
-        assert "labels" in example
-        assert len(example["sent"]) == len(example["labels"])
-        for word, label in zip(example["sent"], example["labels"]):
-            print(f"_:{word}\t{label}", file=file_handler)
-        print("", file=file_handler)
-
-    @classmethod
-    def get_file(cls, path: str, lang: str, split: str) -> Optional[str]:
-        if split == Split.train:
-            fp = f"{path}/{lang}/train"
-        elif split == Split.dev:
-            fp = f"{path}/{lang}/dev"
-        elif split == Split.test:
-            fp = f"{path}/{lang}/test"
-        else:
-            raise ValueError("Unsupported split:", split)
-        return fp
 
 
 class UdPOS(TaggingDataset):

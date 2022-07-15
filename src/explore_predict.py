@@ -1,4 +1,3 @@
-from model import VAE, Tagger, BaseVAE
 from enumeration import Split
 import constant
 
@@ -17,7 +16,6 @@ from pprint import pprint
 
 def get_all_predictions(model, langs):
     predictions = {}
-    assert not isinstance(model, BaseVAE), "Not designed for outputs of type logits."
     for lang in langs:
         trainer = pl.Trainer(gpus = 1 if torch.cuda.is_available() else 0)
         model.reset_metrics('val')
@@ -48,19 +46,6 @@ def clean_padded_labels_and_predictions(model, lang, padded_predictions):
     labels = padded_labels[mask_for_non_pad]
     outputs = padded_predictions[mask_for_non_pad]
     return outputs.cpu(), labels.cpu()
-    
-def get_base_vae_prediction(model, batch):
-    inputs = { key : util.apply_gpu(item) if isinstance(item, torch.Tensor) else item for key, item in batch.items() }
-    logits = model.classifier(model.calculate_hidden_states(inputs))
-    return logits
-  
-def get_all_base_vae_predictions(model, lang):
-    model = util.apply_gpu(model)
-    dataloader = model.get_dataloader(lang, Split.dev)
-    raw_logits = []
-    for batch in dataloader:
-        raw_logits.append(util.remove_from_gpu(get_base_vae_prediction(model, batch).reshape(-1, model.nb_labels)))
-    return raw_logits
     
 def compare_validation_predictions(model, predictions, checkpoint_path):
     """predictions: {lang : (batch, position, class)}"""

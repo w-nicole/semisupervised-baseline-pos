@@ -106,7 +106,6 @@ class Model(pl.LightningModule):
         self.dropout = InputVariationalDropout(hparams.input_dropout)
         
         # Added below
-        self.train_step = defaultdict(int)
         self.name_to_metric = {
             'acc' : POSMetric()
         }
@@ -123,20 +122,17 @@ class Model(pl.LightningModule):
         model = AutoModel.from_pretrained(pretrain, config=config)
         return model
         
-    def build_layer_stack(self, input_size, output_size, hidden_size, hidden_layers, nonlinear_first):
+    def build_layer_stack(self, input_size, output_size, hidden_size, hidden_layers):
         if hidden_layers >= 0:
             return self.build_mlp(
                 input_size, output_size,
-                hidden_size, hidden_layers,
-                nonlinear_first
+                hidden_size, hidden_layers
             )
         else:
             return nn.Linear(input_size, output_size)
             
-    def build_mlp(self, input_size, output_size, hidden_size, hidden_layers, nonlinear_first):
+    def build_mlp(self, input_size, output_size, hidden_size, hidden_layers):
         layers = []
-        if nonlinear_first:
-            layers.append(torch.nn.GELU())
         # input layer
         layers.extend([
             torch.nn.Linear(input_size, hidden_size),
@@ -149,7 +145,6 @@ class Model(pl.LightningModule):
             ])
         layers.extend([torch.nn.Linear(hidden_size, output_size)])
         return nn.Sequential(*tuple(layers))
-        
 
     def freeze_layers(self):
         if self.hparams.freeze_layer == -1:
@@ -296,9 +291,6 @@ class Model(pl.LightningModule):
             value = loss_dict[metric_key]
             self.metrics[prefix][lang][metric_key].add(value, number_of_true_labels)
         return loss_dict
-        
-    def get_global_train_step(self):
-        return sum(self.train_step.values())        
     
     def detensor_results(self, metrics):
         return {
@@ -321,20 +313,14 @@ class Model(pl.LightningModule):
                     modify_metric(modifier, metric) : value
                     for metric, value in self.metrics[phase][lang][metric_group].get_metric().items()
                 })
-            if phase == 'val':
-                batch_step = batch_idx + self.current_epoch * len(self.trainer.val_dataloaders[dataloader_idx])
-            else:
-                batch_step = self.train_step[lang]
-                self.train_step[lang] += 1
-            running_loss_dict.update({f'{phase}_{lang}_batch' : batch_step})
             if phase == 'train':
-                running_loss_dict.update({'train_step' : self.get_global_train_step()})
                 self.custom_logs[phase][lang].append(self.detensor_results(running_loss_dict))
             modified_loss_dict = {
                 modify_metric(modifier, key) if key in self.metric_names else key : value
                 for key, value in running_loss_dict.items()
             }
-            wandb.log(modified_loss_dict)
+            for metric_key, metric_value in modified_loss_dict.items():
+                self.log(metric_key, metric_value)
 
     # Moved from model/tagger.py.    
     # Changed below to be compatible with later models' loss_dict
@@ -348,21 +334,12 @@ class Model(pl.LightningModule):
             key : value.detach() if key not in ['lang', 'loss'] else value
             for key, value in loss_dict.items()
         }
-        if batch_idx % self.hparams.log_frequency == 0:
-            self.log_wandb('train', batch['lang'], loss_dict, batch_idx, None)
+        self.log_wandb('train', batch['lang'], loss_dict, batch_idx, None)
         return loss_dict
-        
-    # added below
-    def is_initial_validation(self):
-        return all([step == 0 for step in self.train_step.values()])
         
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         # Do not log initial validation batchwise because would be overwritten by epoch 0 metrics.
         loss_dict = self.step_helper(batch, "val")
-        initial_validation = self.is_initial_validation()
-        if not initial_validation:
-            if batch_idx % self.hparams.log_frequency == 0:
-                self.log_wandb('val', batch['lang'], loss_dict, batch_idx, dataloader_idx)
         return loss_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
@@ -378,46 +355,38 @@ class Model(pl.LightningModule):
 
     # Changed prefix to phase to mark meaning
     # Added global train step
-    def aggregate_metrics(self, langs: List[str], phase: str, global_train_step : int):
+    def aggregate_metrics(self, langs: List[str], phase: str):
+        # Don't let the final global train step be overwritten twice.
+        assert phase != 'train'
         aver_metric = defaultdict(list)
         for lang in langs:
-            current_metrics = {}
+            current_metrics = { 'trainer/global_step' : self.global_step }
             for metric_key in self.metric_names:
                 metric = self.metrics[phase][lang][metric_key]
                 for key, val in metric.get_metric().items():
                     logging_key = f"{phase}_{lang}_{key}_epoch"
-                    log_values = { logging_key : val }
-                    # Don't let the final global train step be overwritten twice.
-                    if phase != 'train':
-                        log_values.update({'train_step' : global_train_step})
-                    wandb.log(log_values)
-                    current_metrics.update(log_values)
+                    current_metrics.update({logging_key : val})
                     aver_metric[key].append(val)
-                    self.log(logging_key+'_monitor', val)
+                    self.log(logging_key, val)
             if phase == 'val': # Don't log for train, as it is per-step.
                 custom_log_dict = self.detensor_results(current_metrics)
                 self.custom_logs[phase][lang].append(custom_log_dict)
         for key, vals in aver_metric.items():
-            wandb.log({
-                f"{phase}_{key}_all_epoch" : torch.stack(vals).mean(),
-                'train_step' : global_train_step
-            })
-            
+            self.log(f"{phase}_{key}_all_epoch", torch.stack(vals).mean())
+
     # Removed training_epoch_end, use batch accuracy with aggregation instead
     # Added skip sanity check in logging
     # Below functions: fixed strings to phase names
     def validation_epoch_end(self, outputs):
         if self.trainer.sanity_checking: return
-        global_train_step = self.get_global_train_step()
         if len(self.hparams.val_langs) == 1:
             outputs = [outputs]
-        self.aggregate_metrics(self.hparams.val_langs, 'val', global_train_step)
+        self.aggregate_metrics(self.hparams.val_langs, 'val')
 
     def test_epoch_end(self, outputs):
-        global_train_step = self.get_global_train_step()
         if len(self.hparams.tst_langs) == 1:
             outputs = [outputs]
-        self.aggregate_metrics(self.hparams.tst_langs, Split.test, global_train_step)
+        self.aggregate_metrics(self.hparams.tst_langs, Split.test)
         return
     # end changes
 
@@ -495,7 +464,7 @@ class Model(pl.LightningModule):
         scheduler_dict = {"scheduler": scheduler, "interval": interval}
         if self.hparams.schedule == Schedule.reduceOnPlateau:
             # Changed below key
-            scheduler_dict["monitor"] = f"val_{self.target_language}_{self.optimization_loss}_epoch_monitor"
+            scheduler_dict["monitor"] = f"val_{self.target_language}_{self.optimization_loss}_epoch"
         return [optimizer], [scheduler_dict]
         
 
@@ -626,7 +595,6 @@ class Model(pl.LightningModule):
     def add_layer_stack_args(cls, parser, modifier):
         parser.add_argument(f"--{modifier}_hidden_layers", default=-1, type=int)
         parser.add_argument(f"--{modifier}_hidden_size", default=0, type=int)
-        parser.add_argument(f"--{modifier}_nonlinear_first", default=False, type=util.str2bool)
         return parser
 
     @classmethod

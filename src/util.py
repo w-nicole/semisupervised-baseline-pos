@@ -183,7 +183,8 @@ def add_training_arguments(parser):
     parser.add_argument("--max_steps", default=None, type=int)
     parser.add_argument("--min_steps", default=None, type=int)
     parser.add_argument("--val_check_interval", default=1.0, type=float)
-    parser.add_argument("--log_every_n_steps", default=10, type=int)
+    # changed below default value
+    parser.add_argument("--log_every_n_steps", default=1, type=int)
     parser.add_argument("--accelerator", default=None, type=str)
     parser.add_argument("--precision", default=32, type=int)
     parser.add_argument("--resume_from_checkpoint", default=None, type=str)

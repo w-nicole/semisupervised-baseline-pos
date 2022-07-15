@@ -44,7 +44,7 @@ class Tagger(BaseTagger):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
         self._comparison_mode = 'max'
-        self._selection_criterion = f'val_{self.target_language}_acc_epoch_monitor'
+        self._selection_criterion = f'val_{self.target_language}_acc_epoch'
 
         self.is_frozen_mbert = self.hparams.mbert_checkpoint or self.hparams.freeze_mbert
         assert not ((not self.hparams.freeze_mbert) and self.hparams.mbert_checkpoint),\
@@ -64,8 +64,7 @@ class Tagger(BaseTagger):
         self.id2label = UdPOS.get_labels()
         self.classifier = self.build_layer_stack(
             self.mbert_output_size, self.nb_labels,
-            self.hparams.pretrained_hidden_size, self.hparams.pretrained_hidden_layers,
-            self.hparams.pretrained_nonlinear_first
+            self.hparams.pretrained_hidden_size, self.hparams.pretrained_hidden_layers
         )
         
         # optimization loss added

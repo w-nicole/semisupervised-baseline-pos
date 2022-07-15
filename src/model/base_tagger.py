@@ -52,8 +52,9 @@ class BaseTagger(Model):
             # Added below. MUST match START_END_INDEX_PADDING for logic to hold.
             "start_indices": constant.START_END_INDEX_PADDING,
             "end_indices": constant.START_END_INDEX_PADDING,
+            'length': constant.START_END_INDEX_PADDING,
             # end changes
-            "labels": LABEL_PAD_ID,
+            "labels": LABEL_PAD_ID
         }
 
     @property
