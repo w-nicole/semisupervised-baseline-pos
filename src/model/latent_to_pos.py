@@ -69,7 +69,8 @@ class LatentToPOS(BaseTagger):
             'pos_nll',
             'total_loss',
             'MSE',
-            'acc'
+            'acc',
+            'word_nll'
         ]
         self.setup_metrics()
         

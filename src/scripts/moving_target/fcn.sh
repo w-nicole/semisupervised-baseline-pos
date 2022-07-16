@@ -44,5 +44,5 @@ python3 src/train_latent_to_pos.py \
     --reconstruction_model_type "fcn" \
     --pos_model_type "fcn" \
     --gpus 1 \
-    --freeze_mbert "y" \
+    --freeze_mbert "n" \
     --schedule "reduceOnPlateau"
