@@ -15,18 +15,19 @@ import torch.nn.functional as F
 from torch.distributions.normal import Normal
 
 from metric import LABEL_PAD_ID
-from dataset import tagging
+from dataset import tagging, collate
 from model.base import Model
+from model.module import LSTMLinear
 from model.tagger import Tagger
 from model.base_tagger import BaseTagger
 from enumeration import Split
 import util
 import constant
 
-class LatentToPOS(BaseTagger):
+class LatentToPOSCross(BaseTagger):
     
     def __init__(self, hparams):
-        super(LatentToPOS, self).__init__(hparams)
+        super(LatentToPOSCross, self).__init__(hparams)
         load_tagger = lambda checkpoint : Tagger.load_from_checkpoint(checkpoint) if checkpoint else Tagger(self.hparams)
         # Target
         target_tagger = load_tagger(self.hparams.target_mbert_checkpoint)
@@ -44,22 +45,30 @@ class LatentToPOS(BaseTagger):
         self.concat_all_hidden_states = target_tagger.concat_all_hidden_states
         assert self.concat_all_hidden_states == encoder_tagger.concat_all_hidden_states,\
             f'target: {target_tagger.concat_all_hidden_states}, encoder: {encoder_tagger.concat_all_hidden_states}'
-        
-        self.encoder = self.build_layer_stack(
+
+        self.encoder_mu = self.build_layer_stack(
             self.mbert_output_size, self.hparams.latent_size,
-            self.hparams.encoder_hidden_size, self.hparams.encoder_hidden_layers,
-            self.hparams.encoder_nonlinear_first
+            self.hparams.encoder_mu_hidden_size, self.hparams.encoder_mu_hidden_layers
         )
-        self.decoder_pos = self.build_layer_stack(
+        self.encoder_log_sigma = self.build_layer_stack(
+            self.mbert_output_size, self.hparams.latent_size,
+            self.hparams.encoder_log_sigma_hidden_size, self.hparams.encoder_log_sigma_hidden_layers
+        )
+        pos_model_args = (
             self.hparams.latent_size, self.nb_labels,
-            self.hparams.decoder_pos_hidden_size, self.hparams.decoder_pos_hidden_layers,
-            self.hparams.decoder_pos_nonlinear_first
+            self.hparams.pos_hidden_size, self.hparams.pos_hidden_layers
         )
-        self.decoder_reconstruction = self.build_layer_stack(
+        reconstruction_model_args = (
             self.hparams.latent_size, self.mbert_output_size,
-            self.hparams.decoder_reconstruction_hidden_size, self.hparams.decoder_reconstruction_hidden_layers,
-            self.hparams.decoder_reconstruction_nonlinear_first
+            self.hparams.reconstruction_hidden_size, self.hparams.reconstruction_hidden_layers
         )
+        
+        self.model_type = {
+            'lstm' : LSTMLinear,
+            'fcn' : self.build_layer_stack,
+        }
+        self.decoder_pos = self.model_type[self.hparams.pos_model_type](*pos_model_args)
+        self.decoder_reconstruction = self.model_type[self.hparams.reconstruction_model_type](*reconstruction_model_args)
         self.optimization_loss = 'total_loss'
         self._selection_criterion = f'val_{self.target_language}_acc_epoch'
         self._comparison_mode = 'max'
@@ -81,20 +90,23 @@ class LatentToPOS(BaseTagger):
         hs = self.encode_sent(mbert, batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
         return hs
         
-    def get_non_pad_label_mask(self, batch, tensor):
-        repeated_labels = batch['labels'].unsqueeze(2).repeat(1, 1, tensor.shape[-1])
-        return repeated_labels != LABEL_PAD_ID        
+    def get_non_pad_label_mask(self, labels, tensor):
+        if len(tensor.shape) == 3:
+            repeated_labels = labels.unsqueeze(2).repeat(1, 1, tensor.shape[-1])
+        else:
+            repeated_labels = labels.unsqueeze(1).repeat(1, tensor.shape[-1])
+        return util.apply_gpu(repeated_labels != LABEL_PAD_ID)        
         
-    def set_padded_to_zero(self, batch, tensor):
+    def set_padded_to_zero(self, labels, tensor):
         clean_tensor = torch.where(
-            self.get_non_pad_label_mask(batch, tensor),
+            self.get_non_pad_label_mask(labels, tensor),
             tensor, util.apply_gpu(torch.zeros(tensor.shape))
         )
         return clean_tensor
     
     def calculate_clean_metric(self, batch, raw_metric_tensor):
-        non_pad_mask = self.get_non_pad_label_mask(batch, raw_metric_tensor)
-        clean_metric_tensor = self.set_padded_to_zero(batch, raw_metric_tensor)
+        non_pad_mask = self.get_non_pad_label_mask(batch['labels'], raw_metric_tensor)
+        clean_metric_tensor = self.set_padded_to_zero(batch['labels'], raw_metric_tensor)
         
         # for KL divergence, but MSE doesn't trigger false positive
         metric_per_position = torch.sum(clean_metric_tensor, axis = -1)
@@ -110,14 +122,11 @@ class LatentToPOS(BaseTagger):
         clean_mse = self.calculate_clean_metric(batch, raw_metric_tensor)
         return clean_mse
     
-    def get_latent_distribution(self, latent_mean):
-        return Normal(
-            latent_mean,
-            util.apply_gpu(torch.ones(latent_mean.shape))
-        )
+    def get_latent_distribution(self, latent_mean, latent_sigma):
+        return Normal(latent_mean, latent_sigma)
         
-    def calculate_latent_kl(self, batch, latent_mean):
-        latent_distribution = self.get_latent_distribution(latent_mean)
+    def calculate_latent_kl(self, batch, latent_mean, latent_sigma):
+        latent_distribution = self.get_latent_distribution(latent_mean, latent_sigma)
         normal_prior = Normal(
                 util.apply_gpu(torch.zeros(latent_mean.shape)),
                 util.apply_gpu(torch.ones(latent_mean.shape))
@@ -134,27 +143,35 @@ class LatentToPOS(BaseTagger):
         return encoder_loss
         
     def calculate_encoder_outputs(self, batch, latent_sample):
-        pos_log_probs = F.log_softmax(self.decoder_pos(latent_sample), dim = -1)
+        decoder_output = self.decoder_pos(*self.get_decoder_args(self.decoder_pos, batch, latent_sample))
+        pos_log_probs = F.log_softmax(decoder_output, dim = -1)
         loss = self.calculate_encoder_loss(batch, pos_log_probs)
         return pos_log_probs, loss
         
-    # Changed from forward.
-    def __call__(self, batch):
+    def calculate_intermediates(self, batch):
         if self.hparams.freeze_mbert:
             self.encoder_mbert.eval()
+        encoder_hs = self.calculate_hidden_states(self.encoder_mbert, batch)
+        latent_mean = self.encoder_mu(encoder_hs)
+        latent_sigma = torch.exp(self.encoder_log_sigma(encoder_hs))
+        latent_sample = self.get_latent_distribution(latent_mean, latent_sigma).rsample()\
+            if not self.hparams.debug_without_sampling else latent_mean
+        return encoder_hs, latent_sample, latent_mean, latent_sigma
+      
+    def get_decoder_args(self, decoder, batch, latent_sample):
+        return (batch, latent_sample) if isinstance(decoder, LSTMLinear) else (latent_sample,)
+     
+    # Changed from forward.
+    def __call__(self, batch):
         current_language = batch['lang'][0]
         assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
         
         loss = {} 
-        encoder_hs = self.calculate_hidden_states(self.encoder_mbert, batch)
-        latent_mean = self.encoder(encoder_hs)
-        latent_sample = self.get_latent_distribution(latent_mean).rsample()
-        reconstruction_input = latent_sample\
-            if not self.hparams.softmax_before_reconstruction\
-            else F.softmax(latent_sample, dim = -1)
-        predicted_hs = self.decoder_reconstruction(reconstruction_input)
+        encoder_hs, latent_sample, latent_mean, latent_sigma = self.calculate_intermediates(batch)
         
-        loss['latent_KL'] = self.calculate_latent_kl(batch, latent_mean)
+        predicted_hs = self.decoder_reconstruction(*self.get_decoder_args(self.decoder_reconstruction, batch, latent_sample))
+
+        loss['latent_KL'] = self.calculate_latent_kl(batch, latent_mean, latent_sigma)
         with torch.no_grad():
             self.target_mbert.eval()
             target_hs = self.calculate_hidden_states(self.target_mbert, batch)
@@ -182,13 +199,15 @@ class LatentToPOS(BaseTagger):
         parser.add_argument('--encoder_mbert_checkpoint', default='', type=str)
         parser.add_argument('--target_mbert_checkpoint', default='', type=str)
         parser.add_argument("--latent_size", default=64, type=int)
-        parser = Model.add_layer_stack_args(parser, 'encoder')
-        parser = Model.add_layer_stack_args(parser, 'decoder_pos')
-        parser = Model.add_layer_stack_args(parser, 'decoder_reconstruction')
+        parser = Model.add_layer_stack_args(parser, 'encoder_mu')
+        parser = Model.add_layer_stack_args(parser, 'encoder_log_sigma')
+        parser = Model.add_layer_stack_args(parser, 'pos')
+        parser = Model.add_layer_stack_args(parser, 'reconstruction')
+        parser.add_argument('--reconstruction_model_type', default='lstm', type=str)
+        parser.add_argument('--pos_model_type', default='lstm', type=str)
         parser.add_argument("--pos_nll_weight", default=1, type=float)
         parser.add_argument("--latent_kl_weight", default=1, type=float)
         parser.add_argument("--mse_weight", default=1, type=float)
-        parser.add_argument("--softmax_before_reconstruction", default=False, type=util.str2bool)
         parser.add_argument("--english_alone_as_supervised", default=True, type=util.str2bool)
+        parser.add_argument("--debug_without_sampling", default=False, type=util.str2bool)
         return parser
-        
