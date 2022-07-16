@@ -46,14 +46,21 @@ class LatentToPOS(BaseTagger):
             self.mbert_output_size, self.hparams.latent_size,
             self.hparams.encoder_log_sigma_hidden_size, self.hparams.encoder_log_sigma_hidden_layers
         )
-        self.decoder_pos = LSTMLinear(
+        pos_model_args = (
             self.hparams.latent_size, self.nb_labels,
             self.hparams.pos_hidden_size, self.hparams.pos_hidden_layers
         )
-        self.decoder_reconstruction = LSTMLinear(
+        reconstruction_model_args = (
             self.hparams.latent_size, self.mbert_output_size,
             self.hparams.reconstruction_hidden_size, self.hparams.reconstruction_hidden_layers
         )
+        
+        self.model_type = {
+            'lstm' : LSTMLinear,
+            'fcn' : self.build_layer_stack,
+        }
+        self.decoder_pos = self.model_type[self.hparams.pos_model_type](*pos_model_args)
+        self.decoder_reconstruction = self.model_type[self.hparams.reconstruction_model_type](*reconstruction_model_args)
         self.optimization_loss = 'total_loss'
         self._selection_criterion = f'val_{self.target_language}_acc_epoch'
         self._comparison_mode = 'max'
@@ -128,7 +135,8 @@ class LatentToPOS(BaseTagger):
         return encoder_loss
         
     def calculate_encoder_outputs(self, batch, latent_sample):
-        pos_log_probs = F.log_softmax(self.decoder_pos(batch, latent_sample), dim = -1)
+        decoder_output = self.decoder_pos(*self.get_decoder_args(self.decoder_pos, batch, latent_sample))
+        pos_log_probs = F.log_softmax(decoder_output, dim = -1)
         loss = self.calculate_encoder_loss(batch, pos_log_probs)
         return pos_log_probs, loss
         
@@ -141,7 +149,10 @@ class LatentToPOS(BaseTagger):
         latent_sample = self.get_latent_distribution(latent_mean, latent_sigma).rsample()\
             if not self.hparams.debug_without_sampling else latent_mean
         return encoder_hs, latent_sample, latent_mean, latent_sigma
-            
+      
+    def get_decoder_args(self, decoder, batch, latent_sample):
+        return (batch, latent_sample) if isinstance(decoder, LSTMLinear) else (latent_sample,)      
+        
     # Changed from forward.
     def __call__(self, batch):
         current_language = batch['lang'][0]
@@ -149,7 +160,7 @@ class LatentToPOS(BaseTagger):
         
         loss = {} 
         encoder_hs, latent_sample, latent_mean, latent_sigma = self.calculate_intermediates(batch)
-        predicted_hs = self.decoder_reconstruction(batch, latent_sample)
+        predicted_hs = self.decoder_reconstruction(*self.get_decoder_args(self.decoder_reconstruction, batch, latent_sample))
 
         loss['latent_KL'] = self.calculate_latent_kl(batch, latent_mean, latent_sigma)
         loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, encoder_hs)
@@ -179,6 +190,8 @@ class LatentToPOS(BaseTagger):
         parser = Model.add_layer_stack_args(parser, 'encoder_log_sigma')
         parser = Model.add_layer_stack_args(parser, 'pos')
         parser = Model.add_layer_stack_args(parser, 'reconstruction')
+        parser.add_argument('--reconstruction_model_type', default='lstm', type=str)
+        parser.add_argument('--pos_model_type', default='lstm', type=str)
         parser.add_argument("--pos_nll_weight", default=1, type=float)
         parser.add_argument("--latent_kl_weight", default=1, type=float)
         parser.add_argument("--mse_weight", default=1, type=float)
