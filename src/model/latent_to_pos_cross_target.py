@@ -123,14 +123,14 @@ class LatentToPOSCross(BaseTagger):
         return clean_mse
     
     def get_latent_distribution(self, latent_mean, latent_sigma):
-        return Normal(latent_mean, latent_sigma.sqrt())
+        return Normal(latent_mean, latent_sigma)
         
     def calculate_latent_kl(self, batch, latent_mean, latent_sigma):
         latent_distribution = self.get_latent_distribution(latent_mean, latent_sigma)
         normal_prior = Normal(
-                util.apply_gpu(torch.zeros(latent_mean.shape)),
-                util.apply_gpu(torch.ones(latent_mean.shape))
-            )
+            util.apply_gpu(torch.zeros(latent_mean.shape)),
+            util.apply_gpu(torch.ones(latent_mean.shape))
+        )
         raw_kl_pre_sum = torch.distributions.kl.kl_divergence(latent_distribution, normal_prior)
         return self.calculate_clean_metric(batch, raw_kl_pre_sum)
         
@@ -153,7 +153,7 @@ class LatentToPOSCross(BaseTagger):
             self.encoder_mbert.eval()
         encoder_hs = self.calculate_hidden_states(self.encoder_mbert, batch)
         latent_mean = self.encoder_mu(encoder_hs)
-        latent_sigma = torch.exp(self.encoder_log_var(encoder_hs))
+        latent_sigma = torch.exp(self.encoder_log_var(encoder_hs)).sqrt()
         latent_sample = self.get_latent_distribution(latent_mean, latent_sigma).rsample()\
             if not self.hparams.debug_without_sampling else latent_mean
         return encoder_hs, latent_sample, latent_mean, latent_sigma

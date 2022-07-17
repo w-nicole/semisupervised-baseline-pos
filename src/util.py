@@ -44,10 +44,6 @@ apply_gpu = lambda item : item.cuda() if torch.cuda.is_available() else item
 remove_from_gpu = lambda tensor : tensor.detach().cpu() if torch.cuda.is_available() else tensor.detach()
 # end additions
 
-# added below methods
-def get_model_path_section(hparams):
-    return '/'.join([hparams.default_save_path.replace('./experiments/', ''), hparams.exp_name])
-
 # Reorganized below from the train file in original.
 # Below two functions taken/reorganized from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
@@ -71,18 +67,29 @@ def train_call(model_class):
     hparams = parser.parse_args()
     train_main(hparams, model_class)
     
-def train_main(hparams, model_class):
+def train_main(raw_hparams, model_class):
     
-    model = model_class(hparams)
+    raw_hparams_dict = vars(raw_hparams)
+    if raw_hparams.hyperparameter_names:
+        hyperparam_names = raw_hparams.hyperparameter_names.split()
+        raw_hparams_dict['exp_name'] = '_'.join([
+            f'{key}={raw_hparams_dict[key]}'
+            for key in hyperparam_names
+        ])
+    else:
+        raw_hparams_dict['exp_name'] = 'default'
+    raw_hparams = Namespace(**raw_hparams_dict)
+        
     logger = pl.loggers.WandbLogger(
-        name = get_model_path_section(hparams),
-        save_dir = hparams.default_save_path
+        name = raw_hparams.exp_name,
+        save_dir = raw_hparams.default_save_path
     )
 
-    args = { 'name' : logger.name }
-    if hparams.wandb_group: args['group'] = hparams.wandb_group
-    if hparams.wandb_job_type: args['job_type'] = hparams.wandb_job_type
+    args = { 'name' : logger.name , 'config' : raw_hparams}
     wandb.init(**args)
+    hparams = Namespace(**wandb.config)
+    model = model_class(hparams)
+
     logger.watch(model)
 
     early_stopping = pl.callbacks.EarlyStopping(
@@ -103,6 +110,7 @@ def train_main(hparams, model_class):
     yaml_path = os.path.join(base_dir, 'hparams.yaml')
     with open(yaml_path, 'w') as f:
         yaml.dump(hparams, f)
+
         
     model.base_dir = base_dir
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
@@ -195,7 +203,7 @@ def add_training_arguments(parser):
     parser.add_argument("--log_frequency", default=1, type=int)
     parser.add_argument("--wandb_group", default="", type=str)
     parser.add_argument("--wandb_job_type", default="", type=str)
-    parser.add_argument("--sampling", default=True, type=str2bool)
+    parser.add_argument("--hyperparameter_names", default="", type=str)
     # end added
     return parser
     
