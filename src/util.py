@@ -153,9 +153,7 @@ def train_main(hparams, model_class):
     # Added below if/printout
     if hparams.do_test:
         print('Will not perform testing, as this script does not test.')
-    from analysis import custom_plots
-    custom_plots.save_custom_plots(model.custom_logs, model.metric_names, base_dir)
-        
+
 def add_training_arguments(parser):
     parser.add_argument("--exp_name", default="default", type=str)
     parser.add_argument("--min_delta", default=1e-3, type=float)

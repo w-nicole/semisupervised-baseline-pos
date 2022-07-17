@@ -356,8 +356,6 @@ class Model(pl.LightningModule):
     # Changed prefix to phase to mark meaning
     # Added global train step
     def aggregate_metrics(self, langs: List[str], phase: str):
-        # Don't let the final global train step be overwritten twice.
-        assert phase != 'train'
         aver_metric = defaultdict(list)
         for lang in langs:
             current_metrics = { 'trainer/global_step' : self.global_step }
@@ -368,24 +366,27 @@ class Model(pl.LightningModule):
                     current_metrics.update({logging_key : val})
                     aver_metric[key].append(val)
                     self.log(logging_key, val)
-            if phase == 'val': # Don't log for train, as it is per-step.
-                custom_log_dict = self.detensor_results(current_metrics)
-                self.custom_logs[phase][lang].append(custom_log_dict)
+                    if 'acc' in logging_key:
+                        best_key = f'best_{logging_key}'
+                        current_val = wandb.summary[best_key] if best_key in wandb.summary.keys() else -float('inf')
+                        wandb.summary[best_key] = max(current_val, val)
+            # if phase == 'val': # Don't log for train, as it is per-step.
+            #     custom_log_dict = self.detensor_results(current_metrics)
+            #     self.custom_logs[phase][lang].append(custom_log_dict)
         for key, vals in aver_metric.items():
             self.log(f"{phase}_{key}_all_epoch", torch.stack(vals).mean())
 
-    # Removed training_epoch_end, use batch accuracy with aggregation instead
+    def training_epoch_end(self, outputs):
+        print('in training epoch end')
+        self.aggregate_metrics(self.hparams.trn_langs, 'train')
+        
     # Added skip sanity check in logging
     # Below functions: fixed strings to phase names
     def validation_epoch_end(self, outputs):
         if self.trainer.sanity_checking: return
-        if len(self.hparams.val_langs) == 1:
-            outputs = [outputs]
         self.aggregate_metrics(self.hparams.val_langs, 'val')
 
     def test_epoch_end(self, outputs):
-        if len(self.hparams.tst_langs) == 1:
-            outputs = [outputs]
         self.aggregate_metrics(self.hparams.tst_langs, Split.test)
         return
     # end changes

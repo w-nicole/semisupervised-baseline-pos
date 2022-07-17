@@ -156,6 +156,7 @@ class LatentToPOS(BaseTagger):
         
     # Changed from forward.
     def __call__(self, batch):
+        assert False, "Fix the log(stdev) -> log(var) thing first!"
         current_language = batch['lang'][0]
         assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
         

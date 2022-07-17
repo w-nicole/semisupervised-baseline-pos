@@ -50,9 +50,9 @@ class LatentToPOSCross(BaseTagger):
             self.mbert_output_size, self.hparams.latent_size,
             self.hparams.encoder_mu_hidden_size, self.hparams.encoder_mu_hidden_layers
         )
-        self.encoder_log_sigma = self.build_layer_stack(
+        self.encoder_log_var = self.build_layer_stack(
             self.mbert_output_size, self.hparams.latent_size,
-            self.hparams.encoder_log_sigma_hidden_size, self.hparams.encoder_log_sigma_hidden_layers
+            self.hparams.encoder_log_var_hidden_size, self.hparams.encoder_log_var_hidden_layers
         )
         pos_model_args = (
             self.hparams.latent_size, self.nb_labels,
@@ -123,7 +123,7 @@ class LatentToPOSCross(BaseTagger):
         return clean_mse
     
     def get_latent_distribution(self, latent_mean, latent_sigma):
-        return Normal(latent_mean, latent_sigma)
+        return Normal(latent_mean, latent_sigma.sqrt())
         
     def calculate_latent_kl(self, batch, latent_mean, latent_sigma):
         latent_distribution = self.get_latent_distribution(latent_mean, latent_sigma)
@@ -153,7 +153,7 @@ class LatentToPOSCross(BaseTagger):
             self.encoder_mbert.eval()
         encoder_hs = self.calculate_hidden_states(self.encoder_mbert, batch)
         latent_mean = self.encoder_mu(encoder_hs)
-        latent_sigma = torch.exp(self.encoder_log_sigma(encoder_hs))
+        latent_sigma = torch.exp(self.encoder_log_var(encoder_hs))
         latent_sample = self.get_latent_distribution(latent_mean, latent_sigma).rsample()\
             if not self.hparams.debug_without_sampling else latent_mean
         return encoder_hs, latent_sample, latent_mean, latent_sigma
@@ -200,7 +200,7 @@ class LatentToPOSCross(BaseTagger):
         parser.add_argument('--target_mbert_checkpoint', default='', type=str)
         parser.add_argument("--latent_size", default=64, type=int)
         parser = Model.add_layer_stack_args(parser, 'encoder_mu')
-        parser = Model.add_layer_stack_args(parser, 'encoder_log_sigma')
+        parser = Model.add_layer_stack_args(parser, 'encoder_log_var')
         parser = Model.add_layer_stack_args(parser, 'pos')
         parser = Model.add_layer_stack_args(parser, 'reconstruction')
         parser.add_argument('--reconstruction_model_type', default='lstm', type=str)
