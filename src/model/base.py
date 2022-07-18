@@ -550,7 +550,7 @@ class Model(pl.LightningModule):
             pin_memory=True,
             drop_last=False,
             collate_fn=collate_fn,
-            num_workers=1,
+            num_workers=self.hparams.number_of_workers,
         )
 
     def val_dataloader(self):
@@ -568,7 +568,7 @@ class Model(pl.LightningModule):
                 pin_memory=True,
                 drop_last=False,
                 collate_fn=collate_fn,
-                num_workers=1,
+                num_workers=self.hparams.number_of_workers,
             )
             for val_dataset in self.val_datasets
         ]
@@ -644,4 +644,6 @@ class Model(pl.LightningModule):
         # Changed below warmup portion to match the paper.
         parser.add_argument("--warmup_portion", default=0.1, type=float)
         # fmt: on
+        # Added below
+        parser.add_argument("--number_of_workers", default=1, type=int)
         return parser
