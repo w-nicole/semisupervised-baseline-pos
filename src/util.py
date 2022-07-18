@@ -85,12 +85,15 @@ def train_main(raw_hparams, model_class):
         save_dir = raw_hparams.default_save_path
     )
 
-    args = { 'name' : logger.name , 'config' : raw_hparams}
+    args = {
+        'name' : logger.name,
+        'group' : raw_hparams.wandb_group,
+        'job_type' : raw_hparams.wandb_job_type,
+        'config' : raw_hparams
+    }
     wandb.init(**args)
     hparams = Namespace(**wandb.config)
     model = model_class(hparams)
-
-    logger.watch(model)
 
     early_stopping = pl.callbacks.EarlyStopping(
         monitor=model.selection_criterion,
@@ -156,6 +159,8 @@ def train_main(raw_hparams, model_class):
         amp_level=hparams.amp_level,
     )
     trainer.validate(model)
+    if hparams.prep_termination:
+        wandb.mark_preempting()
     if hparams.do_train:
         trainer.fit(model)
     # Added below if/printout
@@ -204,6 +209,7 @@ def add_training_arguments(parser):
     parser.add_argument("--wandb_group", default="", type=str)
     parser.add_argument("--wandb_job_type", default="", type=str)
     parser.add_argument("--hyperparameter_names", default="", type=str)
+    parser.add_argument("--prep_termination", default=False, type=str2bool)
     # end added
     return parser
     

@@ -18,6 +18,8 @@ parameters:
         value: "sweeps"
     hyperparameter_names:
         value: "latent_kl_weight mse_weight"
+    prep_termination:
+        value: yes
     batch_size:
         value: 16
     max_epochs:
