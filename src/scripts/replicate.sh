@@ -10,7 +10,7 @@
 # Changed to not have source/target but train/val languages.
 # Simplified `example/surprising-mbert/evaluate.sh` script to remove irrelevant code.
 
-save_path=${1:-"./experiments/three_phase_experiments/replicate"}
+save_path=${1:-"./experiments/replicate"}
 train_languages="English"
 val_languages="English"
 data_path=${2:-"../ud-treebanks-v1.4"}
@@ -23,7 +23,7 @@ pos_hidden_size=0
 mbert_hidden_size=-1
 mbert_hidden_layers=0
 
-python3 src/train_latent_to_pos.py \
+python3 src/train_latent_to_pos_cross_target.py \
     --data_dir "$data_path" \
     --trn_langs $train_languages \
     --val_langs $val_languages \
@@ -34,8 +34,8 @@ python3 src/train_latent_to_pos.py \
     --learning_rate $lr \
     --max_epochs $ep \
     --warmup_portion 0.1 \
+    --target_language "English" \
     --default_save_path "$save_path" \
-    --exp_name decoder_pos_"$pos_hidden_layers","$pos_hidden_size"_mbert_"$mbert_hidden_layers","$mbert_hidden_size" \
     --gpus 1 \
     --freeze_mbert "n" \
     --sampling "n" \

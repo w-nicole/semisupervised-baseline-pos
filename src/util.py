@@ -187,6 +187,8 @@ def add_training_arguments(parser):
     parser.add_argument("--overfit_batches", default=0.0, type=float)
     parser.add_argument("--track_grad_norm", default=-1, type=int)
     parser.add_argument("--check_val_every_n_epoch", default=1, type=int)
+    # added below line
+    parser.add_argument("--target_language", default="", type=str)
     parser.add_argument("--fast_dev_run", default=False, type=str2bool)
     parser.add_argument("--accumulate_grad_batches", default=1, type=int)
     parser.add_argument("--max_epochs", default=1000, type=int)

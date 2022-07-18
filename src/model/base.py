@@ -82,20 +82,23 @@ class Model(pl.LightningModule):
         self.run_phases = [Split.train, 'val', Split.test]
         self.concat_all_hidden_states = self.hparams.concat_all_hidden_states
         
-        one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
-        valid_val_langs = len(self.hparams.val_langs) == 1 or one_other_target_language
-        assert valid_val_langs, "target_language/checkpoint was designed with at most 1 non-source language."
-        # Phase 2 and 3: If it's a pure optimization, then use that language
-        if len(self.hparams.trn_langs) == 1:
-            self.target_language = self.hparams.trn_langs[0]
-        # Otherwise, if mixed training, favor the non-English language
-        elif one_other_target_language:
-            not_supervised_languages = list(filter(lambda lang : lang != constant.SUPERVISED_LANGUAGE, self.hparams.val_langs))
-            assert len(not_supervised_languages) == 1
-            self.target_language = not_supervised_languages[0]
+        if not self.hparams.target_language:
+            one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
+            valid_val_langs = len(self.hparams.val_langs) == 1 or one_other_target_language
+            assert valid_val_langs, "target_language/checkpoint was designed with at most 1 non-source language."
+            # Phase 2 and 3: If it's a pure optimization, then use that language
+            if len(self.hparams.trn_langs) == 1:
+                self.target_language = self.hparams.trn_langs[0]
+            # Otherwise, if mixed training, favor the non-English language
+            elif one_other_target_language:
+                not_supervised_languages = list(filter(lambda lang : lang != constant.SUPERVISED_LANGUAGE, self.hparams.val_langs))
+                assert len(not_supervised_languages) == 1
+                self.target_language = not_supervised_languages[0]
+            else:
+                assert False, "This case for checkpoint language was not considered."
+            # end additions
         else:
-            assert False, "This case for checkpoint language was not considered."
-        # end additions
+            self.target_language = self.hparams.target_language
 
         self.tokenizer = AutoTokenizer.from_pretrained(hparams.pretrain)
         # Changed below to correspond to classmethod
