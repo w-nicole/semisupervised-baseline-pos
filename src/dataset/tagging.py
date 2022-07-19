@@ -64,6 +64,7 @@ class TaggingDataset(Dataset):
         start_indices: List[int] = []
         end_indices: List[int] = []
         word_labels: List[int] = []    
+        is_single_token = []
             
         current_index = 1
 
@@ -78,7 +79,7 @@ class TaggingDataset(Dataset):
                 break
 
             label_ids.append(self.label2id[label])
-            is_single_token.append(sub_tokens[0] if len(sub_tokens) == 1 else LABEL_PAD_ID)
+            #is_single_token.append(sub_tokens[0] if len(sub_tokens) == 1 else LABEL_PAD_ID)
             
             token_ids.extend(sub_tokens)
             start_indices.append(current_index)
@@ -101,7 +102,7 @@ class TaggingDataset(Dataset):
         end_indices = pad_indices(end_indices)
         
         assert len(label_ids.shape) == 1, label_ids.shape
-        yield (token_ids, label_ids, start_indices, end_indices, label_ids.shape[0], is_single_token)
+        yield (token_ids, label_ids, start_indices, end_indices, label_ids.shape[0])#, is_single_token)
         
         # end changes
         
@@ -113,11 +114,12 @@ class TaggingDataset(Dataset):
         if not sent:
             return data
         # Changed below to accomodate averaging_indices, lengths, is_single_token
-        for src, tgt, start_indices, end_indices, length, is_single_token in self._process_example_helper(sent, labels):
+        # for src, tgt, start_indices, end_indices, length, is_single_token in self._process_example_helper(sent, labels):
+        for src, tgt, start_indices, end_indices, length in self._process_example_helper(sent, labels):
             data.append({
                 "sent": src, "labels": tgt, "lang": self.lang,
                 "start_indices" : start_indices, "end_indices" : end_indices,
-                "length" : length, "is_single_token" : is_single_token
+                "length" : length#, "is_single_token" : is_single_token
             })
         # end changes
         return data

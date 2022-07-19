@@ -62,7 +62,11 @@ class Tagger(BaseTagger):
         # end additions
 
         self.id2label = UdPOS.get_labels()
-        self.classifier = self.build_layer_stack(
+        self.model_type = {
+            'linear' : self.build_linear,
+            'mlp' : self.build_mlp
+        }
+        self.classifier = self.model_type[self.hparams.pretrained_model_type](
             self.mbert_output_size, self.nb_labels,
             self.hparams.pretrained_hidden_size, self.hparams.pretrained_hidden_layers
         )
@@ -103,6 +107,7 @@ class Tagger(BaseTagger):
         parser.add_argument("--mbert_checkpoint", default="", type=str)
         parser = Model.add_model_specific_args(parser)
         parser = Model.add_layer_stack_args(parser, 'pretrained')
+        parser.add_argument('--pretrained_model_type', default='linear', type=str)
         return parser
         
 

@@ -125,16 +125,11 @@ class Model(pl.LightningModule):
         model = AutoModel.from_pretrained(pretrain, config=config)
         return model
         
-    def build_layer_stack(self, input_size, output_size, hidden_size, hidden_layers):
-        if hidden_layers >= 0:
-            return self.build_mlp(
-                input_size, output_size,
-                hidden_size, hidden_layers
-            )
-        else:
-            return nn.Linear(input_size, output_size)
+    def build_linear(self, input_size, output_size, hidden_size, hidden_layers):
+        return nn.Linear(input_size, output_size)
             
     def build_mlp(self, input_size, output_size, hidden_size, hidden_layers):
+        assert hidden_layers >= 0
         layers = []
         # input layer
         layers.extend([
@@ -609,8 +604,9 @@ class Model(pl.LightningModule):
         
     @classmethod
     def add_layer_stack_args(cls, parser, modifier):
-        parser.add_argument(f"--{modifier}_hidden_layers", default=-1, type=int)
-        parser.add_argument(f"--{modifier}_hidden_size", default=0, type=int)
+        # Manually made these the same as default latent.
+        parser.add_argument(f"--{modifier}_hidden_layers", default=1, type=int)
+        parser.add_argument(f"--{modifier}_hidden_size", default=64, type=int)
         return parser
 
     @classmethod
