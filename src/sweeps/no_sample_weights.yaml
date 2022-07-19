@@ -1,0 +1,48 @@
+program: src/train_fixed_target.py
+method: grid
+metric:
+    name: val_Dutch_acc_epoch
+    goal: maximize
+parameters:
+    data_dir:
+        value: "../ud-treebanks-v1.4"
+    trn_langs:
+        value: ["English", "Dutch"]
+    val_langs:
+        value: ["English", "Dutch"]
+    default_save_path:
+        value: "./experiments/sweeps/no_sample_latent_weights"
+    wandb_group:
+        value: "no_sample_latent_weights"
+    wandb_job_type:
+        value: "sweeps"
+    hyperparameter_names:
+        value: "latent_kl_weight mse_weight"
+    prep_termination:
+        value: yes
+    batch_size:
+        value: 16
+    max_epochs:
+        value: 3
+    weight_decay:
+        value: 0.01
+    learning_rate:
+        value: 5e-3
+    warmup_portion:
+        value: 0.1
+    reconstruction_model_type:
+        value: "fcn"
+    pos_model_type:
+        value: "fcn"
+    gpus:
+        value: 1
+    freeze_mbert:
+        value: "n"
+    pos_nll_weight:
+        value: 1
+    latent_kl_weight:
+        values: [1, 0.1, 0.01, 0.001, 1e-4, 1e-5, 1e-6, 0]
+    mse_weight:
+        values: [1, 0.1, 0.01, 0.001, 1e-4, 1e-5, 1e-6, 0]
+    debug_without_sampling:
+        value: "y"

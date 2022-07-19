@@ -5,6 +5,6 @@
 from model.base import Model  # noqa: F401
 from model.tagger import Tagger  # noqa: F401
 from model.base_tagger import BaseTagger
-from model.latent_to_pos import LatentToPOS
-from model.latent_to_pos_cross_target import LatentToPOSCross
-from model.latent_to_pos_cross_with_word import LatentToPOSCrossWord
+from model.latent_base import LatentBase
+from model.changing_target import ChangingTarget
+from model.fixed_target import FixedTarget

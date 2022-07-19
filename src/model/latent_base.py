@@ -24,28 +24,21 @@ from enumeration import Split
 import util
 import constant
 
-class LatentToPOSCross(BaseTagger):
+
+class LatentBase(BaseTagger):
     
     def __init__(self, hparams):
-        super(LatentToPOSCross, self).__init__(hparams)
-        load_tagger = lambda checkpoint : Tagger.load_from_checkpoint(checkpoint) if checkpoint else Tagger(self.hparams)
-        # Target
-        target_tagger = load_tagger(self.hparams.target_mbert_checkpoint)
-        self.freeze_bert(target_tagger)
-        self.target_mbert = target_tagger.model
-        # Encoder
-        encoder_tagger = load_tagger(self.hparams.encoder_mbert_checkpoint)
+        super(LatentBase, self).__init__(hparams)
+        self.load_tagger = lambda checkpoint : Tagger.load_from_checkpoint(checkpoint) if checkpoint else Tagger(self.hparams)
+        encoder_tagger = self.load_tagger(self.hparams.encoder_mbert_checkpoint)
         # Below does not necessarily always have to be true -- if needs to be untrue, check the inner frozen/outer unfrozen case
         assert not (encoder_tagger.is_frozen_mbert and not self.hparams.freeze_mbert),\
             f"Inner: {encoder_tagger.freeze_mbert}, Outer: {self.hparams.freeze_mbert}"
         if self.hparams.freeze_mbert:
             self.freeze_bert(encoder_tagger)
         self.encoder_mbert = encoder_tagger.model
-        # Check concat status
-        self.concat_all_hidden_states = target_tagger.concat_all_hidden_states
-        assert self.concat_all_hidden_states == encoder_tagger.concat_all_hidden_states,\
-            f'target: {target_tagger.concat_all_hidden_states}, encoder: {encoder_tagger.concat_all_hidden_states}'
-
+        self.concat_all_hidden_states = encoder_tagger.concat_all_hidden_states
+        
         self.encoder_mu = self.build_layer_stack(
             self.mbert_output_size, self.hparams.latent_size,
             self.hparams.encoder_mu_hidden_size, self.hparams.encoder_mu_hidden_layers
@@ -62,7 +55,6 @@ class LatentToPOSCross(BaseTagger):
             self.hparams.latent_size, self.mbert_output_size,
             self.hparams.reconstruction_hidden_size, self.hparams.reconstruction_hidden_layers
         )
-        
         self.model_type = {
             'lstm' : LSTMLinear,
             'fcn' : self.build_layer_stack,
@@ -81,15 +73,11 @@ class LatentToPOSCross(BaseTagger):
         ]
         self.setup_metrics()
         
-    # Below forward-related methods:
-    # Shijie Wu's code, but with decoder logic added and irrelevant options removed,
-    # and variables renamed for notation consistency.
-    
     def calculate_hidden_states(self, mbert, batch):
         # Updated call arguments
         hs = self.encode_sent(mbert, batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
         return hs
-        
+    
     def get_non_pad_label_mask(self, labels, tensor):
         if len(tensor.shape) == 3:
             repeated_labels = labels.unsqueeze(2).repeat(1, 1, tensor.shape[-1])
@@ -160,21 +148,20 @@ class LatentToPOSCross(BaseTagger):
       
     def get_decoder_args(self, decoder, batch, latent_sample):
         return (batch, latent_sample) if isinstance(decoder, LSTMLinear) else (latent_sample,)
-     
-    # Changed from forward.
+        
+    def calculate_target_hs(self, batch, predicted_hs):
+        raise NotImplementedError
+        
     def __call__(self, batch):
         current_language = batch['lang'][0]
         assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
         
         loss = {} 
         encoder_hs, latent_sample, latent_mean, latent_sigma = self.calculate_intermediates(batch)
-        
         predicted_hs = self.decoder_reconstruction(*self.get_decoder_args(self.decoder_reconstruction, batch, latent_sample))
-
+        
         loss['latent_KL'] = self.calculate_latent_kl(batch, latent_mean, latent_sigma)
-        with torch.no_grad():
-            self.target_mbert.eval()
-            target_hs = self.calculate_hidden_states(self.target_mbert, batch)
+        target_hs = self.calculate_target_hs(batch, predicted_hs)
         loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, target_hs)
         unlabeled_loss = self.hparams.latent_kl_weight * loss['latent_KL'] + self.hparams.mse_weight * loss['MSE']
         
@@ -197,7 +184,6 @@ class LatentToPOSCross(BaseTagger):
     def add_model_specific_args(cls, parser):
         parser = Tagger.add_model_specific_args(parser)
         parser.add_argument('--encoder_mbert_checkpoint', default='', type=str)
-        parser.add_argument('--target_mbert_checkpoint', default='', type=str)
         parser.add_argument("--latent_size", default=64, type=int)
         parser = Model.add_layer_stack_args(parser, 'encoder_mu')
         parser = Model.add_layer_stack_args(parser, 'encoder_log_var')
@@ -211,3 +197,4 @@ class LatentToPOSCross(BaseTagger):
         parser.add_argument("--english_alone_as_supervised", default=True, type=util.str2bool)
         parser.add_argument("--debug_without_sampling", default=False, type=util.str2bool)
         return parser
+        
