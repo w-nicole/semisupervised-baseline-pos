@@ -82,6 +82,7 @@ def train_main(raw_hparams, model_class):
     raw_hparams = Namespace(**raw_hparams_dict)
 
     wandb_dir = os.path.join(raw_hparams.default_save_path, raw_hparams.exp_name)
+    if not os.path.exists(wandb_dir): os.makedirs(wandb_dir)
     args = {
         'name' : raw_hparams.exp_name,
         'group' : raw_hparams.wandb_group,

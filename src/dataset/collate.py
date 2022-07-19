@@ -16,14 +16,11 @@ def average_embeddings(padded_embeddings, padded_start_indices, padded_end_indic
     Returns a stack of averaged representations with padding/sentence structure.
     Expects padded_embeddings to NOT have CLS/SEP removed.
     """
-    
+    # import time
+    # start_time = time.time()
     all_clean_averaged_embeddings = []
     for index, sentence in enumerate(padded_embeddings):
-        try:
-            start_indices = clean_indices(padded_start_indices[index])
-        except:
-            import pdb
-            pdb.set_trace()
+        start_indices = clean_indices(padded_start_indices[index])
         end_indices = clean_indices(padded_end_indices[index])
         assert start_indices.shape == end_indices.shape
         
@@ -50,5 +47,6 @@ def average_embeddings(padded_embeddings, padded_start_indices, padded_end_indic
     )
     
     assert padded_averages.shape[0] == padded_embeddings.shape[0]
+    # print('average embeddings', time.time() - start_time)
     return padded_averages
     
