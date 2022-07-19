@@ -72,24 +72,23 @@ def train_main(raw_hparams, model_class):
     raw_hparams_dict = vars(raw_hparams)
     if raw_hparams.hyperparameter_names:
         hyperparam_names = raw_hparams.hyperparameter_names.split()
-        raw_hparams_dict['exp_name'] = '_'.join([
+        raw_hparams_dict['exp_name'] += '_'.join([
             f'{key}={raw_hparams_dict[key]}'
             for key in hyperparam_names
         ])
     else:
-        raw_hparams_dict['exp_name'] = 'default'
+        if not raw_hparams_dict['exp_name']:
+            raw_hparams_dict['exp_name'] = 'default'
     raw_hparams = Namespace(**raw_hparams_dict)
-        
-    logger = pl.loggers.WandbLogger(
-        name = raw_hparams.exp_name,
-        save_dir = raw_hparams.default_save_path
-    )
 
+    wandb_dir = os.path.join(raw_hparams.default_save_path, raw_hparams.exp_name)
+    if not os.path.exists(wandb_dir): os.makedirs(wandb_dir)
     args = {
-        'name' : logger.name,
+        'name' : raw_hparams.exp_name,
         'group' : raw_hparams.wandb_group,
         'job_type' : raw_hparams.wandb_job_type,
-        'config' : raw_hparams
+        'config' : raw_hparams,
+        'dir' : wandb_dir
     }
     wandb.init(**args)
     hparams = Namespace(**wandb.config)
@@ -103,10 +102,14 @@ def train_main(raw_hparams, model_class):
         mode=model.comparison_mode,
         strict=True,
     )
-    base_dir = os.path.join(
-        hparams.default_save_path,
-        hparams.exp_name,
-        f"version_{logger.version}" if logger.version is not None else "",
+    
+    version_name = f"version_{wandb.run.id}"
+    base_dir = os.path.join(wandb_dir, version_name)
+        
+    logger = pl.loggers.WandbLogger(
+        name = raw_hparams.exp_name,
+        save_dir = hparams.default_save_path,
+        version = version_name
     )
 
     if not os.path.exists(base_dir): os.makedirs(base_dir)
@@ -114,7 +117,6 @@ def train_main(raw_hparams, model_class):
     with open(yaml_path, 'w') as f:
         yaml.dump(hparams, f)
 
-        
     model.base_dir = base_dir
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         dirpath=os.path.join(base_dir, "ckpts"),
@@ -168,7 +170,7 @@ def train_main(raw_hparams, model_class):
         print('Will not perform testing, as this script does not test.')
 
 def add_training_arguments(parser):
-    parser.add_argument("--exp_name", default="default", type=str)
+    parser.add_argument("--exp_name", default="", type=str)
     parser.add_argument("--min_delta", default=1e-3, type=float)
     parser.add_argument("--patience", default=10, type=int)
     parser.add_argument("--save_last", default=False, type=str2bool)

@@ -12,7 +12,7 @@
 
 save_path=${1:-"./experiments/replicate"}
 train_languages="English"
-val_languages="English"
+val_languages="English Dutch"
 data_path=${2:-"../ud-treebanks-v1.4"}
 
 bs=16
@@ -23,7 +23,7 @@ pos_hidden_size=0
 mbert_hidden_size=-1
 mbert_hidden_layers=0
 
-python3 src/train_latent_to_pos_cross_target.py \
+python3 src/train_changing_target.py \
     --data_dir "$data_path" \
     --trn_langs $train_languages \
     --val_langs $val_languages \
@@ -36,7 +36,10 @@ python3 src/train_latent_to_pos_cross_target.py \
     --warmup_portion 0.1 \
     --target_language "English" \
     --default_save_path "$save_path" \
+    --wandb_group "replicate" \
+    --reconstruction_model_type "fcn" \
+    --pos_model_type "fcn" \
     --gpus 1 \
     --freeze_mbert "n" \
-    --sampling "n" \
+    --debug_without_sampling "n" \
     --english_alone_as_supervised "y"

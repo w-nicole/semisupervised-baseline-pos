@@ -34,7 +34,7 @@ def get_heatmap(df, row_key, column_key, value_key, analysis_path):
     
 if __name__ == '__main__':
     
-    analysis_path = './experiments/sweeps/latent_weights'
+    analysis_path = './experiments/sweeps/no_sample_latent_weights'
     weights = [1, 0.1, 0.01, 0.001, 1e-4, 1e-5, 1e-6, 0][::-1]
     
     # Compose the dataframe first

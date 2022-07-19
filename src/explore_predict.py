@@ -11,6 +11,7 @@ import torch.nn.functional as F
 
 import util
 import metric
+from model import Tagger
 
 from pprint import pprint
 
@@ -77,8 +78,8 @@ def compare_validation_predictions(model, predictions, checkpoint_path):
 if __name__ == '__main__':
     
     # Decoder
-    model_folder = './experiments/frozen_concat/phase_1/lr_5e-5_size_0_layers_-1/version_0/'
-    checkpoint_name = 'ckpts_epoch=3-val_English_acc=95.332.ckpt'
+    model_folder = './pre-sweep-experiments/components/mbert_pretrained/linear/version_1ylqtlld'
+    checkpoint_name = 'ckpts_epoch=2-val_English_acc_epoch_monitor=96.807.ckpt'
     model_type = Tagger
     
     checkpoint_path = os.path.join(model_folder, 'ckpts', checkpoint_name)
