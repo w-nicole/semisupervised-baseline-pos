@@ -42,29 +42,26 @@ def find_hparam(hparam_name, hparam_list):
 if __name__ == '__main__':
     
     sweep_id, sweep_name = 'xa61rif2', 'latent_size'
+   
     analysis_path = f'./experiments/sweeps/{sweep_name}'
+    searched_hparams = ['encoder_mu_model_type', 'encoder_log_var_model_type']
 
-    extension = 'yaml'
-    clean_extension = lambda s : s.split('/')[-1].replace(f'.{extension}', '')
-    
     records = []
     config_paths = list(glob.glob(f'./experiments/sweeps/{sweep_name}/*/wandb/run-*/files'))
     for config_folder in config_paths:
-        with open(os.path.join(config_folder, 'wandb-metadata.json'), 'r') as f:
-            config = json.load(f)["args"]
-            kl, mse = float(find_hparam('latent_kl_weight', config)), float(find_hparam('mse_weight', config))
-        with open(os.path.join(config_folder, 'wandb-summary.json'), 'r') as f:
-            results = json.load(f)
-            for_df_results = {'latent_kl_weight' : kl, 'mse_weight' : mse , 'for_1d' : 'no_axis'}
-            for phase in ['train', 'val']:
-                for lang in ['English', 'Dutch']:
-                    key = f'best_{phase}_{lang}_acc_epoch'
-                    for_df_results[key] = results[key]
-        records.append(for_df_results)
-    import pdb; pdb.set_trace()
+        with open(os.path.join(config_folder, 'wandb-metadata.json'), 'r') as metadata:
+            config = json.load(metadata)["args"]
+            with open(os.path.join(config_folder, 'wandb-summary.json'), 'r') as summary:
+                results = json.load(summary)
+                for_df_results = {k : find_hparam(k, config)  for k in searched_hparams }
+                for phase in ['train', 'val']:
+                    for lang in ['English', 'Dutch']:
+                        key = f'best_{phase}_{lang}_acc_epoch'
+                        for_df_results[key] = results[key]
+
     df = pd.DataFrame.from_records(records)
     for phase in ['train', 'val']:
         for lang in ['English', 'Dutch']:
             key = f'best_{phase}_{lang}_acc_epoch'
-            scores = get_heatmap(df, 'latent_kl_weight', 'mse_weight', key, analysis_path)
+            scores = get_heatmap(df, searched_hparams[0], searched_hparams[1], key, analysis_path)
                 
