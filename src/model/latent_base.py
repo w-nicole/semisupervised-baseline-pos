@@ -39,11 +39,11 @@ class LatentBase(BaseTagger):
         self.encoder_mbert = encoder_tagger.model
         self.concat_all_hidden_states = encoder_tagger.concat_all_hidden_states
         
-        self.encoder_mu = self.build_linear(
+        encoder_mu_args = (
             self.mbert_output_size, self.hparams.latent_size,
             self.hparams.encoder_mu_hidden_size, self.hparams.encoder_mu_hidden_layers
         )
-        self.encoder_log_var = self.build_linear(
+        encoder_log_var_args = (
             self.mbert_output_size, self.hparams.latent_size,
             self.hparams.encoder_log_var_hidden_size, self.hparams.encoder_log_var_hidden_layers
         )
@@ -60,6 +60,8 @@ class LatentBase(BaseTagger):
             'mlp' : self.build_mlp,
             'linear' : self.build_linear
         }
+        self.encoder_mu = self.model_type[self.hparams.encoder_mu_model_type](*encoder_mu_args)
+        self.encoder_log_var = self.model_type[self.hparams.encoder_log_var_model_type](*encoder_log_var_args)
         self.decoder_pos = self.model_type[self.hparams.pos_model_type](*pos_model_args)
         self.decoder_reconstruction = self.model_type[self.hparams.reconstruction_model_type](*reconstruction_model_args)
         self.optimization_loss = 'total_loss'
@@ -192,6 +194,8 @@ class LatentBase(BaseTagger):
         parser = Model.add_layer_stack_args(parser, 'reconstruction')
         parser.add_argument('--reconstruction_model_type', default='linear', type=str)
         parser.add_argument('--pos_model_type', default='linear', type=str)
+        parser.add_argument('--encoder_mu_model_type', default='linear', type=str)
+        parser.add_argument('--encoder_log_var_model_type', default='linear', type=str)
         parser.add_argument("--pos_nll_weight", default=1, type=float)
         parser.add_argument("--latent_kl_weight", default=1, type=float)
         parser.add_argument("--mse_weight", default=1, type=float)
