@@ -41,8 +41,7 @@ def find_hparam(hparam_name, hparam_list):
     
 if __name__ == '__main__':
     
-
-    sweep_id, sweep_name = '', ''
+    sweep_id, sweep_name = 'xa61rif2', 'latent_size'
     analysis_path = f'./experiments/sweeps/{sweep_name}'
 
     extension = 'yaml'
@@ -56,7 +55,7 @@ if __name__ == '__main__':
             kl, mse = float(find_hparam('latent_kl_weight', config)), float(find_hparam('mse_weight', config))
         with open(os.path.join(config_folder, 'wandb-summary.json'), 'r') as f:
             results = json.load(f)
-            for_df_results = {'latent_kl_weight' : kl, 'mse_weight' : mse }
+            for_df_results = {'latent_kl_weight' : kl, 'mse_weight' : mse , 'for_1d' : 'no_axis'}
             for phase in ['train', 'val']:
                 for lang in ['English', 'Dutch']:
                     key = f'best_{phase}_{lang}_acc_epoch'
