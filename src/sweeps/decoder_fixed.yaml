@@ -5,7 +5,7 @@ metric:
     goal: maximize
 parameters:
     data_dir:
-        value: "../ud-treebanks-v1.4"
+        value: "../../ud-treebanks-v1.4"
     trn_langs:
         value: ["English", "Dutch"]
     val_langs:
@@ -46,3 +46,8 @@ parameters:
         value: 1e-4
     debug_without_sampling:
         value: "y"
+    command:
+        - ${env}
+        - "python3"
+        - ${program}
+        - ${args}
