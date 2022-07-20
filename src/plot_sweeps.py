@@ -41,11 +41,10 @@ def find_hparam(hparam_name, hparam_list):
     
 if __name__ == '__main__':
     
-    weights = [1, 0.1, 0.01, 0.001, 1e-4, 1e-5, 1e-6, 0][::-1]
-    
-    # Compose the dataframe first
-    sweep_id, sweep_name = 'tmbtjd5d', 'latent_weights'
+
+    sweep_id, sweep_name = '', ''
     analysis_path = f'./experiments/sweeps/{sweep_name}'
+
     extension = 'yaml'
     clean_extension = lambda s : s.split('/')[-1].replace(f'.{extension}', '')
     
