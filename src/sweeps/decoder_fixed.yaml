@@ -46,8 +46,8 @@ parameters:
         value: 1e-4
     debug_without_sampling:
         value: "y"
-    command:
-        - ${env}
-        - "python3"
-        - ${program}
-        - ${args}
+command:
+    - ${env}
+    - "python3"
+    - ${program}
+    - ${args}
