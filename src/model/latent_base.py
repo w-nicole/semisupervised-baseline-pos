@@ -39,11 +39,11 @@ class LatentBase(BaseTagger):
         self.encoder_mbert = encoder_tagger.model
         self.concat_all_hidden_states = encoder_tagger.concat_all_hidden_states
         
-        self.encoder_mu = self.build_layer_stack(
+        self.encoder_mu = self.build_linear(
             self.mbert_output_size, self.hparams.latent_size,
             self.hparams.encoder_mu_hidden_size, self.hparams.encoder_mu_hidden_layers
         )
-        self.encoder_log_var = self.build_layer_stack(
+        self.encoder_log_var = self.build_linear(
             self.mbert_output_size, self.hparams.latent_size,
             self.hparams.encoder_log_var_hidden_size, self.hparams.encoder_log_var_hidden_layers
         )
@@ -57,7 +57,8 @@ class LatentBase(BaseTagger):
         )
         self.model_type = {
             'lstm' : LSTMLinear,
-            'fcn' : self.build_layer_stack,
+            'mlp' : self.build_mlp,
+            'linear' : self.build_linear
         }
         self.decoder_pos = self.model_type[self.hparams.pos_model_type](*pos_model_args)
         self.decoder_reconstruction = self.model_type[self.hparams.reconstruction_model_type](*reconstruction_model_args)
@@ -189,8 +190,8 @@ class LatentBase(BaseTagger):
         parser = Model.add_layer_stack_args(parser, 'encoder_log_var')
         parser = Model.add_layer_stack_args(parser, 'pos')
         parser = Model.add_layer_stack_args(parser, 'reconstruction')
-        parser.add_argument('--reconstruction_model_type', default='lstm', type=str)
-        parser.add_argument('--pos_model_type', default='lstm', type=str)
+        parser.add_argument('--reconstruction_model_type', default='linear', type=str)
+        parser.add_argument('--pos_model_type', default='linear', type=str)
         parser.add_argument("--pos_nll_weight", default=1, type=float)
         parser.add_argument("--latent_kl_weight", default=1, type=float)
         parser.add_argument("--mse_weight", default=1, type=float)
