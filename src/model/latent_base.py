@@ -164,7 +164,7 @@ class LatentBase(BaseTagger):
         predicted_hs = self.decoder_reconstruction(*self.get_decoder_args(self.decoder_reconstruction, batch, latent_sample))
         
         loss['latent_KL'] = self.calculate_latent_kl(batch, latent_mean, latent_sigma)
-        target_hs = self.calculate_target_hs(batch, predicted_hs)
+        target_hs = self.calculate_target_hs(batch, encoder_hs)
         loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, target_hs)
         unlabeled_loss = self.hparams.latent_kl_weight * loss['latent_KL'] + self.hparams.mse_weight * loss['MSE']
         

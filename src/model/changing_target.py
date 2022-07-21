@@ -15,5 +15,5 @@ from model.latent_base import LatentBase
 
 class ChangingTarget(LatentBase):
     
-    def calculate_target_hs(self, batch, predicted_hs):
-        return predicted_hs
+    def calculate_target_hs(self, batch, encoder_hs):
+        return encoder_hs

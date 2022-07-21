@@ -24,7 +24,7 @@ class FixedTarget(LatentBase):
         assert target_tagger.concat_all_hidden_states == self.concat_all_hidden_states,\
             f'target: {target_tagger.concat_all_hidden_states}, encoder: {self.concat_all_hidden_states}'
         
-    def calculate_target_hs(self, batch, predicted_hs):
+    def calculate_target_hs(self, batch, encoder_hs):
         with torch.no_grad():
             self.target_mbert.eval()
             target_hs = self.calculate_hidden_states(self.target_mbert, batch)
