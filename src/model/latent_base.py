@@ -29,23 +29,12 @@ class LatentBase(BaseTagger):
     
     def __init__(self, hparams):
         super(LatentBase, self).__init__(hparams)
-        self.load_tagger = lambda checkpoint : Tagger.load_from_checkpoint(checkpoint) if checkpoint else Tagger(self.hparams)
-        encoder_tagger = self.load_tagger(self.hparams.encoder_mbert_checkpoint)
-        # Below does not necessarily always have to be true -- if needs to be untrue, check the inner frozen/outer unfrozen case
-        assert not (encoder_tagger.is_frozen_mbert and not self.hparams.freeze_mbert),\
-            f"Inner: {encoder_tagger.freeze_mbert}, Outer: {self.hparams.freeze_mbert}"
-        if self.hparams.freeze_mbert:
-            self.freeze_bert(encoder_tagger)
-        self.encoder_mbert = encoder_tagger.model
-        self.concat_all_hidden_states = encoder_tagger.concat_all_hidden_states
-        
-        encoder_mu_args = (
+        self.target_mbert = self.build_model(self.hparams.pretrain)
+        util.freeze(self.target_mbert) 
+
+        encoder_args = (
             self.mbert_output_size, self.hparams.latent_size,
-            self.hparams.encoder_mu_hidden_size, self.hparams.encoder_mu_hidden_layers
-        )
-        encoder_log_var_args = (
-            self.mbert_output_size, self.hparams.latent_size,
-            self.hparams.encoder_log_var_hidden_size, self.hparams.encoder_log_var_hidden_layers
+            self.hparams.encoder_hidden_size, self.hparams.encoder_hidden_layers
         )
         pos_model_args = (
             self.hparams.latent_size, self.nb_labels,
@@ -60,15 +49,19 @@ class LatentBase(BaseTagger):
             'mlp' : self.build_mlp,
             'linear' : self.build_linear
         }
-        self.encoder_mu = self.model_type[self.hparams.encoder_mu_model_type](*encoder_mu_args)
-        self.encoder_log_var = self.model_type[self.hparams.encoder_log_var_model_type](*encoder_log_var_args)
+        if not self.hparams.debug_fix_identity:
+            self.encoder = self.model_type[self.hparams.encoder_model_type](*encoder_args)
+        else:
+            self.encoder = torch.nn.Linear(768, 768)
+            self.encoder.weight = torch.nn.parameter.Parameter(data=torch.eye(768), requires_grad = False)
+            self.encoder.bias = torch.nn.parameter.Parameter(data=torch.zeros(768,), requires_grad = False)
+            util.freeze(self.encoder)
         self.decoder_pos = self.model_type[self.hparams.pos_model_type](*pos_model_args)
         self.decoder_reconstruction = self.model_type[self.hparams.reconstruction_model_type](*reconstruction_model_args)
         self.optimization_loss = 'total_loss'
         self._selection_criterion = f'val_{self.target_language}_acc_epoch'
         self._comparison_mode = 'max'
         self.metric_names = [
-            'latent_KL',
             'pos_nll',
             'total_loss',
             'MSE',
@@ -99,11 +92,6 @@ class LatentBase(BaseTagger):
         non_pad_mask = self.get_non_pad_label_mask(batch['labels'], raw_metric_tensor)
         clean_metric_tensor = self.set_padded_to_zero(batch['labels'], raw_metric_tensor)
         
-        # for KL divergence, but MSE doesn't trigger false positive
-        metric_per_position = torch.sum(clean_metric_tensor, axis = -1)
-        if not torch.all(metric_per_position >= 0):
-            import pdb; pdb.set_trace()
-            
         # Adjust scale to NOT divide out the hidden size representation.
         clean_average = torch.sum(clean_metric_tensor) / torch.sum(non_pad_mask) * raw_metric_tensor.shape[-1]
         return clean_average
@@ -112,18 +100,6 @@ class LatentBase(BaseTagger):
         raw_metric_tensor = torch.pow(padded_mu_t - padded_hs, 2)
         clean_mse = self.calculate_clean_metric(batch, raw_metric_tensor)
         return clean_mse
-    
-    def get_latent_distribution(self, latent_mean, latent_sigma):
-        return Normal(latent_mean, latent_sigma)
-        
-    def calculate_latent_kl(self, batch, latent_mean, latent_sigma):
-        latent_distribution = self.get_latent_distribution(latent_mean, latent_sigma)
-        normal_prior = Normal(
-            util.apply_gpu(torch.zeros(latent_mean.shape)),
-            util.apply_gpu(torch.ones(latent_mean.shape))
-        )
-        raw_kl_pre_sum = torch.distributions.kl.kl_divergence(latent_distribution, normal_prior)
-        return self.calculate_clean_metric(batch, raw_kl_pre_sum)
         
     def calculate_encoder_loss(self, batch, log_pi_t):
         encoder_loss = F.nll_loss(
@@ -133,8 +109,8 @@ class LatentBase(BaseTagger):
         )
         return encoder_loss
         
-    def calculate_encoder_outputs(self, batch, latent_sample):
-        decoder_output = self.decoder_pos(*self.get_decoder_args(self.decoder_pos, batch, latent_sample))
+    def calculate_encoder_outputs(self, batch, latent):
+        decoder_output = self.decoder_pos(*self.get_decoder_args(self.decoder_pos, batch, latent))
         pos_log_probs = F.log_softmax(decoder_output, dim = -1)
         loss = self.calculate_encoder_loss(batch, pos_log_probs)
         return pos_log_probs, loss
@@ -143,40 +119,39 @@ class LatentBase(BaseTagger):
         if self.hparams.freeze_mbert:
             self.encoder_mbert.eval()
         encoder_hs = self.calculate_hidden_states(self.encoder_mbert, batch)
-        latent_mean = self.encoder_mu(encoder_hs)
-        latent_sigma = torch.exp(self.encoder_log_var(encoder_hs)).sqrt()
-        latent_sample = self.get_latent_distribution(latent_mean, latent_sigma).rsample()\
-            if not self.hparams.debug_without_sampling else latent_mean
-        return encoder_hs, latent_sample, latent_mean, latent_sigma
+        latent = self.encoder(encoder_hs)
+        return encoder_hs, latent
       
-    def get_decoder_args(self, decoder, batch, latent_sample):
-        return (batch, latent_sample) if isinstance(decoder, LSTMLinear) else (latent_sample,)
+    def get_decoder_args(self, decoder, batch, latent):
+        return (batch, latent) if isinstance(decoder, LSTMLinear) else (latent,)
         
-    def calculate_target_hs(self, batch, predicted_hs):
-        raise NotImplementedError
+    def calculate_target_hs(self, batch):
+        with torch.no_grad():
+            self.target_mbert.eval()
+            target_hs = self.calculate_hidden_states(self.target_mbert, batch)
+        return target_hs
         
     def __call__(self, batch):
         current_language = batch['lang'][0]
         assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
         
         loss = {} 
-        encoder_hs, latent_sample, latent_mean, latent_sigma = self.calculate_intermediates(batch)
-        predicted_hs = self.decoder_reconstruction(*self.get_decoder_args(self.decoder_reconstruction, batch, latent_sample))
+        encoder_hs, latent = self.calculate_intermediates(batch)
+        predicted_hs = self.decoder_reconstruction(*self.get_decoder_args(self.decoder_reconstruction, batch, latent))
         
-        loss['latent_KL'] = self.calculate_latent_kl(batch, latent_mean, latent_sigma)
-        target_hs = self.calculate_target_hs(batch, encoder_hs)
+        target_hs = self.calculate_target_hs(batch)
         loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, target_hs)
-        unlabeled_loss = self.hparams.latent_kl_weight * loss['latent_KL'] + self.hparams.mse_weight * loss['MSE']
+        unlabeled_loss = self.hparams.mse_weight * loss['MSE']
         
         # Labeled case,
         # but if training on English alone, then English should be treated as unsupervised.
         labeled_case = current_language == constant.SUPERVISED_LANGUAGE and (len(self.hparams.trn_langs) > 1 or self.hparams.english_alone_as_supervised)
         if labeled_case:
-            pos_log_probs, encoder_loss = self.calculate_encoder_outputs(batch, latent_sample)
+            pos_log_probs, encoder_loss = self.calculate_encoder_outputs(batch, latent)
             loss['total_loss'] = self.hparams.pos_nll_weight * encoder_loss + unlabeled_loss
         else:
             with torch.no_grad():
-                pos_log_probs, encoder_loss = self.calculate_encoder_outputs(batch, latent_sample)
+                pos_log_probs, encoder_loss = self.calculate_encoder_outputs(batch, latent)
             loss['total_loss'] = unlabeled_loss
             
         loss['pos_nll'] = encoder_loss
@@ -186,20 +161,13 @@ class LatentBase(BaseTagger):
     @classmethod
     def add_model_specific_args(cls, parser):
         parser = Tagger.add_model_specific_args(parser)
-        parser.add_argument('--encoder_mbert_checkpoint', default='', type=str)
         parser.add_argument("--latent_size", default=64, type=int)
-        parser = Model.add_layer_stack_args(parser, 'encoder_mu')
-        parser = Model.add_layer_stack_args(parser, 'encoder_log_var')
+        parser = Model.add_layer_stack_args(parser, 'encoder')
         parser = Model.add_layer_stack_args(parser, 'pos')
         parser = Model.add_layer_stack_args(parser, 'reconstruction')
-        parser.add_argument('--reconstruction_model_type', default='linear', type=str)
-        parser.add_argument('--pos_model_type', default='linear', type=str)
-        parser.add_argument('--encoder_mu_model_type', default='linear', type=str)
-        parser.add_argument('--encoder_log_var_model_type', default='linear', type=str)
         parser.add_argument("--pos_nll_weight", default=1, type=float)
-        parser.add_argument("--latent_kl_weight", default=1, type=float)
         parser.add_argument("--mse_weight", default=1, type=float)
         parser.add_argument("--english_alone_as_supervised", default=True, type=util.str2bool)
-        parser.add_argument("--debug_without_sampling", default=False, type=util.str2bool)
+        parser.add_argument("--debug_fix_identity", default=False, type=util.str2bool)
         return parser
         

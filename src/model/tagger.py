@@ -46,17 +46,6 @@ class Tagger(BaseTagger):
         self._comparison_mode = 'max'
         self._selection_criterion = f'val_{self.target_language}_acc_epoch'
 
-        self.is_frozen_mbert = self.hparams.mbert_checkpoint or self.hparams.freeze_mbert
-        assert not ((not self.hparams.freeze_mbert) and self.hparams.mbert_checkpoint),\
-            "Mutually exclusive. mbert_checkpoint always automatically frozen."
-            
-        # Reinitialize mBERT alone if given a checkpoint.
-        if self.hparams.mbert_checkpoint:
-            encoder = Tagger.load_from_checkpoint(self.hparams.mbert_checkpoint)
-            self.freeze_bert(encoder)
-            self.model = encoder.model
-            self.concat_all_hidden_states = encoder.concat_all_hidden_states
-        
         if self.hparams.freeze_mbert:
             self.freeze_bert(self)
         # end additions
@@ -66,9 +55,9 @@ class Tagger(BaseTagger):
             'linear' : self.build_linear,
             'mlp' : self.build_mlp
         }
-        self.classifier = self.model_type[self.hparams.pretrained_model_type](
+        self.classifier = self.model_type[self.hparams.base_pos_model_type](
             self.mbert_output_size, self.nb_labels,
-            self.hparams.pretrained_hidden_size, self.hparams.pretrained_hidden_layers
+            self.hparams.base_pos_hidden_size, self.hparams.base_pos_hidden_layers
         )
         
         # optimization loss added
@@ -80,10 +69,10 @@ class Tagger(BaseTagger):
         self.setup_metrics()
     
     def __call__(self, batch):
-        if self.is_frozen_mbert:
-            self.model.eval()
+        if self.hparams.freeze_mbert:
+            self.encoder_mbert.eval()
         # Updated call arguments
-        hs = self.encode_sent(self.model, batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
+        hs = self.encode_sent(self.encoder_mbert, batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
         # end updates
         # removed use_crf
         logits = self.classifier(hs)
@@ -101,13 +90,8 @@ class Tagger(BaseTagger):
         
     @classmethod
     def add_model_specific_args(cls, parser):
-        # Added these arguments, removed crf argument
-        # -1 indicates a linear layer alone (no input layer).
-        parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
-        parser.add_argument("--mbert_checkpoint", default="", type=str)
         parser = Model.add_model_specific_args(parser)
-        parser = Model.add_layer_stack_args(parser, 'pretrained')
-        parser.add_argument('--pretrained_model_type', default='linear', type=str)
+        parser = Model.add_layer_stack_args(parser, 'base_pos')
         return parser
         
 

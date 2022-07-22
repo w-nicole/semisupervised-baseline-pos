@@ -86,7 +86,7 @@ class Model(pl.LightningModule):
             one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
             valid_val_langs = len(self.hparams.val_langs) == 1 or one_other_target_language
             assert valid_val_langs, "target_language/checkpoint was designed with at most 1 non-source language."
-            # Phase 2 and 3: If it's a pure optimization, then use that language
+            # If it's a pure optimization, then use that language
             if len(self.hparams.trn_langs) == 1:
                 self.target_language = self.hparams.trn_langs[0]
             # Otherwise, if mixed training, favor the non-English language
@@ -96,14 +96,17 @@ class Model(pl.LightningModule):
                 self.target_language = not_supervised_languages[0]
             else:
                 assert False, "This case for checkpoint language was not considered."
-            # end additions
         else:
             self.target_language = self.hparams.target_language
+         # end additions
 
         self.tokenizer = AutoTokenizer.from_pretrained(hparams.pretrain)
         # Changed below to correspond to classmethod
-        self.model = self.build_model(self.hparams.pretrain)
+        self.encoder_mbert = self.build_model(self.hparams.pretrain)
         self.freeze_layers()
+         # Override layer specification if instead should freeze the whole thing
+        if self.hparams.freeze_mbert:
+            self.freeze_bert(self)
 
         # Changed below line
         self.dropout = InputVariationalDropout(hparams.input_dropout)
@@ -157,38 +160,28 @@ class Model(pl.LightningModule):
                     self.freeze_layer(i)
 
     def freeze_embeddings(self):
-        if isinstance(self.model, transformers.BertModel) or isinstance(
-            self.model, transformers.RobertaModel
-        ):
-            util.freeze(self.model.embeddings)
-        elif isinstance(self.model, transformers.XLMModel):
-            util.freeze(self.model.position_embeddings)
-            if self.model.n_langs > 1 and self.model.use_lang_emb:
-                util.freeze(self.model.lang_embeddings)
-            util.freeze(self.model.embeddings)
-        else:
-            raise ValueError("Unsupported model")
+        util.freeze(self.encoder_mbert.embeddings)
             
     def freeze_bert(self, encoder):
         # Adapted from model/base.py by taking the logic to freeze up to and including a certain layer
         # Doesn't freeze the pooler, but encode_sent excludes pooler correctly.
         encoder.freeze_embeddings()
-        for index in range(encoder.model.config.num_hidden_layers + 1):
+        for index in range(encoder.encoder_mbert.config.num_hidden_layers + 1):
             encoder.freeze_layer(index)
         # end adapted
    
     def freeze_layer(self, layer):
-        util.freeze(self.model.encoder.layer[layer - 1])
+        util.freeze(self.encoder_mbert.encoder.layer[layer - 1])
         
     @property
     def mbert_output_size(self):
         # hidden_size = the input to the classifier
         # Added logic for concatenated embeddings
-        single_layer_size = self.model.config.hidden_size
+        single_layer_size = self.encoder_mbert.config.hidden_size
         if not self.concat_all_hidden_states:
             return single_layer_size
         else:
-            return single_layer_size * (self.model.config.num_hidden_layers + 1)
+            return single_layer_size * (self.encoder_mbert.config.num_hidden_layers + 1)
         # end added
         
     @property
@@ -418,38 +411,75 @@ class Model(pl.LightningModule):
         else:
             warmup_steps = 1
         return warmup_steps, max_steps
-
-    def configure_optimizers(self):
+        
+    # Split configure_optimizers to add two different learning rates
+    # but preserve no decay on certain parameters.
+    # Split logic to reuse it by moving into split_parameters.
+    
+    def split_parameters(self, named_parameters, match_templates):
+        assert isinstance(match_templates, list), f"Check if {match_templates} is a string."
+        not_matches = [
+            (n, p)
+            for n, p in named_parameters
+            if not any(nd in n for nd in match_templates)
+        ]
+       
+        matches = [
+            (n, p)
+            for n, p in named_parameters
+            if any(nd in n for nd in match_templates)
+        ]
+        return matches, not_matches
+        
+    
+    def split_weight_decay_params(self, model_parameters):
         no_decay = ["bias", "LayerNorm.weight"]
-        optimizer_grouped_parameters = []
-        optimizer_grouped_parameters.append(
-            {
-                "params": [
-                    p
-                    for n, p in self.named_parameters()
-                    if not any(nd in n for nd in no_decay)
-                ],
-                "weight_decay": self.hparams.weight_decay,
-            }
-        )
-        optimizer_grouped_parameters.append(
-            {
-                "params": [
-                    p
-                    for n, p in self.named_parameters()
-                    if any(nd in n for nd in no_decay)
-                ],
-                "weight_decay": 0.0,
-            }
-        )
+        with_weight_decay_params, no_weight_decay_params = self.split_parameters(model_parameters, no_decay)
+        with_weight_decay = {
+            "params": with_weight_decay_params,
+            "weight_decay": self.hparams.weight_decay,
+        }
+        no_weight_decay = {
+            "params": no_weight_decay_params,
+            "weight_decay": 0.0,
+        }
+        return with_weight_decay, no_weight_decay
+        
 
+    # Split up the learning rates and optimization of bert vs not below
+    def configure_optimizers(self):
+        named_optimizer_grouped_parameters = []
+        other_split_hparams = {
+            'mbert' : { 'lr' : self.hparams.mbert_learning_rate },
+            'default' : { 'lr' : self.hparams.default_learning_rate },
+        }
+        mbert_params, default_params = self.split_parameters(list(self.named_parameters()), ['encoder_mbert'])
+        split_params = {
+            'mbert' : mbert_params,
+            'default' : default_params
+        }
+        for key in split_params:
+            by_model_params = split_params[key]
+            other_hparams = other_split_hparams[key]
+            by_weight_with_decay, by_weight_no_decay = self.split_weight_decay_params(by_model_params)
+            
+            by_weight_with_decay.update(other_hparams)
+            by_weight_no_decay.update(other_hparams)
+            
+            named_optimizer_grouped_parameters.extend([
+                by_weight_with_decay,
+                by_weight_no_decay
+            ])
+        remove_names = lambda param_dict : {
+            k : [ p for n, p in v ] if k == 'params' else v
+            for k, v in param_dict.items()
+        }
+        optimizer_grouped_parameters = list(map(remove_names, named_optimizer_grouped_parameters))
         optimizer = torch.optim.AdamW(
             optimizer_grouped_parameters,
-            lr=self.hparams.learning_rate,
             betas=(0.9, self.hparams.adam_beta2),
             eps=self.hparams.adam_eps,
         )
-
         warmup_steps, max_steps = self.get_warmup_and_total_steps()
         if self.hparams.schedule == Schedule.invsqroot:
             scheduler = util.get_inverse_square_root_schedule_with_warmup(
@@ -607,6 +637,7 @@ class Model(pl.LightningModule):
         # Manually made these the same as default latent.
         parser.add_argument(f"--{modifier}_hidden_layers", default=1, type=int)
         parser.add_argument(f"--{modifier}_hidden_size", default=64, type=int)
+        parser.add_argument(f"--{modifier}_model_type", default='linear', type=str)
         return parser
 
     @classmethod
@@ -642,7 +673,9 @@ class Model(pl.LightningModule):
         parser.add_argument("--input_dropout", default=0, type=float)
         # misc
         parser.add_argument("--seed", default=42, type=int)
-        parser.add_argument("--learning_rate", default=5e-5, type=float)
+        # Split up learning rates below
+        parser.add_argument("--mbert_learning_rate", default=5e-5, type=float)
+        parser.add_argument("--default_learning_rate", default=5e-5, type=float)
         # Changed below beta2 parameter to match the paper
         parser.add_argument("--adam_beta2", default=0.999, type=float)
         parser.add_argument("--adam_eps", default=1e-8, type=float)
@@ -657,4 +690,5 @@ class Model(pl.LightningModule):
         # fmt: on
         # Added below
         parser.add_argument("--number_of_workers", default=1, type=int)
+        parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
         return parser

@@ -72,21 +72,21 @@ def train_main(raw_hparams, model_class):
     raw_hparams_dict = vars(raw_hparams)
     if raw_hparams.hyperparameter_names:
         hyperparam_names = raw_hparams.hyperparameter_names.split()
-        raw_hparams_dict['exp_name'] += '_'.join([
+        raw_hparams_dict['name'] += '_'.join([
             f'{key}={raw_hparams_dict[key]}'
             for key in hyperparam_names
         ])
     else:
-        if not raw_hparams_dict['exp_name']:
-            raw_hparams_dict['exp_name'] = 'default'
+        if not raw_hparams_dict['name']:
+            raw_hparams_dict['name'] = 'default'
     raw_hparams = Namespace(**raw_hparams_dict)
 
-    wandb_dir = os.path.join(raw_hparams.default_save_path, raw_hparams.exp_name)
+    wandb_dir = os.path.join(raw_hparams.default_save_path, raw_hparams.name)
     if not os.path.exists(wandb_dir): os.makedirs(wandb_dir)
     args = {
-        'name' : raw_hparams.exp_name,
-        'group' : raw_hparams.wandb_group,
-        'job_type' : raw_hparams.wandb_job_type,
+        'name' : raw_hparams.name,
+        'job_type' : raw_hparams.job_type,
+        'group' : raw_hparams.group,
         'config' : raw_hparams,
         'dir' : wandb_dir
     }
@@ -107,11 +107,11 @@ def train_main(raw_hparams, model_class):
     base_dir = os.path.join(wandb_dir, version_name)
         
     logger = pl.loggers.WandbLogger(
-        name = raw_hparams.exp_name,
+        name = raw_hparams.name,
         save_dir = hparams.default_save_path,
         version = version_name
     )
-
+    
     if not os.path.exists(base_dir): os.makedirs(base_dir)
     yaml_path = os.path.join(base_dir, 'hparams.yaml')
     with open(yaml_path, 'w') as f:
@@ -160,6 +160,7 @@ def train_main(raw_hparams, model_class):
         amp_backend=hparams.amp_backend,
         amp_level=hparams.amp_level,
     )
+    
     trainer.validate(model)
     if hparams.prep_termination:
         wandb.mark_preempting()
@@ -170,7 +171,8 @@ def train_main(raw_hparams, model_class):
         print('Will not perform testing, as this script does not test.')
 
 def add_training_arguments(parser):
-    parser.add_argument("--exp_name", default="", type=str)
+    # Changed below exp_name -> name to match the wandb scheme
+    parser.add_argument("--name", default="", type=str)
     parser.add_argument("--min_delta", default=1e-3, type=float)
     parser.add_argument("--patience", default=10, type=int)
     parser.add_argument("--save_last", default=False, type=str2bool)
@@ -210,8 +212,8 @@ def add_training_arguments(parser):
     # below: added
     parser.add_argument("--log_wandb", default=True, type=str2bool)
     parser.add_argument("--log_frequency", default=1, type=int)
-    parser.add_argument("--wandb_group", default="", type=str)
-    parser.add_argument("--wandb_job_type", default="", type=str)
+    parser.add_argument("--group", default="", type=str)
+    parser.add_argument("--job_type", default="", type=str)
     parser.add_argument("--hyperparameter_names", default="", type=str)
     parser.add_argument("--prep_termination", default=False, type=str2bool)
     # end added
