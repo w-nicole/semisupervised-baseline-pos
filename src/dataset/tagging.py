@@ -53,18 +53,17 @@ class TaggingDataset(Dataset):
     # to add labels per token directly, rather than using subtokens,
     # to create start/end indices.
     # added lengths.
-    # added is_single_token
+    # added token_labels
     def _process_example_helper(
         self, sent: List, labels: List
     ) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         
         # start_index, end_index include CLS/SEP (i.e. the first subtoken is index 1)
         token_ids: List[int] = []
-        label_ids: List[int] = []
+        pos_label_ids: List[int] = []
         start_indices: List[int] = []
         end_indices: List[int] = []
-        word_labels: List[int] = []    
-        is_single_token = []
+        token_labels = []
             
         current_index = 1
 
@@ -78,8 +77,8 @@ class TaggingDataset(Dataset):
                 # don't add more token
                 break
 
-            label_ids.append(self.label2id[label])
-            #is_single_token.append(sub_tokens[0] if len(sub_tokens) == 1 else LABEL_PAD_ID)
+            pos_label_ids.append(self.label2id[label])
+            token_labels.append(sub_tokens[0] if len(sub_tokens) == 1 else LABEL_PAD_ID)
             
             token_ids.extend(sub_tokens)
             start_indices.append(current_index)
@@ -88,7 +87,7 @@ class TaggingDataset(Dataset):
             current_index += len(sub_tokens)
 
         token_ids = self.add_special_tokens(token_ids)
-        label_ids = np.array(label_ids)
+        pos_label_ids = np.array(pos_label_ids)
 
         # averaging will average all unwanted representations (padding, CLS, SEP) to index constant.START_END_INDEX_PADDING.
         
@@ -101,8 +100,8 @@ class TaggingDataset(Dataset):
         start_indices = pad_indices(start_indices)
         end_indices = pad_indices(end_indices)
         
-        assert len(label_ids.shape) == 1, label_ids.shape
-        yield (token_ids, label_ids, start_indices, end_indices, label_ids.shape[0])#, is_single_token)
+        assert len(pos_label_ids.shape) == 1, pos_label_ids.shape
+        yield (token_ids, pos_label_ids, start_indices, end_indices, pos_label_ids.shape[0], token_labels)
         
         # end changes
         
@@ -113,13 +112,12 @@ class TaggingDataset(Dataset):
         data: List[Dict] = []
         if not sent:
             return data
-        # Changed below to accomodate averaging_indices, lengths, is_single_token
-        # for src, tgt, start_indices, end_indices, length, is_single_token in self._process_example_helper(sent, labels):
-        for src, tgt, start_indices, end_indices, length in self._process_example_helper(sent, labels):
+        # Changed below to accomodate averaging_indices, lengths, token_labels
+        for src, tgt, start_indices, end_indices, length, token_labels in self._process_example_helper(sent, labels):
             data.append({
-                "sent": src, "labels": tgt, "lang": self.lang,
+                "sent": src, "pos_labels": tgt, "lang": self.lang,
                 "start_indices" : start_indices, "end_indices" : end_indices,
-                "length" : length#, "is_single_token" : is_single_token
+                "length" : length, "token_labels" : token_labels
             })
         # end changes
         return data
@@ -148,26 +146,6 @@ class UdPOS(TaggingDataset):
                     labels.append(label)
             if len(words) == len(labels) and words:
                 yield {"sent": words, "labels": labels}
-
-    @classmethod
-    def write_example(cls, example: Dict, file_handler):
-        assert "sent" in example
-        assert "labels" in example
-        assert len(example["sent"]) == len(example["labels"])
-        for idx, (word, label) in enumerate(
-            zip(
-                example["sent"],
-                example["labels"],
-            )
-        ):
-            fields = []
-            fields.append(str(idx + 1))  # pos 0
-            fields.append(word)  # pos 1
-            fields.extend("_")  # pos 2
-            fields.append(label)  # pos 3
-            fields.extend(["_", "_", "_", "_", "_", "_"])  # pos 4-9
-            print("\t".join(fields), file=file_handler)
-        print("", file=file_handler)
 
     @classmethod
     def get_file(cls, path: str, lang: str, split: str) -> Optional[str]:

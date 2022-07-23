@@ -13,6 +13,8 @@
 # Changed to consider epoch metrics instead for equivalent checkpointing.
 # Changed checkpointing metric for compatibility with wandb logging.
 # Removed _metric.
+# Added third return for forward for compatibility.
+# Changed labels key for compatibility.
 
 from copy import deepcopy
 from typing import List, Optional, Type
@@ -44,7 +46,7 @@ class Tagger(BaseTagger):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
         self._comparison_mode = 'max'
-        self._selection_criterion = f'val_{self.target_language}_acc_epoch'
+        self._selection_criterion = f'val_{self.target_language}_pos_acc_epoch'
 
         if self.hparams.freeze_mbert:
             self.freeze_bert(self)
@@ -64,7 +66,7 @@ class Tagger(BaseTagger):
         self.optimization_loss = 'pos_nll'
         self.metric_names = [
             self.optimization_loss,
-            'acc'
+            'pos_acc'
         ]
         self.setup_metrics()
     
@@ -80,13 +82,13 @@ class Tagger(BaseTagger):
 
         loss = F.nll_loss(
             log_probs.view(-1, self.nb_labels),
-            batch["labels"].view(-1),
+            batch["pos_labels"].view(-1),
             ignore_index=LABEL_PAD_ID,
         )
         # Changed below to be compatible with later models' loss_dict and added assert.
         loss_dict = {self.optimization_loss : loss}
         self.add_language_to_batch_output(loss_dict, batch)
-        return loss_dict, log_probs
+        return loss_dict, { 'pos' : log_probs }, None
         
     @classmethod
     def add_model_specific_args(cls, parser):

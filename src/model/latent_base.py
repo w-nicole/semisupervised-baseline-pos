@@ -59,13 +59,13 @@ class LatentBase(BaseTagger):
         self.decoder_pos = self.model_type[self.hparams.pos_model_type](*pos_model_args)
         self.decoder_reconstruction = self.model_type[self.hparams.reconstruction_model_type](*reconstruction_model_args)
         self.optimization_loss = 'total_loss'
-        self._selection_criterion = f'val_{self.target_language}_acc_epoch'
+        self._selection_criterion = f'val_{self.target_language}_pos_acc_epoch'
         self._comparison_mode = 'max'
         self.metric_names = [
             'pos_nll',
             'total_loss',
             'MSE',
-            'acc'
+            'pos_acc'
         ]
         self.setup_metrics()
         
@@ -88,9 +88,9 @@ class LatentBase(BaseTagger):
         )
         return clean_tensor
     
-    def calculate_clean_metric(self, batch, raw_metric_tensor):
-        non_pad_mask = self.get_non_pad_label_mask(batch['labels'], raw_metric_tensor)
-        clean_metric_tensor = self.set_padded_to_zero(batch['labels'], raw_metric_tensor)
+    def calculate_clean_metric(self, labels, raw_metric_tensor):
+        non_pad_mask = self.get_non_pad_label_mask(labels, raw_metric_tensor)
+        clean_metric_tensor = self.set_padded_to_zero(labels, raw_metric_tensor)
         
         # Adjust scale to NOT divide out the hidden size representation.
         clean_average = torch.sum(clean_metric_tensor) / torch.sum(non_pad_mask) * raw_metric_tensor.shape[-1]
@@ -98,13 +98,13 @@ class LatentBase(BaseTagger):
         
     def calculate_masked_mse_loss(self, batch, padded_mu_t, padded_hs):
         raw_metric_tensor = torch.pow(padded_mu_t - padded_hs, 2)
-        clean_mse = self.calculate_clean_metric(batch, raw_metric_tensor)
+        clean_mse = self.calculate_clean_metric(batch['pos_labels'], raw_metric_tensor)
         return clean_mse
         
     def calculate_encoder_loss(self, batch, log_pi_t):
         encoder_loss = F.nll_loss(
             log_pi_t.view(-1, self.nb_labels),
-            batch["labels"].view(-1),
+            batch["pos_labels"].view(-1),
             ignore_index=LABEL_PAD_ID,
         )
         return encoder_loss
@@ -120,7 +120,8 @@ class LatentBase(BaseTagger):
             self.encoder_mbert.eval()
         encoder_hs = self.calculate_hidden_states(self.encoder_mbert, batch)
         latent = self.encoder(encoder_hs)
-        return encoder_hs, latent
+        target_hs = self.calculate_target_hs(batch)
+        return encoder_hs, latent, target_hs
       
     def get_decoder_args(self, decoder, batch, latent):
         return (batch, latent) if isinstance(decoder, LSTMLinear) else (latent,)
@@ -136,10 +137,8 @@ class LatentBase(BaseTagger):
         assert not any(list(filter(lambda example : example != current_language, batch['lang'])))
         
         loss = {} 
-        encoder_hs, latent = self.calculate_intermediates(batch)
+        encoder_hs, latent, target_hs = self.calculate_intermediates(batch)
         predicted_hs = self.decoder_reconstruction(*self.get_decoder_args(self.decoder_reconstruction, batch, latent))
-        
-        target_hs = self.calculate_target_hs(batch)
         loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, target_hs)
         unlabeled_loss = self.hparams.mse_weight * loss['MSE']
         
@@ -156,7 +155,7 @@ class LatentBase(BaseTagger):
             
         loss['pos_nll'] = encoder_loss
         self.add_language_to_batch_output(loss, batch)
-        return loss, pos_log_probs
+        return loss, { 'pos' : pos_log_probs }, { 'predicted_hs' : predicted_hs } 
         
     @classmethod
     def add_model_specific_args(cls, parser):

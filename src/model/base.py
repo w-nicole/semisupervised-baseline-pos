@@ -19,6 +19,7 @@
 # Added manual dump of yaml.
 # Plateau monitor changed to be epoch, on target language.
 # Added extra custom logging maintenance and logic
+# Added third return for __call__ for compatibility.
 
 import hashlib
 import json
@@ -113,8 +114,10 @@ class Model(pl.LightningModule):
         
         # Added below
         self.name_to_metric = {
-            'acc' : POSMetric()
+            'pos_acc' : POSMetric(),
+            'token_acc' : POSMetric()
         }
+        self.monitor_acc_key = 'pos'
         
         # Structure: dict[phase][lang] = [{metric_key : value}]
         self.custom_logs = defaultdict(dict)
@@ -264,23 +267,25 @@ class Model(pl.LightningModule):
     def step_helper(self, batch, prefix):
         # import time
         # start_time = time.time()
-        loss_dict, encoder_outputs = self.__call__(batch)
+        loss_dict, encoder_outputs, None = self.__call__(batch)
         # print('call duration', time.time() - start_time)
         assert (
             len(set(batch["lang"])) == 1
         ), "batch should contain only one language"
         lang = batch["lang"][0]
         
-        if encoder_outputs is not None:
-            accuracy_type_metric_args = (batch["labels"], encoder_outputs)
-            pos_metric_args = (batch["labels"], encoder_outputs)
+        for acc_key, encoder_outputs in encoder_outputs.items():
+            labels_key = f'{acc_key}_labels'
+            accuracy_type_metric_args = (batch[labels_key], encoder_outputs)
+            pos_metric_args = (batch[labels_key], encoder_outputs)
             # import time
             # start_time = time.time()
-            self.metrics[prefix][lang]['acc'].add(*accuracy_type_metric_args)
+            self.metrics[prefix][lang][f'{acc_key}_acc'].add(*accuracy_type_metric_args)
             # print('after the add', time.time() - start_time)
-        number_of_true_labels = (batch['labels'] != LABEL_PAD_ID).sum()
+            
+        number_of_true_labels = (batch['pos_labels'] != LABEL_PAD_ID).sum()
 
-        assert 'acc' not in loss_dict, loss_dict.keys()
+        assert all(map(lambda s : 'acc' not in s, loss_dict.keys())), loss_dict.keys()
         # start_time = time.time()
         for metric_key in loss_dict:
             if metric_key in 'lang': continue
@@ -369,7 +374,7 @@ class Model(pl.LightningModule):
                     current_metrics.update({logging_key : val})
                     aver_metric[key].append(val)
                     self.log(logging_key, val)
-                    if 'acc' in logging_key:
+                    if f'{self.monitor_acc_key}_pos_acc' in logging_key:
                         best_key = f'best_{logging_key}'
                         current_val = wandb.summary[best_key] if best_key in wandb.summary.keys() else -float('inf')
                         wandb.summary[best_key] = max(current_val, val)
