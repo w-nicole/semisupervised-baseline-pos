@@ -10,15 +10,14 @@
 # Changed `comparsion` to `comparison_mode`
 # Added support for logging train metrics and non-accuracy metrics.
 # Changed forward to __call__.
-# Changed to log batchwise via wandb.
-# Changed to log separate batch accuracy metrics (for monitoring) and epoch metrics (for equivalent checkpointing)
-# Changed to log aligned train and validation curves.
+# Changed logging methodology, added train logging, and moved to wandb.
 # Removed epochwise train metrics.
 # Changed checkpointing metric for compatibility with wandb logging.
 # Removed ._metric
 # Added manual dump of yaml.
 # Plateau monitor changed to be epoch, on target language.
 # Added extra custom logging maintenance and logic
+# Removed dropout
 
 import hashlib
 import json
@@ -44,7 +43,6 @@ import util
 from dataset.base import Dataset
 from enumeration import Schedule, Split, Task
 from metric import Metric, POSMetric, AverageMetric, LABEL_PAD_ID
-from model.module import InputVariationalDropout
 
 from dataset import collate
 import wandb
@@ -108,8 +106,7 @@ class Model(pl.LightningModule):
         if self.hparams.freeze_mbert:
             self.freeze_bert(self)
 
-        # Changed below line
-        self.dropout = InputVariationalDropout(hparams.input_dropout)
+        # Removed dropout
         
         # Added below
         self.name_to_metric = {
@@ -241,10 +238,7 @@ class Model(pl.LightningModule):
     ):
         mask = self.get_mask(sent)
         output = mbert(input_ids=sent, attention_mask=mask, token_type_ids=segment)
-
         hs = self.process_feature(output['hidden_states'])
-        hs = self.dropout(hs)
-        
         # Below: added averaging.
         averaged_hs = collate.average_embeddings(hs, start_indices, end_indices)
         return averaged_hs
@@ -669,8 +663,7 @@ class Model(pl.LightningModule):
         # end additions
         # Below line: changed from providing weighted features to a concatenated all hidden states
         parser.add_argument("--concat_all_hidden_states", default=False, type=util.str2bool)
-        # Changed to remove all types of dropout that are specified separate from BERT (i.e. set them to zero)
-        parser.add_argument("--input_dropout", default=0, type=float)
+        # Changed to remove all types of dropout
         # misc
         parser.add_argument("--seed", default=42, type=int)
         # Split up learning rates below
