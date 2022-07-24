@@ -53,8 +53,9 @@ class BaseTagger(Model):
             "start_indices": constant.START_END_INDEX_PADDING,
             "end_indices": constant.START_END_INDEX_PADDING,
             'length': constant.START_END_INDEX_PADDING,
+            "pos_labels": LABEL_PAD_ID,
+            "token_labels" : LABEL_PAD_ID
             # end changes
-            "labels": LABEL_PAD_ID
         }
 
     @property

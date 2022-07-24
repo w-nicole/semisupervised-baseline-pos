@@ -261,7 +261,7 @@ class Model(pl.LightningModule):
     def step_helper(self, batch, prefix):
         # import time
         # start_time = time.time()
-        loss_dict, encoder_outputs, None = self.__call__(batch)
+        loss_dict, encoder_outputs, _ = self.__call__(batch)
         # print('call duration', time.time() - start_time)
         assert (
             len(set(batch["lang"])) == 1

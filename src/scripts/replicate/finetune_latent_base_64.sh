@@ -15,7 +15,7 @@ model=${2:-"bert-base-multilingual-cased"}
 task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
-save_path=${4:-"./experiments/debug/match_baseline"}
+save_path=${4:-"./experiments/regress/finetune_64_at_start"}
 
 train_languages="English"
 val_languages="English Dutch"
@@ -32,14 +32,13 @@ python3 src/train_latent_base.py \
     --val_langs $val_languages \
     --target_language "English" \
     --pretrain "$model" \
-    --default_learning_rate 5e-5 \
     --mse_weight 0 \
     --latent_size 64 \
     --batch_size $bs \
     --max_epochs $ep \
-    --group "debug/match_baseline" \
-    --job_type "finetune" \
-    --name "finetune_latent_64_new_lr" \
+    --group "debug/regress" \
+    --job_type "at_start" \
+    --name "finetune_64_at_start" \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
     --freeze_mbert "n" \
