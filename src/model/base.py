@@ -368,7 +368,7 @@ class Model(pl.LightningModule):
                     current_metrics.update({logging_key : val})
                     aver_metric[key].append(val)
                     self.log(logging_key, val)
-                    if f'{self.monitor_acc_key}_pos_acc' in logging_key:
+                    if f'{self.monitor_acc_key}_acc' in logging_key:
                         best_key = f'best_{logging_key}'
                         current_val = wandb.summary[best_key] if best_key in wandb.summary.keys() else -float('inf')
                         wandb.summary[best_key] = max(current_val, val)

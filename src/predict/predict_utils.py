@@ -6,16 +6,16 @@ from enumeration import Split
 import util
 import metric
 
-def get_padded_labels(model, lang):
-    dataloader = model.get_dataloader(lang, Split.dev)
+def get_padded_labels(model, lang, phase):
+    dataloader = model.get_dataloader(lang, Split.dev if phase == 'val' else phase)
     raw_labels = []
     for batch in dataloader:
         raw_labels.append(batch['pos_labels'].flatten())
     labels = torch.cat([batch['pos_labels'].flatten() for batch in dataloader])
     return labels
 
-def clean_padded_labels_and_predictions(model, lang, padded_predictions):
-    padded_labels = util.remove_from_gpu(get_padded_labels(model, lang))
+def clean_padded_labels_and_predictions(model, lang, padded_predictions, phase):
+    padded_labels = util.remove_from_gpu(get_padded_labels(model, lang, phase))
     mask_for_non_pad = (padded_labels != metric.LABEL_PAD_ID)
     labels = padded_labels[mask_for_non_pad]
     outputs = padded_predictions[mask_for_non_pad]
