@@ -7,10 +7,9 @@ import torch
 from model import LatentBase, Tagger
 from predict import predict_utils, predict
 
-def predict_over_languages(checkpoint_path, model_class, phase):
+def predict_over_languages(checkpoint_path, model_class, phase, languages):
     
     model = model_class.load_from_checkpoint(checkpoint_path)
-    languages = "Bulgarian Danish German English Spanish Persian Hungarian Italian Dutch Polish Portuguese Romanian Slovak Slovenian Swedish".split()
     
     analysis_parent_path = os.path.join(predict_utils.get_analysis_path(checkpoint_path), f'{phase}_predictions')
     accuracies = {}
@@ -49,6 +48,6 @@ if __name__ == '__main__':
             matches = glob.glob(template)
             assert len(matches) == 1, f'{template}, {matches}'
             checkpoint_path = matches[0]
-            df = predict_over_languages(checkpoint_path, Tagger if model_type == 'baseline' else LatentBase, phase)
+            df = predict_over_languages(checkpoint_path, Tagger if model_type == 'baseline' else LatentBase, phase, languages)
         
    

@@ -71,7 +71,9 @@ class LatentBase(BaseTagger):
         
     def calculate_hidden_states(self, mbert, batch):
         # Updated call arguments
+        import time; start_time = time.time()
         hs = self.encode_sent(mbert, batch["sent"], batch["start_indices"], batch["end_indices"], batch["lang"])
+        print(f'calculate hidden states: {time.time() - start_time}')
         return hs
     
     def get_non_pad_label_mask(self, labels, tensor):
@@ -89,11 +91,13 @@ class LatentBase(BaseTagger):
         return clean_tensor
     
     def calculate_clean_metric(self, labels, raw_metric_tensor):
+        import time; start_time = time.time()
         non_pad_mask = self.get_non_pad_label_mask(labels, raw_metric_tensor)
         clean_metric_tensor = self.set_padded_to_zero(labels, raw_metric_tensor)
         
         # Adjust scale to NOT divide out the hidden size representation.
         clean_average = torch.sum(clean_metric_tensor) / torch.sum(non_pad_mask) * raw_metric_tensor.shape[-1]
+        print(f'calculate clean metric: {time.time() - start_time}')
         return clean_average
         
     def calculate_masked_mse_loss(self, batch, padded_mu_t, padded_hs):

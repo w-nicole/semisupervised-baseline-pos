@@ -240,10 +240,14 @@ class Model(pl.LightningModule):
         segment: Optional[Tensor] = None
     ):
         mask = self.get_mask(sent)
+        import time; start_time = time.time()
         output = mbert(input_ids=sent, attention_mask=mask, token_type_ids=segment)
+        print(f'mbert forward: {time.time() - start_time}')
         hs = self.process_feature(output['hidden_states'])
         # Below: added averaging.
+        import time; start_time = time.time()
         averaged_hs = collate.average_embeddings(hs, start_indices, end_indices)
+        print(f'average embeddings: {time.time() - start_time}')
         return averaged_hs
         # end changes
 
@@ -259,10 +263,9 @@ class Model(pl.LightningModule):
     # Renamed variables, function, direct return of loss_dict, no self.log for loss
     # Updated assert message and metrics indexing
     def step_helper(self, batch, prefix):
-        # import time
-        # start_time = time.time()
+        import time
+        start_time = time.time()
         loss_dict, encoder_outputs, _ = self.__call__(batch)
-        # print('call duration', time.time() - start_time)
         assert (
             len(set(batch["lang"])) == 1
         ), "batch should contain only one language"
@@ -272,20 +275,19 @@ class Model(pl.LightningModule):
             labels_key = f'{acc_key}_labels'
             accuracy_type_metric_args = (batch[labels_key], encoder_outputs)
             pos_metric_args = (batch[labels_key], encoder_outputs)
-            # import time
-            # start_time = time.time()
+            import time; start_time = time.time()
             self.metrics[prefix][lang][f'{acc_key}_acc'].add(*accuracy_type_metric_args)
-            # print('after the add', time.time() - start_time)
+            print('after the add', time.time() - start_time)
             
         number_of_true_labels = (batch['pos_labels'] != LABEL_PAD_ID).sum()
 
         assert all(map(lambda s : 'acc' not in s, loss_dict.keys())), loss_dict.keys()
-        # start_time = time.time()
+        start_time = time.time()
         for metric_key in loss_dict:
             if metric_key in 'lang': continue
             value = loss_dict[metric_key]
             self.metrics[prefix][lang][metric_key].add(value, number_of_true_labels)
-        # print('adding non-accuracy', time.time() - start_time)
+        print('adding non-accuracy', time.time() - start_time)
         return loss_dict
     
     def detensor_results(self, metrics):
@@ -323,20 +325,20 @@ class Model(pl.LightningModule):
     # and to do accuracy updates and wandb logging
     # Removed train self.log of loss
     def training_step(self, batch, batch_idx):
-        # import time
-        # start_time = time.time()
+        import time
+        start_time = time.time()
         loss_dict = self.step_helper(batch, 'train')
-        # print(f'step helper: {time.time() - start_time}')
+        print(f'step helper: {time.time() - start_time}')
         loss_dict['loss'] = loss_dict[self.optimization_loss]
         # Detach per the warning. Double detach is safe.
         loss_dict = {
             key : value.detach() if key not in ['lang', 'loss'] else value
             for key, value in loss_dict.items()
         }
-        # start_time = time.time()
+        start_time = time.time()
         self.log_wandb('train', batch['lang'], loss_dict, batch_idx, None)
-        # print(f'log wandb: {time.time() - start_time}')
-        # import pdb; pdb.set_trace()
+        print(f'log wandb: {time.time() - start_time}')
+        import pdb; pdb.set_trace()
         return loss_dict
         
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
