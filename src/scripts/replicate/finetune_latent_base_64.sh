@@ -15,14 +15,14 @@ model=${2:-"bert-base-multilingual-cased"}
 task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
-save_path=${4:-"./experiments/regress/finetune_64_at_start"}
+save_path=${4:-"./experiments/replicate/finetune_64"}
 
 train_languages="English"
 val_languages="English Dutch"
 data_path=${5:-"../ud-treebanks-v1.4"}
 
 bs=16
-ep=6
+ep=3
 
 python3 src/train_latent_base.py \
     --seed "$seed" \
@@ -36,9 +36,9 @@ python3 src/train_latent_base.py \
     --latent_size 64 \
     --batch_size $bs \
     --max_epochs $ep \
-    --group "debug/regress" \
-    --job_type "at_start" \
-    --name "finetune_64_at_start" \
+    --group "replicate" \
+    --job_type "reference" \
+    --name "finetune_64" \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
     --freeze_mbert "n" \

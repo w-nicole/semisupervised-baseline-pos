@@ -111,8 +111,8 @@ class Model(pl.LightningModule):
         
         # Added below
         self.name_to_metric = {
-            'pos_acc' : POSMetric(),
-            'token_acc' : POSMetric()
+            'pos_acc' : POSMetric('pos'),
+            'token_acc' : POSMetric('token')
         }
         self.monitor_acc_key = 'pos'
         
@@ -443,7 +443,6 @@ class Model(pl.LightningModule):
             "weight_decay": 0.0,
         }
         return with_weight_decay, no_weight_decay
-        
 
     # Split up the learning rates and optimization of bert vs not below
     def configure_optimizers(self):
@@ -671,7 +670,7 @@ class Model(pl.LightningModule):
         # Changed to remove all types of dropout
         # misc
         parser.add_argument("--seed", default=42, type=int)
-        # Split up learning rates below
+        # Split the learning rates below
         parser.add_argument("--mbert_learning_rate", default=5e-5, type=float)
         parser.add_argument("--default_learning_rate", default=5e-5, type=float)
         # Changed below beta2 parameter to match the paper

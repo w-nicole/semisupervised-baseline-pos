@@ -121,10 +121,12 @@ class NMIMetric(Metric):
         
 # End added metrics
 
+# Added modifier
 class POSMetric(Metric):
-    def __init__(self):
+    def __init__(self, modifier):
         self.num_correct = 0
         self.num_tokens = 0
+        self.modifier = modifier
 
     def add(self, gold, prediction):
         """
@@ -149,7 +151,7 @@ class POSMetric(Metric):
             acc = self.num_correct / self.num_tokens
         except ZeroDivisionError:
             acc = 0
-        return {"acc": acc * 100}
+        return {f"{self.modifier}_acc": acc * 100}
 
     def reset(self):
         self.num_correct = 0

@@ -15,14 +15,14 @@ model=${2:-"bert-base-multilingual-cased"}
 task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
-save_path=${4:-"./experiments/debug/match_baseline/finetune"}
+save_path=${4:-"./experiments/replicate/finetune_tagger"}
 
 train_languages="English"
 val_languages="English Dutch"
 data_path=${5:-"../ud-treebanks-v1.4"}
 
 bs=16
-ep=6
+ep=3
 
 python3 src/train_encoder.py \
     --seed "$seed" \
@@ -34,9 +34,9 @@ python3 src/train_encoder.py \
     --pretrain "$model" \
     --batch_size $bs \
     --max_epochs $ep \
-    --group "debug/match_baseline" \
-    --job_type "finetune" \
-    --name "finetune_tagger" \
+    --group "replicate" \
+    --job_type "reference" \
+    --name "tagger" \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
     --freeze_mbert "n" \
