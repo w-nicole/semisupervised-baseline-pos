@@ -19,6 +19,8 @@ def average_embeddings(padded_embeddings, padded_start_indices, padded_end_indic
     # import time
     # start_time = time.time()
     all_clean_averaged_embeddings = []
+    
+    import time; start_time = time.time()
     for index, sentence in enumerate(padded_embeddings):
         start_indices = clean_indices(padded_start_indices[index])
         end_indices = clean_indices(padded_end_indices[index])
@@ -39,12 +41,15 @@ def average_embeddings(padded_embeddings, padded_start_indices, padded_end_indic
         sentence_embeddings = torch.stack(to_use_embeddings, axis = 0)
 
         all_clean_averaged_embeddings.append(sentence_embeddings)
+    print(f'averaging double loop: {time.time() - start_time}')
     
+    import time; start_time = time.time()
     padded_averages = torch.nn.utils.rnn.pad_sequence(
         all_clean_averaged_embeddings,
         batch_first = True,
         padding_value = constant.PACK_PADDING
     )
+    print(f'rnn pad sequence: {time.time() - start_time}')
     
     assert padded_averages.shape[0] == padded_embeddings.shape[0]
     # print('average embeddings', time.time() - start_time)

@@ -128,22 +128,17 @@ class POSMetric(Metric):
         self.num_tokens = 0
         self.modifier = modifier
 
-    def add(self, gold, prediction):
-        """
-        gold is label
-        prediction is logits
-        """
-        gold, prediction = self.unpack(gold, prediction)
-        _, prediction = torch.max(prediction, dim=-1)
-        bs, seq_len = prediction.shape
-        for ii in range(bs):
-            for jj in range(seq_len):
-                gold_label, pred_label = gold[ii, jj], prediction[ii, jj]
-                if gold_label == LABEL_PAD_ID:
-                    continue
-                if gold_label == pred_label:
-                    self.num_correct += 1
-                self.num_tokens += 1
+    # Renamed prediction -> logits, removed comment
+    def add(self, gold, logits):
+        gold, logits = self.unpack(gold, logits)
+        _, prediction = torch.max(logits, dim=-1)
+        
+        non_pad_mask = (gold != LABEL_PAD_ID)
+        true_correct_mask = non_pad_mask & (prediction == gold)
+        
+        self.num_correct += true_correct_mask.sum().item()
+        self.num_tokens += non_pad_mask.sum().item()
+ 
 
     @to_tensor
     def get_metric(self):

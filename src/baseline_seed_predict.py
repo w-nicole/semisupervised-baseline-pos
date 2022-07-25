@@ -25,9 +25,9 @@ def predict_over_languages(checkpoint_path, model_class, phase, languages):
     return df
     
 if __name__ == '__main__':
-    seeds = [42, 0, 1, 2, 3]
+    seeds = [0,1,2,3]# [42, 0, 1, 2, 3]
 
-    model_names = ['baseline', 'latent_base_64']
+    model_names = ['latent_base_64'] #['baseline', 'latent_base_64']
     name_to_languages = {
         # 'baseline' : [
         #     'Bulgarian', 'Danish', 'German', 'English', 'Spanish', 'Persian',
