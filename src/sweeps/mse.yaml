@@ -8,9 +8,9 @@ parameters:
     val_langs:
         value: ["English", "Dutch"]
     default_save_path:
-        value: "./experiments/sweeps/mse"
+        value: "./experiments/debug/sweeps/mse"
     target_language:
-        value: "Dutch"
+        value: "English"
     group:
         value: "mse/latent_base_64"
     job_type:
