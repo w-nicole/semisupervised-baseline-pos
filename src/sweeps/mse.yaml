@@ -8,11 +8,11 @@ parameters:
     val_langs:
         value: ["English", "Dutch"]
     default_save_path:
-        value: "./experiments/debug/sweeps/mse"
+        value: "./experiments/sweeps/mse"
     target_language:
-        value: "English"
+        value: "Dutch"
     group:
-        value: "mse/latent_base_64"
+        value: "mse"
     job_type:
         value: "sweep"
     latent_size:
