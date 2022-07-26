@@ -56,8 +56,6 @@ class Model(pl.LightningModule):
         super(Model, self).__init__()
         self.optimizer = None
         self.scheduler = None
-        # Added below line for no schedule option
-        self.has_schedule = hparams.schedule != Schedule.none
         self.metric_names = None
         # Changed below to account for train and other metrics.
         self.metrics: Dict[str, Dict[str, Dict[str, Metric]]] = defaultdict(dict)
@@ -432,7 +430,6 @@ class Model(pl.LightningModule):
         return with_weight_decay, no_weight_decay
 
     # Split up the learning rates and optimization of bert vs not below
-    # Add no scheduler option
     def configure_optimizers(self):
         named_optimizer_grouped_parameters = []
         other_split_hparams = {
@@ -466,11 +463,6 @@ class Model(pl.LightningModule):
             betas=(0.9, self.hparams.adam_beta2),
             eps=self.hparams.adam_eps,
         )
-    
-        self.optimizer = optimizer
-        if not self.has_schedule:
-            return [optimizer]
-            
         warmup_steps, max_steps = self.get_warmup_and_total_steps()
         if self.hparams.schedule == Schedule.invsqroot:
             scheduler = util.get_inverse_square_root_schedule_with_warmup(
@@ -491,6 +483,7 @@ class Model(pl.LightningModule):
         else:
             raise ValueError(self.hparams.schedule)
 
+        self.optimizer = optimizer
         self.scheduler = scheduler
         scheduler_dict = {"scheduler": scheduler, "interval": interval}
         if self.hparams.schedule == Schedule.reduceOnPlateau:
