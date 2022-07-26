@@ -30,5 +30,6 @@ class Task(Enum):
 @dataclass
 class Schedule(Enum):
     linear: str = "linear"
+    none: str = "none"
     invsqroot: str = "invsqroot"
     reduceOnPlateau: str = "reduceOnPlateau"

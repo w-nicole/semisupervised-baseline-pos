@@ -38,5 +38,5 @@ if __name__ == '__main__':
         all_accuracy_df = all_accuracy_df.append(raw_accuracy_df[languages].std(axis=0), ignore_index = True)
         all_accuracy_df['type'] = list(map(lambda seed : f'seed={seed}', seeds)) + ['mean', 'stdev']
         
-        all_accuracy_df.to_csv(f'./experiments/sweeps/seed/{model_type}/{phase}_accuracy_across_seeds.csv')
+        all_accuracy_df.to_csv(f'./pre-opt-experiments/sweeps/seed/{model_type}/{phase}_accuracy_across_seeds.csv')
     
