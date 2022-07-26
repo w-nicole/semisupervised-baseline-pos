@@ -38,7 +38,7 @@ parameters:
     freeze_mbert:
         value: no
     mse_weight:
-        value: [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]
+        values: [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]
 command:
     - ${env}
     - "python3"
