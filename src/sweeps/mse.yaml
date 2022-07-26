@@ -8,7 +8,7 @@ parameters:
     val_langs:
         value: ["English", "Dutch"]
     default_save_path:
-        value: "./experiments/sweeps/mse"
+        value: "./experiments/debug/sweeps/mse"
     target_language:
         value: "Dutch"
     group:
