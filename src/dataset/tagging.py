@@ -51,23 +51,19 @@ class TaggingDataset(Dataset):
     # to truncate at the max non-CLS/SEP tokens dictated by the tokenizer,
     # to not use any sliding window,
     # to add labels per token directly, rather than using subtokens,
-    # to create start/end indices.
-    # added lengths.
-    # added token_labels
+    # to create averaging indices, lengths, token_labels
     def _process_example_helper(
         self, sent: List, labels: List
     ) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         
-        # start_index, end_index include CLS/SEP (i.e. the first subtoken is index 1)
+        # the first token is averaged to index 1
+        assert constant.START_END_INDEX_PADDING == 0, "This is required for averaging behavior to work."
         token_ids: List[int] = []
         pos_label_ids: List[int] = []
-        start_indices: List[int] = []
-        end_indices: List[int] = []
+        averaging_indices = []
         token_labels = []
-            
-        current_index = 1
 
-        for token, label in zip(sent, labels):
+        for idx, (token, label) in enumerate(zip(sent, labels)):
             sub_tokens = self.tokenize(token)
             if not sub_tokens:
                 continue
@@ -81,10 +77,8 @@ class TaggingDataset(Dataset):
             token_labels.append(sub_tokens[0] if len(sub_tokens) == 1 else LABEL_PAD_ID)
             
             token_ids.extend(sub_tokens)
-            start_indices.append(current_index)
-            end_indices.append(current_index + len(sub_tokens))
-            
-            current_index += len(sub_tokens)
+            # Average real tokens starting from index 1 (0 is to cut out the padding)
+            averaging_indices.extend([idx + 1 for _ in range(len(sub_tokens))])
 
         token_ids = self.add_special_tokens(token_ids)
         pos_label_ids = np.array(pos_label_ids)
@@ -97,11 +91,8 @@ class TaggingDataset(Dataset):
             + [constant.START_END_INDEX_PADDING]
         )
         
-        start_indices = pad_indices(start_indices)
-        end_indices = pad_indices(end_indices)
-        
-        assert len(pos_label_ids.shape) == 1, pos_label_ids.shape
-        yield (token_ids, pos_label_ids, start_indices, end_indices, pos_label_ids.shape[0], token_labels)
+        averaging_indices = pad_indices(averaging_indices)
+        yield (token_ids, pos_label_ids, averaging_indices, pos_label_ids.shape[0], token_labels)
         
         # end changes
         
@@ -113,10 +104,10 @@ class TaggingDataset(Dataset):
         if not sent:
             return data
         # Changed below to accomodate averaging_indices, lengths, token_labels
-        for src, tgt, start_indices, end_indices, length, token_labels in self._process_example_helper(sent, labels):
+        for src, tgt, averaging_indices, length, token_labels in self._process_example_helper(sent, labels):
             data.append({
                 "sent": src, "pos_labels": tgt, "lang": self.lang,
-                "start_indices" : start_indices, "end_indices" : end_indices,
+                "averaging_indices" : averaging_indices,
                 "length" : length, "token_labels" : token_labels
             })
         # end changes

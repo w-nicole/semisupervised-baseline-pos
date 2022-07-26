@@ -1,57 +1,19 @@
 
 # Entire file added to the codebase.
 
-import torch
-import torch.nn.utils
-import constant
-import util
+import torch_scatter
 
-def clean_indices(indices):
-    # Below is valid because real averaging indices are given from 1
-    assert constant.START_END_INDEX_PADDING < 1
-    return indices[indices != constant.START_END_INDEX_PADDING]
-    
-def average_embeddings(padded_embeddings, padded_start_indices, padded_end_indices):
+def average_embeddings(padded_embeddings, padded_averaging_indices):
     """
     Returns a stack of averaged representations with padding/sentence structure.
     Expects padded_embeddings to NOT have CLS/SEP removed.
     """
-    # import time
-    # start_time = time.time()
-    all_clean_averaged_embeddings = []
-    
-    import time; start_time = time.time()
-    for index, sentence in enumerate(padded_embeddings):
-        start_indices = clean_indices(padded_start_indices[index])
-        end_indices = clean_indices(padded_end_indices[index])
-        assert start_indices.shape == end_indices.shape
-        
-        clean_averaged_embeddings = []
-        
-        for start_index, end_index in zip(start_indices, end_indices):
-            raw_embeddings = sentence[start_index:end_index]
-            assert len(raw_embeddings.shape) == 2
-            average = torch.mean(raw_embeddings, dim = 0)
-            clean_averaged_embeddings.append(average)
-        
-        assert start_indices.shape[0] == len(clean_averaged_embeddings)
-       
-        # Handle empty sentence examples
-        to_use_embeddings = clean_averaged_embeddings if clean_averaged_embeddings else [util.apply_gpu(torch.zeros((padded_embeddings.shape[-1],)))]
-        sentence_embeddings = torch.stack(to_use_embeddings, axis = 0)
-
-        all_clean_averaged_embeddings.append(sentence_embeddings)
-    print(f'averaging double loop: {time.time() - start_time}')
-    
-    import time; start_time = time.time()
-    padded_averages = torch.nn.utils.rnn.pad_sequence(
-        all_clean_averaged_embeddings,
-        batch_first = True,
-        padding_value = constant.PACK_PADDING
+    # Will pad with 0s, which is also desired for the LSTM.
+    raw_averages = torch_scatter.scatter(
+        padded_embeddings.float(), padded_averaging_indices.long(),
+        dim = 1, reduce = 'mean'
     )
-    print(f'rnn pad sequence: {time.time() - start_time}')
-    
-    assert padded_averages.shape[0] == padded_embeddings.shape[0]
-    # print('average embeddings', time.time() - start_time)
-    return padded_averages
+    # All of the padding is averaged to position 0.
+    clean_averages = raw_averages[:, 1:, :]
+    return clean_averages
     

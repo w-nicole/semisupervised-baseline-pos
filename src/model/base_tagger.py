@@ -49,9 +49,8 @@ class BaseTagger(Model):
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
-            # Added below. MUST match START_END_INDEX_PADDING for logic to hold.
-            "start_indices": constant.START_END_INDEX_PADDING,
-            "end_indices": constant.START_END_INDEX_PADDING,
+            # Added below. averaging_indices MUST match START_END_INDEX_PADDING for logic to hold.
+            "averaging_indices" : constant.START_END_INDEX_PADDING,
             'length': constant.START_END_INDEX_PADDING,
             "pos_labels": LABEL_PAD_ID,
             "token_labels" : LABEL_PAD_ID
