@@ -8,17 +8,17 @@ parameters:
     val_langs:
         value: ["English", "Dutch"]
     default_save_path:
-        value: "./experiments/debug/sweeps/mse"
+        value: "./experiments/debug/t_test/dutch_mse"
     target_language:
-        value: "English"
+        value: "Dutch"
     group:
-        value: "english-sweep-mse"
+        value: "dutch_mse"
     job_type:
-        value: "sweep"
+        value: "t_test"
     latent_size:
         value: 64
     hyperparameter_names:
-        value: "mse_weight"
+        value: "seed"
     prep_termination:
         value: no
     batch_size:
@@ -38,7 +38,9 @@ parameters:
     freeze_mbert:
         value: no
     mse_weight:
-        values: [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]
+        value: 0
+    seed:
+        values: [42, 0, 1, 2, 3]
 command:
     - ${env}
     - "python3"
