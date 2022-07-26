@@ -10,7 +10,7 @@ parameters:
     default_save_path:
         value: "./experiments/sweeps/mse"
     target_language:
-        value: "English"
+        value: "Dutch"
     group:
         value: "mse/latent_base_64"
     job_type:
