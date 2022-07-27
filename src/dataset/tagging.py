@@ -82,6 +82,7 @@ class TaggingDataset(Dataset):
 
         token_ids = self.add_special_tokens(token_ids)
         pos_label_ids = np.array(pos_label_ids)
+        token_labels = np.array(token_labels)
 
         # averaging will average all unwanted representations (padding, CLS, SEP) to index constant.START_END_INDEX_PADDING.
         

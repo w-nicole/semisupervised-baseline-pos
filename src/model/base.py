@@ -264,10 +264,10 @@ class Model(pl.LightningModule):
         ), "batch should contain only one language"
         lang = batch["lang"][0]
         
-        for acc_key, encoder_outputs in encoder_outputs.items():
+        for acc_key, current_encoder_outputs in encoder_outputs.items():
             labels_key = f'{acc_key}_labels'
-            accuracy_type_metric_args = (batch[labels_key], encoder_outputs)
-            pos_metric_args = (batch[labels_key], encoder_outputs)
+            accuracy_type_metric_args = (batch[labels_key], current_encoder_outputs)
+            pos_metric_args = (batch[labels_key], current_encoder_outputs)
             self.metrics[prefix][lang][f'{acc_key}_acc'].add(*accuracy_type_metric_args)
             
         number_of_true_labels = (batch['pos_labels'] != LABEL_PAD_ID).sum()
