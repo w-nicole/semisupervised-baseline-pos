@@ -12,13 +12,11 @@
 
 import torch
 import torch.nn.functional as F
-from model.latent_base import LatentBase
-
-import util
 from transformers import BertForMaskedLM
 
 import util
 from metric import LABEL_PAD_ID
+from model.latent_base import LatentBase
 
 class WithTokenLoss(LatentBase):
     
@@ -52,4 +50,13 @@ class WithTokenLoss(LatentBase):
         log_probs_dict = {'token' : log_probs}
         log_probs_dict.update(pos_log_probs)
         
+        loss['total_loss'] += self.hparams.token_nll_weight * loss['token_nll']
         return loss, log_probs_dict, model_outputs
+        
+    @classmethod
+    def add_model_specific_args(cls, parser):
+        parser = LatentBase.add_model_specific_args(parser)
+        parser.add_argument('--token_nll_weight', default=1, type=float)
+        parser.add_argument('--debug_model_all_eval', default=False, type=util.str2bool)
+        return parser
+        

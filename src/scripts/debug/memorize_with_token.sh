@@ -10,28 +10,29 @@
 # Changed to not have source/target but train/val languages.
 # Simplified `example/surprising-mbert/evaluate.sh` script to remove irrelevant code.
 
-save_path=${1:-"./experiments/debug/run_with_token"}
-train_languages="English"
-val_languages="English"
-data_path=${2:-"../ud-treebanks-v1.4"}
+save_path=${1:-"./experiments/debug/memorize_single_with_token"}
+train_languages="Dutch"
+val_languages="Dutch"
+data_path=${2:-"../ud-debug-single"}
 
 bs=16
-ep=1
-latent_size=2
+ep=1000
 
 python3 src/train_with_token_loss.py \
     --data_dir "$data_path" \
     --trn_langs $train_languages \
     --val_langs $val_languages \
     --batch_size $bs \
-    --subset_ratio 0.00001 \
-    --number_of_workers 1 \
+    --latent_size 768 \
+    --mse_weight 0 \
+    --pos_nll_weight 0 \
+    --debug_model_all_eval "y" \
     --max_epochs $ep \
     --warmup_portion 0.1 \
-    --default_learning_rate 5e-3 \
-    --mbert_learning_rate 5e-5 \
     --group "debug" \
-    --job_type "run" \
+    --job_type "memorize" \
     --name "with_token" \
+    --patience $ep \
     --default_save_path "$save_path" \
-    --freeze_mbert "y"
+    --freeze_mbert "n" \
+    --gpu 1 
