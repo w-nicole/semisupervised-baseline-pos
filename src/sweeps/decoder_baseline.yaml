@@ -8,17 +8,17 @@ parameters:
     val_langs:
         value: ["English", "Dutch"]
     default_save_path:
-        value: "./experiments/sweeps/latent_size"
+        value: "./experiments/sweeps/decoder_baseline"
     target_language:
         value: "Dutch"
     group:
-        value: "latent_size"
+        value: "decoder_baseline"
     job_type:
         value: "sweep"
     latent_size:
-        values: [32, 128, 256]
+        value: 64
     hyperparameter_names:
-        value: "latent_size"
+        value: "pos_model_type reconstruction_model_type"
     prep_termination:
         value: no
     batch_size:
@@ -33,16 +33,16 @@ parameters:
         value: 5e-5
     warmup_portion:
         value: 0.1
-    pos_model_type:
-        value: "mlp"
     reconstruction_model_type:
-        value: "lstm"
+        values: ["linear", "mlp", "lstm"]
+    pos_model_type:
+        values: ["linear", "mlp", "lstm"]
     gpus:
         value: 1
     freeze_mbert:
         value: no
     mse_weight:
-        value: 1e-6
+        value: 0
 command:
     - ${env}
     - "python3"

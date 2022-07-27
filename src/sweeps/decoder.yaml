@@ -1,33 +1,36 @@
 program: src/train_latent_base.py
 method: grid
-metric:
-    name: val_Dutch_acc_epoch
-    goal: maximize
 parameters:
     data_dir:
-        value: "../../ud-treebanks-v1.4"
+        value: "../ud-treebanks-v1.4"
     trn_langs:
         value: ["English", "Dutch"]
     val_langs:
         value: ["English", "Dutch"]
     default_save_path:
-        value: "./experiments/sweeps/fixed/decoder"
-    wandb_group:
-        value: "fixed"
-    wandb_job_type:
+        value: "./experiments/sweeps/decoder"
+    target_language:
+        value: "Dutch"
+    group:
         value: "decoder"
+    job_type:
+        value: "sweep"
+    latent_size:
+        value: 64
     hyperparameter_names:
-        value: "reconstruction_model_type pos_model_type"
+        value: "pos_model_type reconstruction_model_type"
     prep_termination:
-        value: yes
+        value: no
     batch_size:
         value: 16
     max_epochs:
         value: 3
     weight_decay:
         value: 0.01
-    learning_rate:
-        value: 5e-3
+    mbert_learning_rate:
+        value: 5e-5
+    default_learning_rate:
+        value: 5e-5
     warmup_portion:
         value: 0.1
     reconstruction_model_type:
@@ -37,15 +40,9 @@ parameters:
     gpus:
         value: 1
     freeze_mbert:
-        value: "n"
-    pos_nll_weight:
-        value: 1
-    latent_kl_weight:
-        value: 1e-6
+        value: no
     mse_weight:
-        value: 1e-4
-    debug_without_sampling:
-        value: "y"
+        value: 1e-6
 command:
     - ${env}
     - "python3"

@@ -10,19 +10,19 @@
 # Edited arguments.
 # Edited to run the train_encoder script instead.
 
-model=${1:-"bert-base-multilingual-cased"}
-task=${2:-"udpos"}
+seed=${1:-42}
+model=${2:-"bert-base-multilingual-cased"}
+task=${3:-"udpos"}
 
 model_name=$(echo "$model" | tr '/' '\n' | tail -n1)
-save_path=${3:-"./experiments/debug/t_test/dutch_mse_script"}
+save_path=${4:-"./experiments/scheduler/flat_latent_64"}
 
-train_languages="English Dutch"
+train_languages="English"
 val_languages="English Dutch"
-data_path=${4:-"../ud-treebanks-v1.4"}
+data_path=${5:-"../ud-treebanks-v1.4"}
 
 bs=16
 ep=3
-seed=42
 
 python3 src/train_latent_base.py \
     --seed "$seed" \
@@ -30,15 +30,15 @@ python3 src/train_latent_base.py \
     --data_dir "$data_path" \
     --trn_langs $train_languages \
     --val_langs $val_languages \
-    --target_language "Dutch" \
+    --target_language "English" \
     --pretrain "$model" \
     --mse_weight 0 \
     --latent_size 64 \
     --batch_size $bs \
     --max_epochs $ep \
-    --group "dutch_mse_script_t_test" \
-    --job_type "compare" \
-    --name "seed=$seed" \
+    --group "scheduler" \
+    --job_type "explore" \
+    --name "flat_latent_64" \
     --warmup_portion 0.1 \
     --default_save_path "$save_path" \
     --freeze_mbert "n" \
