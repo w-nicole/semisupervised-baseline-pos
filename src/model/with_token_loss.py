@@ -41,6 +41,7 @@ class WithTokenLoss(LatentBase):
         
     def __call__(self, batch):
         
+        self.token_classifier.eval()
         loss, pos_log_probs, model_outputs = super(WithTokenLoss, self).__call__(batch)
         
         token_logits = self.token_classifier(model_outputs['predicted_hs'])

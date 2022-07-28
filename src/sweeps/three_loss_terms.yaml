@@ -1,0 +1,50 @@
+program: src/train_with_token_loss.py
+method: grid
+parameters:
+    data_dir:
+        value: "../ud-treebanks-v1.4"
+    trn_langs:
+        value: ["English", "Dutch"]
+    val_langs:
+        value: ["English", "Dutch"]
+    default_save_path:
+        value: "./experiments/sweeps/three_loss_terms"
+    target_language:
+        value: "Dutch"
+    group:
+        value: "three_loss_terms"
+    job_type:
+        value: "sweep"
+    latent_size:
+        value: 64
+    hyperparameter_names:
+        value: "pos_nll_weight mse_weight token_nll_weight"
+    prep_termination:
+        value: no
+    batch_size:
+        value: 16
+    max_epochs:
+        value: 3
+    weight_decay:
+        value: 0.01
+    mbert_learning_rate:
+        value: 5e-5
+    default_learning_rate:
+        value: 5e-5
+    warmup_portion:
+        value: 0.1
+    gpus:
+        value: 1
+    freeze_mbert:
+        value: no
+    mse_weight:
+        values: [0, 1e-6, 1e-4, 1e-2]
+    token_nll_weight:
+        values: [0, 1e-6, 1e-4, 1e-2]
+    pos_nll_weight:
+        values: [1e-6, 1e-4, 1e-2, 1]
+command:
+    - ${env}
+    - "python3"
+    - ${program}
+    - ${args}
