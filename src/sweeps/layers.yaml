@@ -16,7 +16,7 @@ parameters:
     job_type:
         value: "sweep"
     latent_size:
-        values: 64
+        value: 64
     hyperparameter_names:
         value: "feature_layer mse_weight"
     prep_termination:
@@ -42,7 +42,7 @@ parameters:
     freeze_mbert:
         value: no
     mse_weight:
-        value: [0, 1e-6, 1e-5]
+        values: [0, 1e-6, 1e-5]
     feature_layer:
         values: [3, 4, 5]
 command:

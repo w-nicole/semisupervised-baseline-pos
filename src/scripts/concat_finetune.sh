@@ -13,7 +13,7 @@
 save_path=${1:-"./experiments/concat_finetune/dutch"}
 train_languages="English Dutch"
 val_languages="English Dutch"
-data_path=${2:-"../ud-treebanks-v1.4"}
+data_path=${2:-"../../ud-treebanks-v1.4"}
 
 bs=16
 ep=3
