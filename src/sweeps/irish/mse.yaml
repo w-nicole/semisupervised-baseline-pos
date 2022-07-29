@@ -1,0 +1,46 @@
+program: src/train_latent_base.py
+method: grid
+parameters:
+    data_dir:
+        value: "../ud-treebanks-v1.4"
+    trn_langs:
+        value: ["English", "Irish"]
+    val_langs:
+        value: ["English", "Irish"]
+    default_save_path:
+        value: "./experiments/sweeps/irish/mse"
+    target_language:
+        value: "Irish"
+    group:
+        value: "mse"
+    job_type:
+        value: "sweep"
+    latent_size:
+        value: 64
+    hyperparameter_names:
+        value: "mse_weight"
+    prep_termination:
+        value: no
+    batch_size:
+        value: 16
+    max_epochs:
+        value: 3
+    weight_decay:
+        value: 0.01
+    mbert_learning_rate:
+        value: 5e-5
+    default_learning_rate:
+        value: 5e-5
+    warmup_portion:
+        value: 0.1
+    gpus:
+        value: 1
+    freeze_mbert:
+        value: no
+    mse_weight:
+        values: [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]
+command:
+    - ${env}
+    - "python3"
+    - ${program}
+    - ${args}

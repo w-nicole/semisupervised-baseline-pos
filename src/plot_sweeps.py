@@ -11,7 +11,9 @@ import numpy as np
 def get_heatmap(df, row_key, column_key, value_key, analysis_path):
     
     to_sorted_tick = lambda params : list(map(lambda s: str(s), sorted(list(set(params)))))
-    df = df.sort_values(by=[row_key, column_key], ascending = True)
+    try:
+        df = df.sort_values(by=[row_key, column_key], ascending = True)
+    except: import pdb; pdb.set_trace()
     row_values = to_sorted_tick(df[row_key])
     column_values = to_sorted_tick(df[column_key])
     result_values = df[value_key]
@@ -29,6 +31,7 @@ def get_heatmap(df, row_key, column_key, value_key, analysis_path):
             y = row_values, x = column_values,
             color_continuous_scale = 'rainbow'
         )
+        if not os.path.exists(analysis_path): os.makedirs(analysis_path)
         fig.write_html(os.path.join(analysis_path, f'{modifier}{value_key}.html'))
     return raw_scores
     
@@ -38,18 +41,13 @@ def find_hparam(hparam_name, hparam_list, cast_as):
     assert len(matches) == 1, f'{hparam_name}, {hparam_list}, {matches}'
     return cast_as(matches[0].replace(hparam_prefix, ""))
     
-    
-if __name__ == '__main__':
-    
-    sweep_id, sweep_name = '350ulfu2', 'latent_size'
-   
-    analysis_path = f'./experiments/sweeps/{sweep_name}'
-    searched_hparams = ['latent_size']
-    cast_as = [int]#, str]
-    get_metric_key = lambda phase, lang : f'best_{phase}_{lang}_pos_acc_epoch'
+def heatmap_matches(template, searched_hparams, analysis_path, cast_as):
 
     records = []
-    config_paths = list(glob.glob(f'./experiments/sweeps/{sweep_name}/*/wandb/run-*/files'))
+    
+    config_paths = list(glob.glob(template))
+    get_metric_key = lambda phase, lang : f'best_{phase}_{lang}_pos_acc_epoch'
+    
     for config_folder in config_paths:
         with open(os.path.join(config_folder, 'wandb-metadata.json'), 'r') as metadata:
             config = json.load(metadata)["args"]
@@ -65,14 +63,29 @@ if __name__ == '__main__':
                 records.append(for_df_results)
 
     df = pd.DataFrame.from_records(records)
-    import pdb; pdb.set_trace()
+
     for phase in ['train', 'val']:
         for lang in ['English', 'Dutch']:
             key = get_metric_key(phase, lang)
-            if len(searched_hparams) == 2:p
+            if len(searched_hparams) == 2:
                 scores = get_heatmap(df, searched_hparams[0], searched_hparams[1], key, analysis_path)
             elif len(searched_hparams) == 1:
                 scores = get_heatmap(df, 'for_1d', searched_hparams[0], key, analysis_path)
             else:
                 assert False, f"{len(searched_hparams)} number of hparams searched not supported by this plotting code."
                 
+    
+if __name__ == '__main__':
+    
+    sweep_id, sweep_name = 'llvekkw7', 'three_loss_terms'
+   
+    sweep_path = f'./experiments/sweeps/{sweep_name}'
+    grid_hparams = ['mse_weight', 'token_nll_weight']
+    cast_as = [float, float, float]
+    
+    for weight in [1e-6, 1e-4, 1e-2, 1.0]:
+        modifier = f'pos_nll_weight={weight}_'
+        template = os.path.join(sweep_path, f'{modifier}*/wandb/run-*/files')
+        heatmap_matches(template, grid_hparams, os.path.join(sweep_path, 'heatmaps', modifier), cast_as)
+    
+    
