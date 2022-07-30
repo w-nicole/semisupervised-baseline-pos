@@ -6,7 +6,7 @@ parameters:
     trn_langs:
         value: ["English"]
     val_langs:
-        value: ["English", "Dutch"]
+        value: ["English", "Turkish"]
     default_save_path:
         value: "./experiments/sweeps/turkish/latent_base_768"
     target_language:
