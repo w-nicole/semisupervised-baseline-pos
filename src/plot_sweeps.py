@@ -11,9 +11,8 @@ import numpy as np
 def get_heatmap(df, row_key, column_key, value_key, analysis_path):
     
     to_sorted_tick = lambda params : list(map(lambda s: str(s), sorted(list(set(params)))))
-    try:
-        df = df.sort_values(by=[row_key, column_key], ascending = True)
-    except: import pdb; pdb.set_trace()
+    df = df.sort_values(by=[row_key, column_key], ascending = True)
+
     row_values = to_sorted_tick(df[row_key])
     column_values = to_sorted_tick(df[column_key])
     result_values = df[value_key]
@@ -41,7 +40,7 @@ def find_hparam(hparam_name, hparam_list, cast_as):
     assert len(matches) == 1, f'{hparam_name}, {hparam_list}, {matches}'
     return cast_as(matches[0].replace(hparam_prefix, ""))
     
-def heatmap_matches(template, searched_hparams, analysis_path, cast_as):
+def heatmap_matches(template, searched_hparams, analysis_path, cast_as, langs):
 
     records = []
     
@@ -57,7 +56,7 @@ def heatmap_matches(template, searched_hparams, analysis_path, cast_as):
                 for_df_results = {k : find_hparam(k, config, cast)  for k, cast in zip(searched_hparams, cast_as) }
                 for_df_results['for_1d'] = 'default'
                 for phase in ['train', 'val']:
-                    for lang in ['English', 'Dutch']:
+                    for lang in langs:
                         key = get_metric_key(phase, lang)
                         for_df_results[key] = results[key]
                 records.append(for_df_results)
@@ -65,7 +64,7 @@ def heatmap_matches(template, searched_hparams, analysis_path, cast_as):
     df = pd.DataFrame.from_records(records)
 
     for phase in ['train', 'val']:
-        for lang in ['English', 'Dutch']:
+        for lang in langs:
             key = get_metric_key(phase, lang)
             if len(searched_hparams) == 2:
                 scores = get_heatmap(df, searched_hparams[0], searched_hparams[1], key, analysis_path)
@@ -77,15 +76,16 @@ def heatmap_matches(template, searched_hparams, analysis_path, cast_as):
     
 if __name__ == '__main__':
     
-    sweep_id, sweep_name = 'llvekkw7', 'three_loss_terms'
+    sweep_id, sweep_name = 'ayg4hf9c', 'turkish/decoder'
+    grid_hparams = ['pos_model_type', 'reconstruction_model_type']
+    cast_as = [str, str]
+    langs = ['English', 'Turkish']
    
     sweep_path = f'./experiments/sweeps/{sweep_name}'
-    grid_hparams = ['mse_weight', 'token_nll_weight']
-    cast_as = [float, float, float]
     
     for weight in [1e-6, 1e-4, 1e-2, 1.0]:
-        modifier = f'pos_nll_weight={weight}_'
+        modifier = ''
         template = os.path.join(sweep_path, f'{modifier}*/wandb/run-*/files')
-        heatmap_matches(template, grid_hparams, os.path.join(sweep_path, 'heatmaps', modifier), cast_as)
+        heatmap_matches(template, grid_hparams, os.path.join(sweep_path, 'heatmaps', modifier), cast_as, langs)
     
     
