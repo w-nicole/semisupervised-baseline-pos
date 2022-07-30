@@ -210,7 +210,7 @@ class Model(pl.LightningModule):
             assert len(not_supervised_languages) == 1
             return not_supervised_languages[0]
         # Otherwise, optimize over all unsupervised languages.
-        return 'all_unsupervised'
+        return 'unsupervised_all'
 
     # Below: changes due to 3d metric dict and no ._metric,
     # limited metric initialization to match dataloader metrics
@@ -378,9 +378,9 @@ class Model(pl.LightningModule):
             #     self.custom_logs[phase][lang].append(custom_log_dict)
         
         for key, vals in aver_metric.items():
-            self.log(f"{phase}_{key}_all_epoch", torch.stack(vals).mean())
+            self.log(f"{phase}_all_{key}_epoch", torch.stack(vals).mean())
         for key, vals in unsupervised_aver_metric.items():
-            self.log(f"{phase}_{key}_unsupervised_all_epoch", torch.stack(vals).mean())
+            self.log(f"{phase}_unsupervised_all_{key}_epoch", torch.stack(vals).mean())
 
     def training_epoch_end(self, outputs):
         self.aggregate_metrics(self.hparams.trn_langs, 'train')
