@@ -25,7 +25,7 @@ if __name__ == '__main__':
     our_df['type'] = 'ours-seed=42'
     baseline_mean['type'] ='theirs-mean'
     baseline_stdev['type'] ='theirs-stdev'
-    difference = baseline_mean[languages].reset_index() - our_df[languages].reset_index()
+    difference = (baseline_mean[languages].reset_index() - our_df[languages].reset_index())[languages]
     difference['type'] = 'theirs-our_df'
     
     report = pd.concat([our_df, baseline_mean, baseline_stdev, difference])
