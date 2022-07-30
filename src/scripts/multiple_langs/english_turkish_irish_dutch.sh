@@ -10,26 +10,27 @@
 # Changed to not have source/target but train/val languages.
 # Simplified `example/surprising-mbert/evaluate.sh` script to remove irrelevant code.
 
-save_path=${1:-"./experiments/token_effect/nll_token_mse_1e-6"}
-train_languages="English Dutch"
-val_languages="English Dutch"
-data_path=${2:-"../ud-treebanks-v1.4"}
+save_path=${1:-"./experiments/multiple_langs/english_turkish_irish_dutch"}
+train_languages="English Turkish Irish Dutch"
+val_languages="English Turkish Irish Dutch"
+data_path=${2:-"../../ud-treebanks-v1.4"}
 
 bs=16
 ep=3
+latent_size=64
 
-python3 src/train_with_token_loss.py \
+python3 src/train_latent_base.py \
     --data_dir "$data_path" \
     --trn_langs $train_languages \
     --val_langs $val_languages \
     --batch_size $bs \
-    --latent_size 64 \
+    --number_of_workers 1 \
     --max_epochs $ep \
     --warmup_portion 0.1 \
-    --group "token_effect" \
-    --job_type "explore" \
-    --name "nll_token_mse_1e-6" \
+    --group "multiple_langs" \
+    --job_type "sweep" \
+    --name "english_turkish_irish_dutch" \
     --mse_weight 1e-6 \
     --default_save_path "$save_path" \
-    --freeze_mbert "n" \
-    --gpu 1 
+    --gpus 1 \
+    --freeze_mbert "n"

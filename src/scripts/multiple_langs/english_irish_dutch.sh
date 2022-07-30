@@ -10,13 +10,13 @@
 # Changed to not have source/target but train/val languages.
 # Simplified `example/surprising-mbert/evaluate.sh` script to remove irrelevant code.
 
-save_path=${1:-"./experiments/debug/optim/run"}
-train_languages="English Dutch"
-val_languages="English Dutch"
-data_path=${2:-"../ud-treebanks-v1.4"}
+save_path=${1:-"./experiments/multiple_langs/english_irish_dutch"}
+train_languages="English Irish Dutch"
+val_languages="English Irish Dutch"
+data_path=${2:-"../../ud-treebanks-v1.4"}
 
 bs=16
-ep=1
+ep=3
 latent_size=64
 
 python3 src/train_latent_base.py \
@@ -27,9 +27,10 @@ python3 src/train_latent_base.py \
     --number_of_workers 1 \
     --max_epochs $ep \
     --warmup_portion 0.1 \
-    --group "debug/optim" \
-    --job_type "run" \
-    --name "optim_run_name" \
+    --group "multiple_langs" \
+    --job_type "sweep" \
+    --name "english_irish_dutch" \
+    --mse_weight 1e-6 \
     --default_save_path "$save_path" \
     --gpus 1 \
     --freeze_mbert "n"

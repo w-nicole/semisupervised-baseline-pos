@@ -50,6 +50,7 @@ import wandb
 import math
 import yaml
 import plotly.express as px
+    
 
 class Model(pl.LightningModule):
     def __init__(self, hparams):
@@ -80,24 +81,9 @@ class Model(pl.LightningModule):
         # Added the following
         self.run_phases = [Split.train, 'val', Split.test]
         self.concat_all_hidden_states = self.hparams.concat_all_hidden_states
+        self.target_language = self.determine_target_language()
         
-        if not self.hparams.target_language:
-            one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
-            valid_val_langs = len(self.hparams.val_langs) == 1 or one_other_target_language
-            assert valid_val_langs, "target_language/checkpoint was designed with at most 1 non-source language."
-            # If it's a pure optimization, then use that language
-            if len(self.hparams.trn_langs) == 1:
-                self.target_language = self.hparams.trn_langs[0]
-            # Otherwise, if mixed training, favor the non-English language
-            elif one_other_target_language:
-                not_supervised_languages = list(filter(lambda lang : lang != constant.SUPERVISED_LANGUAGE, self.hparams.val_langs))
-                assert len(not_supervised_languages) == 1
-                self.target_language = not_supervised_languages[0]
-            else:
-                assert False, "This case for checkpoint language was not considered."
-        else:
-            self.target_language = self.hparams.target_language
-         # end additions
+        # end additions
 
         self.tokenizer = AutoTokenizer.from_pretrained(hparams.pretrain)
         # Changed below to correspond to classmethod
@@ -204,13 +190,40 @@ class Model(pl.LightningModule):
     def comparison_mode(self):
         assert self._comparison_mode is not None
         return self._comparison_mode
+        
+    # Added below
+    def determine_target_language(self):
+        if self.hparams.target_language:
+            assert self.hparams.target_language in self.hparams.val_langs,\
+                f"Target language {self.hparams.target_language} was not in validation languages: {self.hparams.val_langs}"
+            return self.hparams.target_language
 
-    # Below: changes due to 3d metric dict and no ._metric
+        # If it's a pure optimization, then use that language
+        if len(self.hparams.trn_langs) == 1:
+            return self.hparams.trn_langs[0]
+        if len(self.hparams.val_langs) == 1:
+            return self.hparams.val_langs[0]
+        one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
+        if one_other_target_language:
+            # If two languages, favor the non-English language
+            not_supervised_languages = list(filter(lambda lang : lang != constant.SUPERVISED_LANGUAGE, self.hparams.val_langs))
+            assert len(not_supervised_languages) == 1
+            return not_supervised_languages[0]
+        # Otherwise, optimize over all unsupervised languages.
+        return 'all_unsupervised'
+
+    # Below: changes due to 3d metric dict and no ._metric,
+    # limited metric initialization to match dataloader metrics
     def setup_metrics(self):
         langs = self.hparams.trn_langs + self.hparams.val_langs + self.hparams.tst_langs
         langs = sorted(list(set(langs)))
         for phase in self.run_phases:
-            for lang in langs:
+            phase_langs = sorted(list(set({
+                Split.train : self.hparams.trn_langs,
+                'val' : self.hparams.val_langs,
+                Split.test : self.hparams.tst_langs
+            }[phase])))
+            for lang in phase_langs:
                 self.metrics[phase][lang] = {}
                 self.custom_logs[phase][lang] = []
                 for metric_key in self.metric_names:
@@ -344,6 +357,7 @@ class Model(pl.LightningModule):
     # Added global train step
     def aggregate_metrics(self, langs: List[str], phase: str):
         aver_metric = defaultdict(list)
+        unsupervised_aver_metric = defaultdict(list)
         for lang in langs:
             current_metrics = { 'trainer/global_step' : self.global_step }
             for metric_key in self.metric_names:
@@ -352,6 +366,8 @@ class Model(pl.LightningModule):
                     logging_key = f"{phase}_{lang}_{key}_epoch"
                     current_metrics.update({logging_key : val})
                     aver_metric[key].append(val)
+                    if lang != constant.SUPERVISED_LANGUAGE:
+                        unsupervised_aver_metric[key].append(val)
                     self.log(logging_key, val)
                     if f'{self.monitor_acc_key}_acc' in logging_key:
                         best_key = f'best_{logging_key}'
@@ -360,11 +376,15 @@ class Model(pl.LightningModule):
             # if phase == 'val': # Don't log for train, as it is per-step.
             #     custom_log_dict = self.detensor_results(current_metrics)
             #     self.custom_logs[phase][lang].append(custom_log_dict)
+        
         for key, vals in aver_metric.items():
             self.log(f"{phase}_{key}_all_epoch", torch.stack(vals).mean())
+        import pdb; pdb.set_trace()
+        for key, vals in unsupervised_aver_metric.items():
+            self.log(f"{phase}_{key}_unsupervised_all_epoch", torch.stack(vals).mean())
+        import pdb; pdb.set_trace()
 
     def training_epoch_end(self, outputs):
-        print('in training epoch end')
         self.aggregate_metrics(self.hparams.trn_langs, 'train')
         
     # Added skip sanity check in logging
