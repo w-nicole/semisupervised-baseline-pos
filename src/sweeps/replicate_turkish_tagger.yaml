@@ -1,24 +1,22 @@
-program: src/train_latent_base.py
+program: src/train_encoder.py
 method: grid
 parameters:
     data_dir:
         value: "../../ud-treebanks-v1.4"
     trn_langs:
-        value: ["English", "Dutch"]
+        value: ["English"]
     val_langs:
-        value: ["English", "Dutch"]
+        value: ["English", "Turkish"]
     default_save_path:
-        value: "./experiments/sweeps/best_layers"
+        value: "./experiments/sweeps/seed/turkish/english_only_tagger"
     target_language:
-        value: "Dutch"
+        value: "Turkish"
     group:
-        value: "best_layers"
+        value: "seed/turkish/english_only_tagger"
     job_type:
         value: "sweep"
-    latent_size:
-        value: 64
     hyperparameter_names:
-        value: "feature_layer mse_weight"
+        value: "seed"
     prep_termination:
         value: no
     batch_size:
@@ -33,18 +31,12 @@ parameters:
         value: 5e-5
     warmup_portion:
         value: 0.1
-    pos_model_type:
-        value: "linear"
-    reconstruction_model_type:
-        value: "linear"
     gpus:
         value: 1
     freeze_mbert:
         value: no
-    mse_weight:
-        values: [0, 1e-6, 1e-5]
-    feature_layer:
-        values: [3, 4, 5]
+    seed:
+        values: [42, 0, 1, 2, 3]
 command:
     - ${env}
     - "python3"
