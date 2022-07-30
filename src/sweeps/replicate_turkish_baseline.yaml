@@ -4,15 +4,15 @@ parameters:
     data_dir:
         value: "../../ud-treebanks-v1.4"
     trn_langs:
-        value: ["English", "Turkish"]
+        value: ["English"]
     val_langs:
         value: ["English", "Turkish"]
     default_save_path:
-        value: "./experiments/sweeps/seed/turkish/latent_base_64"
+        value: "./experiments/sweeps/seed/turkish/english_only_latent_base_64"
     target_language:
         value: "Turkish"
     group:
-        value: "seed/turkish/latent_base_64"
+        value: "seed/turkish/english_only_latent_base_64"
     job_type:
         value: "sweep"
     latent_size:
