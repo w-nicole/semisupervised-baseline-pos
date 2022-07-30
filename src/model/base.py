@@ -379,10 +379,8 @@ class Model(pl.LightningModule):
         
         for key, vals in aver_metric.items():
             self.log(f"{phase}_{key}_all_epoch", torch.stack(vals).mean())
-        import pdb; pdb.set_trace()
         for key, vals in unsupervised_aver_metric.items():
             self.log(f"{phase}_{key}_unsupervised_all_epoch", torch.stack(vals).mean())
-        import pdb; pdb.set_trace()
 
     def training_epoch_end(self, outputs):
         self.aggregate_metrics(self.hparams.trn_langs, 'train')
