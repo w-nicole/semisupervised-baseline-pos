@@ -97,7 +97,8 @@ class Model(pl.LightningModule):
         # Added below
         self.name_to_metric = {
             'pos_acc' : POSMetric('pos'),
-            'token_acc' : POSMetric('token')
+            'token_acc' : POSMetric('token'),
+            'pmi_pos_acc' : POSMetric('pmi_pos')
         }
         self.monitor_acc_key = 'pos'
         

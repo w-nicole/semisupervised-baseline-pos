@@ -7,3 +7,4 @@ from model.tagger import Tagger  # noqa: F401
 from model.base_tagger import BaseTagger
 from model.latent_base import LatentBase
 from model.with_token_loss import WithTokenLoss
+from model.latent_space import LatentSpace
