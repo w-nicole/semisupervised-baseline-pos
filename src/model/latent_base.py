@@ -59,7 +59,7 @@ class LatentBase(BaseTagger):
         self.decoder_pos = self.model_type[self.hparams.pos_model_type](*pos_model_args)
         self.decoder_reconstruction = self.model_type[self.hparams.reconstruction_model_type](*reconstruction_model_args)
         self.optimization_loss = 'total_loss'
-        self._selection_criterion = f'val_{self.target_language}_pos_acc_epoch'
+        self._selection_criterion = f'val_{constant.SUPERVISED_LANGUAGE}_pos_acc_epoch'
         self._comparison_mode = 'max'
         self.metric_names = [
             'pos_nll',

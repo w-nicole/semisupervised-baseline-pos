@@ -81,7 +81,6 @@ class Model(pl.LightningModule):
         # Added the following
         self.run_phases = [Split.train, 'val', Split.test]
         self.concat_all_hidden_states = self.hparams.concat_all_hidden_states
-        self.target_language = self.determine_target_language()
         
         # end additions
 
@@ -190,27 +189,6 @@ class Model(pl.LightningModule):
     def comparison_mode(self):
         assert self._comparison_mode is not None
         return self._comparison_mode
-        
-    # Added below
-    def determine_target_language(self):
-        if self.hparams.target_language:
-            assert self.hparams.target_language in self.hparams.val_langs,\
-                f"Target language {self.hparams.target_language} was not in validation languages: {self.hparams.val_langs}"
-            return self.hparams.target_language
-
-        # If it's a pure optimization, then use that language
-        if len(self.hparams.trn_langs) == 1:
-            return self.hparams.trn_langs[0]
-        if len(self.hparams.val_langs) == 1:
-            return self.hparams.val_langs[0]
-        one_other_target_language = (len(self.hparams.val_langs) == 2 and constant.SUPERVISED_LANGUAGE in self.hparams.val_langs)
-        if one_other_target_language:
-            # If two languages, favor the non-English language
-            not_supervised_languages = list(filter(lambda lang : lang != constant.SUPERVISED_LANGUAGE, self.hparams.val_langs))
-            assert len(not_supervised_languages) == 1
-            return not_supervised_languages[0]
-        # Otherwise, optimize over all unsupervised languages.
-        return 'unsupervised_all'
 
     # Below: changes due to 3d metric dict and no ._metric,
     # limited metric initialization to match dataloader metrics
@@ -506,7 +484,7 @@ class Model(pl.LightningModule):
         scheduler_dict = {"scheduler": scheduler, "interval": interval}
         if self.hparams.schedule == Schedule.reduceOnPlateau:
             # Changed below key
-            scheduler_dict["monitor"] = f"val_{self.target_language}_{self.optimization_loss}_epoch"
+            scheduler_dict["monitor"] = f"val_all_{self.optimization_loss}_epoch"
         return [optimizer], [scheduler_dict]
         
 
