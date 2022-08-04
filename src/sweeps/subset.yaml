@@ -2,7 +2,7 @@ program: src/train_latent_base.py
 method: grid
 parameters:
     data_dir:
-        value: "../ud-treebanks-v1.4"
+        value: "../../ud-treebanks-v1.4"
     trn_langs:
         value: ["English"]
     val_langs:

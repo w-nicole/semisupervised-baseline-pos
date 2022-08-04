@@ -76,16 +76,14 @@ def heatmap_matches(template, searched_hparams, analysis_path, cast_as, langs):
     
 if __name__ == '__main__':
     
-    sweep_id, sweep_name = 'ayg4hf9c', 'turkish/decoder'
-    grid_hparams = ['pos_model_type', 'reconstruction_model_type']
-    cast_as = [str, str]
-    langs = ['English', 'Turkish']
+    sweep_id, sweep_name = 'vhl60shd', 'subset'
+    grid_hparams = ['subset_ratio', 'mse_weight']
+    cast_as = [float, float]
+    langs = ['English']
    
     sweep_path = f'./experiments/sweeps/{sweep_name}'
-    
-    for weight in [1e-6, 1e-4, 1e-2, 1.0]:
-        modifier = ''
-        template = os.path.join(sweep_path, f'{modifier}*/wandb/run-*/files')
-        heatmap_matches(template, grid_hparams, os.path.join(sweep_path, 'heatmaps', modifier), cast_as, langs)
+    modifier = ''
+    template = os.path.join(sweep_path, f'{modifier}*/wandb/run-*/files')
+    heatmap_matches(template, grid_hparams, os.path.join(sweep_path, 'heatmaps', modifier), cast_as, langs)
     
     

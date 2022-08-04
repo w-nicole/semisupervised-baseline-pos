@@ -128,4 +128,12 @@ class BaseTagger(Model):
         )
         # end adapted
         
+    def calculate_encoder_loss(self, batch, log_probs):
+        encoder_loss = F.nll_loss(
+            log_probs.view(-1, self.nb_labels),
+            batch["pos_labels"].view(-1),
+            ignore_index=LABEL_PAD_ID,
+        )
+        return encoder_loss
+        
     # end added

@@ -10,27 +10,24 @@
 # Changed to not have source/target but train/val languages.
 # Simplified `example/surprising-mbert/evaluate.sh` script to remove irrelevant code.
 
-save_path=${1:-"./experiments/concat_finetune/dutch"}
+save_path=${1:-"./experiments/latent_space/english_dutch"}
 train_languages="English Dutch"
 val_languages="English Dutch"
 data_path=${2:-"../../ud-treebanks-v1.4"}
 
 bs=16
-ep=3
+ep=20
 
-python3 src/train_latent_base.py \
+python3 src/train_latent_space.py \
     --data_dir "$data_path" \
     --trn_langs $train_languages \
     --val_langs $val_languages \
     --batch_size $bs \
-    --latent_size 64 \
     --max_epochs $ep \
-    --concat_all_hidden_states "y" \
     --warmup_portion 0.1 \
-    --group "concat_finetune" \
-    --job_type "explore" \
-    --name "dutch" \
-    --mse_weight 0 \
+    --group "latent_space" \
+    --job_type "base" \
+    --name "english_dutch" \
     --default_save_path "$save_path" \
     --freeze_mbert "n" \
     --gpu 1 

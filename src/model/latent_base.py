@@ -100,26 +100,22 @@ class LatentBase(BaseTagger):
         raw_metric_tensor = torch.pow(padded_mu_t - padded_hs, 2)
         clean_mse = self.calculate_clean_metric(batch['pos_labels'], raw_metric_tensor)
         return clean_mse
-        
-    def calculate_encoder_loss(self, batch, log_pi_t):
-        encoder_loss = F.nll_loss(
-            log_pi_t.view(-1, self.nb_labels),
-            batch["pos_labels"].view(-1),
-            ignore_index=LABEL_PAD_ID,
-        )
-        return encoder_loss
-        
+    
     def calculate_encoder_outputs(self, batch, latent):
         decoder_output = self.decoder_pos(*self.get_decoder_args(self.decoder_pos, batch, latent))
         pos_log_probs = F.log_softmax(decoder_output, dim = -1)
         loss = self.calculate_encoder_loss(batch, pos_log_probs)
         return pos_log_probs, loss
         
-    def calculate_intermediates(self, batch):
+    def calculate_encoder_intermediates(self, batch):
         if self.hparams.freeze_mbert:
             self.encoder_mbert.eval()
         encoder_hs = self.calculate_hidden_states(self.encoder_mbert, batch)
         latent = self.encoder(encoder_hs)
+        return encoder_hs, latent
+        
+    def calculate_intermediates(self, batch):
+        encoder_hs, latent = self.calculate_encoder_intermediates(batch)
         target_hs = self.calculate_target_hs(batch)
         return encoder_hs, latent, target_hs
       
