@@ -80,11 +80,7 @@ class Tagger(BaseTagger):
         logits = self.classifier(hs)
         log_probs = F.log_softmax(logits, dim=-1)
 
-        loss = F.nll_loss(
-            log_probs.view(-1, self.nb_labels),
-            batch["pos_labels"].view(-1),
-            ignore_index=LABEL_PAD_ID,
-        )
+        loss = self.calculate_encoder_loss(batch, log_probs)
         # Changed below to be compatible with later models' loss_dict and added assert.
         loss_dict = {self.optimization_loss : loss}
         self.add_language_to_batch_output(loss_dict, batch)
