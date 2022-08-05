@@ -27,7 +27,8 @@ class WithTokenLoss(LatentBase):
         util.freeze(self.token_classifier)
         self.metric_names.extend([
             'token_acc',
-            'token_nll'
+            'token_nll',
+            'mask_kl'
         ])
         self.setup_metrics()
         
@@ -58,6 +59,7 @@ class WithTokenLoss(LatentBase):
     def add_model_specific_args(cls, parser):
         parser = LatentBase.add_model_specific_args(parser)
         parser.add_argument('--token_nll_weight', default=1, type=float)
+        parser.add_argument('--mask_kl_weight', default=1, type=float)
         parser.add_argument('--debug_model_all_eval', default=False, type=util.str2bool)
         return parser
         

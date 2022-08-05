@@ -2,15 +2,6 @@
 # Taken from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
 
-# Changes made relative to original:
-# Changed truncation to be simply off the end of the example,
-# Removed sliding window logic.
-# Changed labels to not use first subtoken marking via padding, but just to be labels.
-# Changed to return start/end indices.
-# Updated imports
-# Added lengths as dataloader output
-# Removed irrelevant code
-
 import glob
 from collections import defaultdict
 from copy import deepcopy
@@ -22,13 +13,14 @@ import constant
 from dataset.base import DUMMY_LABEL, Dataset
 from enumeration import Split
 from metric import LABEL_PAD_ID
+from collections import defaultdict
 
 import torch
 
 class TaggingDataset(Dataset):
     def before_load(self):
         self.max_len = min(self.max_len, self.tokenizer.max_len_single_sentence)
-        # Removed self.shift
+        self.shift = self.max_len // 2
         self.labels = self.get_labels()
         self.label2id = {label: idx for idx, label in enumerate(self.labels)}
         self.label2id[DUMMY_LABEL] = LABEL_PAD_ID
@@ -46,22 +38,32 @@ class TaggingDataset(Dataset):
         sent = self.tokenizer.build_inputs_with_special_tokens(sent)
         return np.array(sent)
     # end changes
+    
+    def process_labels_for_return(self, raw_labels, mask):
+        labels = np.array(self.tokenizer.build_inputs_with_special_tokens(raw_labels))
+        masked_labels = labels * (1 - mask) + LABEL_PAD_ID * mask
+        return masked_labels
+    
+    def process_example_for_return(self, sent, all_label_ids):
+        sent = self.tokenizer.build_inputs_with_special_tokens(sent)
+        mask = np.array(self.tokenizer.get_special_tokens_mask(
+            sent, already_has_special_tokens=True
+        ))
+        sent = np.array(sent)
+        process_with_mask = lambda labels : self.process_labels_for_return(labels, mask)
+        masked_labels_dict = {
+            label_type : process_with_mask(labels)
+            for label_type, labels in all_label_ids.items()
+        } 
+        masked_labels = tuple(masked_labels_dict[k] for k in sorted(masked_labels_dict.keys()))
+        return (sent,) + masked_labels
 
-    # Changed this entire section:
-    # to truncate at the max non-CLS/SEP tokens dictated by the tokenizer,
-    # to not use any sliding window,
-    # to add labels per token directly, rather than using subtokens,
-    # to create averaging indices, lengths, token_labels
     def _process_example_helper(
         self, sent: List, labels: List
     ) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         
-        # the first token is averaged to index 1
-        assert constant.START_END_INDEX_PADDING == 0, "This is required for averaging behavior to work."
         token_ids: List[int] = []
-        pos_label_ids: List[int] = []
-        averaging_indices = []
-        token_labels = []
+        all_label_ids = {'pos' : [], 'token' : [] }
 
         for idx, (token, label) in enumerate(zip(sent, labels)):
             sub_tokens = self.tokenize(token)
@@ -69,33 +71,20 @@ class TaggingDataset(Dataset):
                 continue
             sub_tokens = self.tokenizer.convert_tokens_to_ids(sub_tokens)
 
-            if len(token_ids) + len(sub_tokens) > self.max_len:
+            if len(token_ids) + len(sub_tokens) >= self.max_len:
                 # don't add more token
-                break
+                yield self.process_example_for_return(token_ids, all_label_ids)
+                token_ids = token_ids[-self.shift :]
+                all_label_ids = { k : [LABEL_PAD_ID] * len(token_ids) for k, v in all_label_ids.items() }
 
-            pos_label_ids.append(self.label2id[label])
-            token_labels.append(sub_tokens[0] if len(sub_tokens) == 1 else LABEL_PAD_ID)
-            
-            token_ids.extend(sub_tokens)
-            # Average real tokens starting from index 1 (0 is to cut out the padding)
-            averaging_indices.extend([idx + 1 for _ in range(len(sub_tokens))])
-
-        token_ids = self.add_special_tokens(token_ids)
-        pos_label_ids = np.array(pos_label_ids)
-        token_labels = np.array(token_labels)
-
-        # averaging will average all unwanted representations (padding, CLS, SEP) to index constant.START_END_INDEX_PADDING.
-        
-        pad_indices = lambda indices : np.array(
-            [constant.START_END_INDEX_PADDING]
-            + indices
-            + [constant.START_END_INDEX_PADDING]
-        )
-        
-        averaging_indices = pad_indices(averaging_indices)
-        yield (token_ids, pos_label_ids, averaging_indices, pos_label_ids.shape[0], token_labels)
-        
-        # end changes
+            for i, sub_token in enumerate(sub_tokens):
+                token_ids.append(sub_token)
+                raw_single_token = sub_tokens[0] if len(sub_tokens) == 1 else LABEL_PAD_ID
+                mask_not_first = lambda label : label if i == 0 else LABEL_PAD_ID
+                all_label_ids['pos'].append(mask_not_first(self.label2id[label]))
+                all_label_ids['token'].append(mask_not_first(raw_single_token))
+  
+        yield self.process_example_for_return(token_ids, all_label_ids)
         
     def process_example(self, example: Dict) -> List[Dict]:
         sent: List = example["sent"]
@@ -104,12 +93,10 @@ class TaggingDataset(Dataset):
         data: List[Dict] = []
         if not sent:
             return data
-        # Changed below to accomodate averaging_indices, lengths, token_labels
-        for src, tgt, averaging_indices, length, token_labels in self._process_example_helper(sent, labels):
+        for src, tgt, token_labels in self._process_example_helper(sent, labels):
             data.append({
                 "sent": src, "pos_labels": tgt, "lang": self.lang,
-                "averaging_indices" : averaging_indices,
-                "length" : length, "token_labels" : token_labels
+                "token_labels" : token_labels
             })
         # end changes
         return data
