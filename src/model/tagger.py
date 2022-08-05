@@ -3,8 +3,6 @@
 # See LICENSE in this codebase for license information.
 
 # Changes made relative to original:
-# Added averaging behavior,
-#   and changed "forward" accordingly.
 # Changed forward to __call__.
 # Added one layer MLP.
 # Removed irrelevant code, such as outdated classes, imports, etc.
@@ -36,10 +34,6 @@ import constant
 from dataset import tagging
 from torch.utils.data import DataLoader
 # end added
-
-# Below: added imports
-from dataset import collate
-# end imports
 
 
 class Tagger(BaseTagger):
@@ -74,7 +68,7 @@ class Tagger(BaseTagger):
         if self.hparams.freeze_mbert:
             self.encoder_mbert.eval()
         # Updated call arguments
-        hs = self.encode_sent(self.encoder_mbert, batch["sent"], batch["averaging_indices"], batch["lang"])
+        hs = self.encode_sent(self.encoder_mbert, batch["sent"], batch["lang"])
         # end updates
         # removed use_crf
         logits = self.classifier(hs)

@@ -2,8 +2,6 @@
 # See LICENSE in this codebase for license information.
 
 # Changes made relative to original:
-# Added averaging behavior,
-#   and changed "forward" accordingly.
 # Changed forward to __call__.
 # Added one layer MLP.
 # Removed irrelevant code, such as outdated classes, imports, etc.
@@ -34,11 +32,6 @@ from dataset import tagging
 from torch.utils.data import DataLoader
 # end added
 
-# Below: added imports
-from dataset import collate
-# end imports
-
-
 class BaseTagger(Model):
     def __init__(self, hparams):
         super(BaseTagger, self).__init__(hparams)
@@ -49,9 +42,6 @@ class BaseTagger(Model):
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
-            # Added below. averaging_indices MUST match START_END_INDEX_PADDING for logic to hold.
-            "averaging_indices" : constant.START_END_INDEX_PADDING,
-            'length': constant.START_END_INDEX_PADDING,
             "pos_labels": LABEL_PAD_ID,
             "token_labels" : LABEL_PAD_ID
             # end changes

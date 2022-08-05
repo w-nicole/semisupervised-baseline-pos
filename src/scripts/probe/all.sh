@@ -12,7 +12,7 @@
 
 save_path=${1:-"./experiments/probe/all"}
 train_languages="English"
-val_languages="Bulgarian Danish German English Spanish Persian Hungarian Italian Dutch Polish Portuguese Romanian Slovak Slovenian Swedish"
+val_languages="Bulgarian Danish German English Spanish Persian Hungarian Italian Dutch Polish Portuguese Romanian Slovak Slovenian Swedish Turkish Irish"
 data_path=${2:-"../../ud-treebanks-v1.4"}
 
 checkpoint=${3:-"experiments/latent_space/all/all/version_2s1ooojm/ckpts/ckpts_epoch=18-val_all_MSE_epoch=100.539.ckpt"}

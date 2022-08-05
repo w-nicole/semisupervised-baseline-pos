@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from torch.distributions.normal import Normal
 
 from metric import LABEL_PAD_ID
-from dataset import tagging, collate
+from dataset import tagging
 from model.base import Model
 from model.module import LSTMLinear
 from model.tagger import Tagger
@@ -71,7 +71,7 @@ class LatentBase(BaseTagger):
         
     def calculate_hidden_states(self, mbert, batch):
         # Updated call arguments
-        hs = self.encode_sent(mbert, batch["sent"], batch["averaging_indices"], batch["lang"])
+        hs = self.encode_sent(mbert, batch["sent"], batch["lang"])
         return hs
     
     def get_non_pad_label_mask(self, labels, tensor):

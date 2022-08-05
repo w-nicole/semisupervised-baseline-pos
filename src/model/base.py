@@ -45,7 +45,6 @@ from dataset.base import Dataset
 from enumeration import Schedule, Split, Task
 from metric import Metric, POSMetric, AverageMetric, LABEL_PAD_ID
 
-from dataset import collate
 import wandb
 import math
 import yaml
@@ -224,19 +223,13 @@ class Model(pl.LightningModule):
         self,
         mbert: transformers.PreTrainedModel,
         sent: Tensor,
-        # added below
-        averaging_indices : Tensor,
-        # end changes
         langs: Optional[List[str]] = None,
         segment: Optional[Tensor] = None
     ):
         mask = self.get_mask(sent)
         output = mbert(input_ids=sent, attention_mask=mask, token_type_ids=segment)
         hs = self.process_feature(output['hidden_states'])
-        # Below: added averaging.
-        averaged_hs = collate.average_embeddings(hs, averaging_indices)
-        return averaged_hs
-        # end changes
+        return hs
 
     def process_feature(self, hidden_states: List[Tensor]):
         if not isinstance(hidden_states, tuple):

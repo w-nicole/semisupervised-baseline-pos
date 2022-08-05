@@ -53,73 +53,7 @@ class AverageMetric(Metric):
         self.number_of_tokens = 0
         self.total_metric = 0
 
-class NMIMetric(Metric):
-    def __init__(self, number_of_classes = len(constant.UD_POS_LABELS)):
-        self.number_of_labels = number_of_classes
-        self.predicted_by_label_counts = torch.zeros((self.number_of_labels, self.number_of_labels))
-
-    def add(self, padded_labels, encoder_log_probs):
-        # Convert to predictions
-        padded_labels, encoder_log_probs = self.unpack(padded_labels, encoder_log_probs)
-        padded_predictions = torch.argmax(encoder_log_probs.exp(), dim=-1)
-        
-        # Cut out padding
-        mask_for_non_pad = (padded_labels != LABEL_PAD_ID)
-        labels = padded_labels[mask_for_non_pad]
-        predictions = padded_predictions[mask_for_non_pad]
-        
-        assert labels.shape == predictions.shape and len(labels.shape) == 1,\
-        f"labels: {labels.shape}, predictions: {predictions.shape}"
-        for label, prediction in zip(labels, predictions):
-            self.predicted_by_label_counts[label][prediction] += 1
-        
-    def filter_zero_log_zero(self, tensor, mask):
-        return torch.where(mask, torch.zeros(tensor.shape), tensor)
-        
-    def compute_entropy(self, raw_distribution):
-        entropy_vector = lambda distribution : -(distribution * torch.log(distribution))
-        mask = (raw_distribution == 0)
-        filtered_entropy_vector = self.filter_zero_log_zero(entropy_vector(raw_distribution), mask)
-        return filtered_entropy_vector.sum()
-        
-    @to_tensor
-    def get_metric(self):
-        # Basic distributions
-        number_of_tokens = self.predicted_by_label_counts.sum()
-        joint_distribution = self.predicted_by_label_counts / number_of_tokens
-        label_distribution = torch.sum(self.predicted_by_label_counts, axis = 1, keepdim = True) / number_of_tokens
-        predicted_distribution = torch.sum(self.predicted_by_label_counts, axis = 0, keepdim = True) / number_of_tokens
-        
-        # log term
-        repeated_label = label_distribution.repeat(1, self.number_of_labels)
-        repeated_predicted = predicted_distribution.repeat(self.number_of_labels, 1)
-        # the log_term is 0 if p(x, y) = 0.
-        # if p(x) = 0, or p(y) = 0, it is covered by this case.
-        # therefore using the joint alone for the log_term is valid.
-        mask = (joint_distribution == 0)    
-        log_term_joint = self.filter_zero_log_zero(torch.log(joint_distribution), mask)
-        log_term_label = self.filter_zero_log_zero(torch.log(repeated_label), mask)
-        log_term_predicted = self.filter_zero_log_zero(torch.log(repeated_predicted), mask)
-        
-        log_term = log_term_joint - log_term_label - log_term_predicted
-        pre_sum = joint_distribution * log_term
-        
-        # Calculate NMI
-        mi = pre_sum.sum()
-        h_label = self.compute_entropy(label_distribution)
-        h_predicted = self.compute_entropy(predicted_distribution)
-        eps = 1e-10
-        metrics = {
-            'mi' : mi,
-            'nmi_added': 2 * mi / ( (h_label + h_predicted) + eps ),
-            'nmi_min' : mi / ( min(h_label, h_predicted) + eps )
-        }
-        return metrics
-        
-    def reset(self):
-        self.predicted_by_label_counts.fill_(0)
-        
-# End added metrics
+# End
 
 # Added modifier
 class POSMetric(Metric):

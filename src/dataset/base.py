@@ -107,6 +107,9 @@ class Dataset(TorchDataset):
         data = []
         for example in tqdm(examples, desc="parse data"):
             data.extend(self.process_example(example))
+        import torch; import os
+        if not os.path.exists('../scratchwork'): os.makedirs('../scratchwork')
+        torch.save(data, f'../scratchwork/mine_{self.lang}_{self.split}.pt')
         self.data = data
 
     @classmethod
