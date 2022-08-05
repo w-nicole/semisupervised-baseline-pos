@@ -20,7 +20,7 @@ parameters:
     prep_termination:
         value: no
     batch_size:
-        value: 16
+        value: 32
     max_epochs:
         value: 100
     weight_decay:
