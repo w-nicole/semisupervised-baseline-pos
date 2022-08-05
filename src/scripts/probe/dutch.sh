@@ -14,7 +14,7 @@ save_path=${1:-"./experiments/probe/dutch"}
 train_languages="English"
 val_languages="English Dutch Turkish"
 data_path=${2:-"../../ud-treebanks-v1.4"}
-checkpoint=${3:-""}
+checkpoint=${3:-"./experiments/latent_space/dutch/dutch/version_2qowxyj7/ckpts/ckpts_epoch=19-val_all_MSE_epoch=101.899.ckpt"}
 
 bs=16
 ep=100
