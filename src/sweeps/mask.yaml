@@ -2,7 +2,7 @@ program: src/train_with_token_loss.py
 method: grid
 parameters:
     data_dir:
-        value: "../ud-treebanks-v1.4"
+        value: "../../ud-treebanks-v1.4"
     trn_langs:
         value: ["English", "Dutch"]
     val_langs:
@@ -16,11 +16,11 @@ parameters:
     latent_size:
         value: 64
     hyperparameter_names:
-        value: "mse_weight mask_kl_weight"
+        value: "mask_kl_weight"
     prep_termination:
         value: no
     batch_size:
-        value: 32
+        value: 8
     max_epochs:
         value: 3
     weight_decay:
@@ -35,8 +35,10 @@ parameters:
         value: 1
     freeze_mbert:
         value: no
+    token_nll_weight:
+        value: 0
     mse_weight:
-        values: [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
+        value: 0
     mask_kl_weight:
         values: [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
 command:
