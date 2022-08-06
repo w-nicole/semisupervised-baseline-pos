@@ -6,11 +6,12 @@ import numpy as np
 if __name__ == '__main__':
     
     folder = '../../scratchwork'
-    for phase in ['train', 'dev']:
+    for phase in ['dev']:
         lang = 'English'
-        theirs = torch.load(os.path.join(folder, f'crosslingual_{lang}_{phase}.pt'))
+        ratio = 1
+        theirs = torch.load(os.path.join(folder, f'theirs_{lang}_{phase}_{ratio}.pt'))
         mine_to_theirs = lambda entry : { 'sent' : entry['sent'], 'labels' : entry['pos_labels'], 'lang' : entry['lang'] }
-        mine_raw = torch.load(os.path.join(folder, f'mine_{lang}_{phase}.pt'))
+        mine_raw = torch.load(os.path.join(folder, f'mine_{lang}_{phase}_{ratio}.pt'))
         mine = list(map(mine_to_theirs, mine_raw))
         for entry1, entry2 in zip(theirs, mine):
             assert sorted(entry1.keys()) == sorted(entry2.keys())

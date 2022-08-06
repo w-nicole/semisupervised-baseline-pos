@@ -92,6 +92,11 @@ class LatentBase(BaseTagger):
         non_pad_mask = self.get_non_pad_label_mask(labels, raw_metric_tensor)
         clean_metric_tensor = self.set_padded_to_zero(labels, raw_metric_tensor)
         
+        # for KL divergence, but MSE doesn't trigger false positive
+        metric_per_position = torch.sum(clean_metric_tensor, axis = -1)
+        if not torch.all(metric_per_position >= 0):
+            import pdb; pdb.set_trace()
+        
         # Adjust scale to NOT divide out the hidden size representation.
         clean_average = torch.sum(clean_metric_tensor) / torch.sum(non_pad_mask) * raw_metric_tensor.shape[-1]
         return clean_average
@@ -151,7 +156,7 @@ class LatentBase(BaseTagger):
             
         loss['pos_nll'] = encoder_loss
         self.add_language_to_batch_output(loss, batch)
-        return loss, { 'pos' : pos_log_probs }, { 'predicted_hs' : predicted_hs } 
+        return loss, { 'pos' : pos_log_probs }, { 'target_hs' : target_hs, 'predicted_hs' : predicted_hs } 
         
     @classmethod
     def add_model_specific_args(cls, parser):

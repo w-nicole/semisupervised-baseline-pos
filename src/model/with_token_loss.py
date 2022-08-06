@@ -32,13 +32,19 @@ class WithTokenLoss(LatentBase):
         ])
         self.setup_metrics()
         
-    def calculate_token_loss(self, batch, log_probs):
+    def calculate_token_nll_loss(self, batch, log_probs):
         encoder_loss = F.nll_loss(
             log_probs.view(-1, log_probs.shape[-1]),
             batch["token_labels"].view(-1),
             ignore_index=LABEL_PAD_ID,
         )
         return encoder_loss
+        
+    def calculate_kl(self, batch, log_p, log_q):
+        pre_sum = torch.exp(log_p) * (log_p - log_q)
+        assert pre_sum.shape == log_p.shape, f'pre_sum: {pre_sum.shape}, log_p: {log_p.shape}'
+        kl_divergence_mean = self.calculate_clean_metric(batch['token_labels'], pre_sum)
+        return kl_divergence_mean
         
     def __call__(self, batch):
         
@@ -48,11 +54,16 @@ class WithTokenLoss(LatentBase):
         token_logits = self.token_classifier(model_outputs['predicted_hs'])
         log_probs = F.log_softmax(token_logits, dim = -1)
         
-        loss['token_nll'] = self.calculate_token_loss(batch, log_probs)
+        with torch.no_grad():
+            true_token_logits = self.token_classifier(model_outputs['target_hs'])
+            true_log_probs = F.log_softmax(true_token_logits, dim = -1)
+
+        loss['token_nll'] = self.calculate_token_nll_loss(batch, log_probs)
+        loss['mask_kl'] = self.calculate_kl(batch, true_log_probs, log_probs)
         log_probs_dict = {'token' : log_probs}
         log_probs_dict.update(pos_log_probs)
         
-        loss['total_loss'] += self.hparams.token_nll_weight * loss['token_nll']
+        loss['total_loss'] += self.hparams.token_nll_weight * loss['token_nll'] + self.hparams.mask_kl_weight * loss['mask_kl']
         return loss, log_probs_dict, model_outputs
         
     @classmethod
