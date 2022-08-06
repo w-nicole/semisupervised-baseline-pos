@@ -1,26 +1,26 @@
-program: src/train_encoder.py
+program: src/train_with_token_loss.py
 method: grid
 parameters:
     data_dir:
         value: "../ud-treebanks-v1.4"
     trn_langs:
-        value: ["English"]
+        value: ["English", "Dutch"]
     val_langs:
         value: ["English", "Dutch"]
     default_save_path:
-        value: "./experiments/sweeps/seed/baseline"
-    target_language:
-        value: "English"
+        value: "./experiments/sweeps/mask_kl"
     group:
-        value: "seed/baseline"
+        value: "mask_kl"
     job_type:
         value: "sweep"
+    latent_size:
+        value: 64
     hyperparameter_names:
-        value: "seed"
+        value: "mse_weight mask_kl_weight"
     prep_termination:
         value: no
     batch_size:
-        value: 16
+        value: 32
     max_epochs:
         value: 3
     weight_decay:
@@ -35,8 +35,10 @@ parameters:
         value: 1
     freeze_mbert:
         value: no
-    seed:
-        values: [42, 0, 1, 2, 3]
+    mse_weight:
+        values: [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
+    mask_kl_weight:
+        values: [0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
 command:
     - ${env}
     - "python3"
