@@ -239,15 +239,22 @@ class Model(pl.LightningModule):
         else:
             hs = hidden_states[self.hparams.feature_layer]
         return hs
-
-    # Renamed variables, function, direct return of loss_dict, no self.log for loss
-    # Updated assert message and metrics indexing
+        
+    def number_of_supervised_labels(self, batch):
+        assert len(batch['pos_labels'].shape) == 2
+        labeled_mask = batch['is_supervised'].unsqueeze(1).repeat(1, batch['pos_labels'].shape[1])
+        is_supervised_mask = (batch['pos_labels'] != LABEL_PAD_ID) & (labeled_mask == 1)
+        return is_supervised_mask.sum()
+        
     def step_helper(self, batch, prefix):
         loss_dict, encoder_outputs, _ = self.__call__(batch)
         assert (
             len(set(batch["lang"])) == 1
         ), "batch should contain only one language"
         lang = batch["lang"][0]
+        
+        # World model assumption, is not required by number_of_supervised_labels or latent_base/mask_tensor_to_supervised
+        assert torch.all((batch['is_supervised'] == 0) | (batch['is_supervised'] == 1)), torch.unique(batch['is_supervised'])
         
         for acc_key, current_encoder_outputs in encoder_outputs.items():
             labels_key = f'{acc_key}_labels'
@@ -256,12 +263,14 @@ class Model(pl.LightningModule):
             self.metrics[prefix][lang][f'{acc_key}_acc'].add(*accuracy_type_metric_args)
             
         number_of_true_labels = (batch['pos_labels'] != LABEL_PAD_ID).sum()
+        number_of_supervised_labels = self.number_of_supervised_labels(batch)
 
         assert all(map(lambda s : 'acc' not in s, loss_dict.keys())), loss_dict.keys()
         for metric_key in loss_dict:
             if metric_key in 'lang': continue
             value = loss_dict[metric_key]
-            self.metrics[prefix][lang][metric_key].add(value, number_of_true_labels)
+            number_of_labels = number_of_supervised_labels if 'supervised' in metric_key else number_of_true_labels
+            self.metrics[prefix][lang][metric_key].add(value, number_of_labels)
         return loss_dict
     
     def detensor_results(self, metrics):
@@ -270,7 +279,6 @@ class Model(pl.LightningModule):
             if isinstance(v, torch.Tensor) else v
             for k, v in metrics.items()
         }
-
                 
     def log_wandb(self, phase, lang_list, loss_dict, batch_idx, dataloader_idx):
         assert len(set(lang_list)) == 1, lang_list
@@ -499,17 +507,13 @@ class Model(pl.LightningModule):
     def prepare_datasets(self, split: str) -> List[Dataset]:
         raise NotImplementedError
 
-    def prepare_datasets_helper(
-        self,
-        data_class: Type[Dataset],
-        langs: List[str],
-        split: str,
-        max_len: int,
-        **kwargs,
-    ):
+    def prepare_datasets_helper(self, data_class_dict, langs, split, max_len, **kwargs):
         datasets = []
 
         for lang in langs:
+            is_supervised_language = lang == constant.SUPERVISED_LANGUAGE
+            key = 'supervised' if is_supervised_language else 'unsupervised'
+            data_class = data_class_dict[key]
             filepath = data_class.get_file(self.hparams.data_dir, lang, split)
             if filepath is None:
                 print(f"skipping {split} language: {lang}")
@@ -533,7 +537,12 @@ class Model(pl.LightningModule):
                 print(f"load from cache {filepath} with {self.hparams.pretrain}")
                 dataset = torch.load(cache_file)
             else:
-                dataset = data_class(**params)
+                args = (params,)
+                if is_supervised_language:
+                    args += (self.hparams.use_rest_unsupervised,)
+                try:
+                    dataset = data_class(*args)
+                except: import pdb; pdb.set_trace()
                 if self.hparams.cache_dataset:
                     print(f"save to cache {filepath} with {self.hparams.pretrain}")
                     torch.save(dataset, cache_file)
@@ -663,4 +672,5 @@ class Model(pl.LightningModule):
         # Added below
         parser.add_argument("--number_of_workers", default=1, type=int)
         parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
+        parser.add_argument("--use_rest_unsupervised", default=False, type=util.str2bool)
         return parser

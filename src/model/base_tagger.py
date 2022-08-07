@@ -22,7 +22,7 @@ from functools import partial # added this from model/base.py
 
 import util
 from metric import LABEL_PAD_ID # changed this from dataset import
-from dataset import Dataset, UdPOS
+from dataset import Dataset, UdPOS, SupervisedUdPOS, UnsupervisedUdPOS
 from enumeration import Split, Task
 from model.base import Model
 
@@ -43,7 +43,8 @@ class BaseTagger(Model):
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
             "pos_labels": LABEL_PAD_ID,
-            "token_labels" : LABEL_PAD_ID
+            "token_labels" : LABEL_PAD_ID,
+            "is_supervised" : LABEL_PAD_ID,
             # end changes
         }
 
@@ -59,18 +60,18 @@ class BaseTagger(Model):
 
     def prepare_datasets(self, split: str) -> List[Dataset]:
         hparams = self.hparams
-        data_class = UdPOS
+        data_class_dict = { 'supervised' : SupervisedUdPOS, 'unsupervised' : UnsupervisedUdPOS }
         if split == Split.train:
             return self.prepare_datasets_helper(
-                data_class, hparams.trn_langs, Split.train, hparams.max_trn_len
+                data_class_dict, hparams.trn_langs, Split.train, hparams.max_trn_len
             )
         elif split == Split.dev:
             return self.prepare_datasets_helper(
-                data_class, hparams.val_langs, Split.dev, hparams.max_tst_len
+                data_class_dict, hparams.val_langs, Split.dev, hparams.max_tst_len
             )
         elif split == Split.test:
             return self.prepare_datasets_helper(
-                data_class, hparams.tst_langs, Split.test, hparams.max_tst_len
+                data_class_dict, hparams.tst_langs, Split.test, hparams.max_tst_len
             )
         else:
             raise ValueError(f"Unsupported split: {hparams.split}")
@@ -118,10 +119,10 @@ class BaseTagger(Model):
         )
         # end adapted
         
-    def calculate_encoder_loss(self, batch, log_probs):
+    def calculate_encoder_loss(self, pos_labels, log_probs):
         encoder_loss = F.nll_loss(
             log_probs.view(-1, self.nb_labels),
-            batch["pos_labels"].view(-1),
+            pos_labels.view(-1),
             ignore_index=LABEL_PAD_ID,
         )
         return encoder_loss
