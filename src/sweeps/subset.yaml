@@ -17,6 +17,8 @@ parameters:
         value: 64
     subset_ratio:
         values: [0.2, 0.05, 0.01]
+    subset_seed:
+        value: 42
     hyperparameter_names:
         value: "mse_weight subset_ratio"
     prep_termination:
