@@ -54,7 +54,6 @@ class Dataset(TorchDataset):
         self.subset_seed = subset_seed
 
         self.before_load()
-        self.load()
 
     def unpack_language(self, lang):
         return lang
@@ -79,16 +78,19 @@ class Dataset(TorchDataset):
 
     def before_load(self):
         pass
-
-    def load(self):
-        assert self.data == []
-
+    
+    
+    def get_all_data(self):
         examples = []
         for ex in tqdm(
             self.read_file(self.filepath, self.lang, self.split), desc="read data"
         ):
             examples.append(ex)
-
+        return examples
+        
+    def get_applied_if_split_data(self, examples = None):
+        if examples is None:
+            examples = self.get_all_data()
         if self.subset_count > 0 or self.subset_ratio < 1:
             if self.subset_count > 0:
                 subset_size = self.subset_count
@@ -102,17 +104,20 @@ class Dataset(TorchDataset):
             )
 
             seed = np.random.RandomState(self.subset_seed)
-            examples = seed.permutation(examples)[:subset_size]
-
+            shuffled_examples = seed.permutation(examples)
+            return shuffled_examples[:subset_size], shuffled_examples[subset_size:]
+        else:
+            return examples, []
+            
+    def process_with_supervised_flag(self, examples, is_supervised):
         data = []
         for example in tqdm(examples, desc="parse data"):
-            data.extend(self.process_example(example))
-            
-        # import torch; import os
-        # if not os.path.exists('../scratchwork'): os.makedirs('../scratchwork')
-        # torch.save(data, f'../scratchwork/mine_{self.lang}_{self.split}_{self.subset_ratio}.pt')
-        self.data = data
-
+            data.extend(self.process_example(example, is_supervised))
+        return data
+        
+    def load(self):
+        raise NotImplementedError
+        
     @classmethod
     def get_file(cls, path: str, lang: str, split: str) -> Optional[str]:
         raise NotImplementedError

@@ -10,7 +10,7 @@
 # Changed to not have source/target but train/val languages.
 # Simplified `example/surprising-mbert/evaluate.sh` script to remove irrelevant code.
 
-save_path=${1:-"./experiments/debug/reference_cut_unsupervised"}
+save_path=${1:-"./experiments/debug/actual_cut_unsupervised"}
 train_languages="English"
 val_languages="English"
 data_path=${2:-"../../ud-treebanks-v1.4"}
@@ -26,9 +26,11 @@ python3 src/train_latent_base.py \
     --max_epochs $ep \
     --subset_ratio 0.01 \
     --warmup_portion 0.1 \
+    --mse_weight 0 \
     --group "debug" \
-    --job_type "reference" \
+    --job_type "actual" \
     --name "cut_unsupervised" \
     --default_save_path "$save_path" \
     --freeze_mbert "y" \
+    --schedule "reduceOnPlateau" \
     --gpu 1

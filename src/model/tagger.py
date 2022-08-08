@@ -39,6 +39,7 @@ from torch.utils.data import DataLoader
 class Tagger(BaseTagger):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
+        assert not self.hparams.use_rest_unsupervised, "If this is true, then requires special check to forward on supervised only."
         self._comparison_mode = 'max'
         self._selection_criterion = f'val_{constant.SUPERVISED_LANGUAGE}_pos_acc_epoch'
 
@@ -74,7 +75,7 @@ class Tagger(BaseTagger):
         logits = self.classifier(hs)
         log_probs = F.log_softmax(logits, dim=-1)
 
-        loss = self.calculate_encoder_loss(batch, log_probs)
+        loss = self.calculate_encoder_loss(batch['pos_labels'], log_probs)
         # Changed below to be compatible with later models' loss_dict and added assert.
         loss_dict = {self.optimization_loss : loss}
         self.add_language_to_batch_output(loss_dict, batch)

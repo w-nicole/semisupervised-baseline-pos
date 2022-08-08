@@ -17,7 +17,6 @@ from torch.distributions.normal import Normal
 from metric import LABEL_PAD_ID
 from dataset import tagging
 from model.base import Model
-from model.module import LSTMLinear
 from model.tagger import Tagger
 from model.base_tagger import BaseTagger
 from enumeration import Split
@@ -45,7 +44,6 @@ class LatentBase(BaseTagger):
             self.hparams.reconstruction_hidden_size, self.hparams.reconstruction_hidden_layers
         )
         self.model_type = {
-            'lstm' : LSTMLinear,
             'mlp' : self.build_mlp,
             'linear' : self.build_linear
         }
@@ -62,7 +60,7 @@ class LatentBase(BaseTagger):
         self._selection_criterion = f'val_{constant.SUPERVISED_LANGUAGE}_pos_acc_epoch'
         self._comparison_mode = 'max'
         self.metric_names = [
-            'pos_nll',
+            'supervised_pos_nll',
             'total_loss',
             'MSE',
             'pos_acc'
@@ -75,11 +73,9 @@ class LatentBase(BaseTagger):
         return hs
     
     def get_non_pad_label_mask(self, labels, tensor):
-        if len(tensor.shape) == 3:
-            repeated_labels = labels.unsqueeze(2).repeat(1, 1, tensor.shape[-1])
-        else:
-            repeated_labels = labels.unsqueeze(1).repeat(1, tensor.shape[-1])
-        return util.apply_gpu(repeated_labels != LABEL_PAD_ID)        
+        assert len(labels.shape), labels.shape
+        repeated_labels = labels.unsqueeze(2).repeat(1, 1, tensor.shape[-1])
+        return util.apply_gpu(repeated_labels != LABEL_PAD_ID)   
         
     def set_padded_to_zero(self, labels, tensor):
         clean_tensor = torch.where(
@@ -106,10 +102,10 @@ class LatentBase(BaseTagger):
         clean_mse = self.calculate_clean_metric(batch['pos_labels'], raw_metric_tensor)
         return clean_mse
     
-    def calculate_encoder_outputs(self, batch, latent):
-        decoder_output = self.decoder_pos(*self.get_decoder_args(self.decoder_pos, batch, latent))
+    def calculate_encoder_outputs(self, pos_labels, latent):
+        decoder_output = self.decoder_pos(latent)
         pos_log_probs = F.log_softmax(decoder_output, dim = -1)
-        loss = self.calculate_encoder_loss(batch, pos_log_probs)
+        loss = self.calculate_encoder_loss(pos_labels, pos_log_probs)
         return pos_log_probs, loss
         
     def calculate_encoder_intermediates(self, batch):
@@ -124,14 +120,28 @@ class LatentBase(BaseTagger):
         target_hs = self.calculate_target_hs(batch)
         return encoder_hs, latent, target_hs
       
-    def get_decoder_args(self, decoder, batch, latent):
-        return (batch, latent) if isinstance(decoder, LSTMLinear) else (latent,)
-        
     def calculate_target_hs(self, batch):
         with torch.no_grad():
             self.target_mbert.eval()
             target_hs = self.calculate_hidden_states(self.target_mbert, batch)
         return target_hs
+        
+    def mask_tensor_to_supervised(self, tensor, is_supervised):
+        assert len(is_supervised.shape) == 1, is_supervised.shape
+        if len(tensor.shape) == 3:
+            unsqueezed = is_supervised.reshape(is_supervised.shape[0], 1, 1)
+        elif len(tensor.shape) == 2:
+            unsqueezed = is_supervised.reshape(is_supervised.shape[0], 1)
+        else:
+            assert False, f"{tensor.shape} not supported"
+        supervised_mask = unsqueezed.repeat(*((1,) + tensor.shape[1:]))
+        
+        assert torch.all((is_supervised == 0) | (is_supervised == 1)), torch.unique(is_supervised)
+        supervised_tensor = torch.where(
+            (supervised_mask == 1), tensor.float(),
+            LABEL_PAD_ID * util.apply_gpu(torch.ones(tensor.shape))
+        )
+        return supervised_tensor
         
     def __call__(self, batch):
         current_language = batch['lang'][0]
@@ -139,22 +149,19 @@ class LatentBase(BaseTagger):
         
         loss = {} 
         encoder_hs, latent, target_hs = self.calculate_intermediates(batch)
-        predicted_hs = self.decoder_reconstruction(*self.get_decoder_args(self.decoder_reconstruction, batch, latent))
+        predicted_hs = self.decoder_reconstruction(latent)
         loss['MSE'] = self.calculate_masked_mse_loss(batch, predicted_hs, target_hs)
         unlabeled_loss = self.hparams.mse_weight * loss['MSE']
         
-        # Labeled case,
-        # but if training on English alone, then English should be treated as unsupervised.
-        labeled_case = current_language == constant.SUPERVISED_LANGUAGE and (len(self.hparams.trn_langs) > 1 or self.hparams.english_alone_as_supervised)
-        if labeled_case:
-            pos_log_probs, encoder_loss = self.calculate_encoder_outputs(batch, latent)
-            loss['total_loss'] = self.hparams.pos_nll_weight * encoder_loss + unlabeled_loss
-        else:
-            with torch.no_grad():
-                pos_log_probs, encoder_loss = self.calculate_encoder_outputs(batch, latent)
-            loss['total_loss'] = unlabeled_loss
-            
-        loss['pos_nll'] = encoder_loss
+        supervised_latent = self.mask_tensor_to_supervised(latent, batch['is_supervised'])
+        supervised_labels = self.mask_tensor_to_supervised(batch['pos_labels'], batch['is_supervised']).long()
+        _, supervised_encoder_loss = self.calculate_encoder_outputs(supervised_labels, supervised_latent)
+        loss['supervised_pos_nll'] = supervised_encoder_loss
+        
+        loss['total_loss'] = self.hparams.pos_nll_weight * supervised_encoder_loss + unlabeled_loss
+        with torch.no_grad():
+            pos_log_probs, _ = self.calculate_encoder_outputs(batch['pos_labels'], latent)
+        
         self.add_language_to_batch_output(loss, batch)
         return loss, { 'pos' : pos_log_probs }, { 'target_hs' : target_hs, 'predicted_hs' : predicted_hs } 
         
@@ -167,7 +174,6 @@ class LatentBase(BaseTagger):
         parser = Model.add_layer_stack_args(parser, 'reconstruction')
         parser.add_argument("--pos_nll_weight", default=1, type=float)
         parser.add_argument("--mse_weight", default=1, type=float)
-        parser.add_argument("--english_alone_as_supervised", default=True, type=util.str2bool)
         parser.add_argument("--debug_fix_identity", default=False, type=util.str2bool)
         return parser
         
