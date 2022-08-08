@@ -17,6 +17,8 @@ parameters:
         value: 64
     subset_ratio:
         values: [0.2, 0.05, 0.01]
+    seed:
+        value: 42
     subset_seed:
         value: 42
     hyperparameter_names:
@@ -24,9 +26,9 @@ parameters:
     prep_termination:
         value: no
     batch_size:
-        value: 16
+        value: 32
     max_epochs:
-        value: 3
+        value: 4
     weight_decay:
         value: 0.01
     mbert_learning_rate:
