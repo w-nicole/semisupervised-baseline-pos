@@ -26,9 +26,11 @@ python3 src/train_latent_base.py \
     --max_epochs $ep \
     --subset_ratio 0.01 \
     --warmup_portion 0.1 \
+    --mse_weight 0 \
     --group "debug" \
     --job_type "actual" \
     --name "cut_unsupervised" \
     --default_save_path "$save_path" \
     --freeze_mbert "y" \
+    --schedule "reduceOnPlateau" \
     --gpu 1

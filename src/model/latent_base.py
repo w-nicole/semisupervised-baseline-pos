@@ -138,7 +138,7 @@ class LatentBase(BaseTagger):
         
         assert torch.all((is_supervised == 0) | (is_supervised == 1)), torch.unique(is_supervised)
         supervised_tensor = torch.where(
-            (supervised_mask.int() == 1), tensor,
+            (supervised_mask == 1), tensor.float(),
             LABEL_PAD_ID * util.apply_gpu(torch.ones(tensor.shape))
         )
         return supervised_tensor
@@ -154,17 +154,16 @@ class LatentBase(BaseTagger):
         unlabeled_loss = self.hparams.mse_weight * loss['MSE']
         
         supervised_latent = self.mask_tensor_to_supervised(latent, batch['is_supervised'])
-
-        supervised_labels = self.mask_tensor_to_supervised(batch['pos_labels'], batch['is_supervised'])
-        _, supervised_encoder_loss = self.calculate_encoder_outputs(batch['pos_labels'], supervised_latent)
-        loss['supervised_pos_nll'] = encoder_loss
+        supervised_labels = self.mask_tensor_to_supervised(batch['pos_labels'], batch['is_supervised']).long()
+        _, supervised_encoder_loss = self.calculate_encoder_outputs(supervised_labels, supervised_latent)
+        loss['supervised_pos_nll'] = supervised_encoder_loss
         
         loss['total_loss'] = self.hparams.pos_nll_weight * supervised_encoder_loss + unlabeled_loss
         with torch.no_grad():
             pos_log_probs, _ = self.calculate_encoder_outputs(batch['pos_labels'], latent)
         
         self.add_language_to_batch_output(loss, batch)
-        return loss, { 'pos_log_probs' : pos_log_probs }, { 'target_hs' : target_hs, 'predicted_hs' : predicted_hs } 
+        return loss, { 'pos' : pos_log_probs }, { 'target_hs' : target_hs, 'predicted_hs' : predicted_hs } 
         
     @classmethod
     def add_model_specific_args(cls, parser):

@@ -80,6 +80,7 @@ class Model(pl.LightningModule):
         # Added the following
         self.run_phases = [Split.train, 'val', Split.test]
         self.concat_all_hidden_states = self.hparams.concat_all_hidden_states
+        self.losses = []
         
         # end additions
 
@@ -264,13 +265,14 @@ class Model(pl.LightningModule):
             
         number_of_true_labels = (batch['pos_labels'] != LABEL_PAD_ID).sum()
         number_of_supervised_labels = self.number_of_supervised_labels(batch)
-
+        
         assert all(map(lambda s : 'acc' not in s, loss_dict.keys())), loss_dict.keys()
         for metric_key in loss_dict:
             if metric_key in 'lang': continue
             value = loss_dict[metric_key]
             number_of_labels = number_of_supervised_labels if 'supervised' in metric_key else number_of_true_labels
             self.metrics[prefix][lang][metric_key].add(value, number_of_labels)
+            
         return loss_dict
     
     def detensor_results(self, metrics):
@@ -540,9 +542,7 @@ class Model(pl.LightningModule):
                 args = (params,)
                 if is_supervised_language:
                     args += (self.hparams.use_rest_unsupervised,)
-                try:
-                    dataset = data_class(*args)
-                except: import pdb; pdb.set_trace()
+                dataset = data_class(*args)
                 if self.hparams.cache_dataset:
                     print(f"save to cache {filepath} with {self.hparams.pretrain}")
                     torch.save(dataset, cache_file)

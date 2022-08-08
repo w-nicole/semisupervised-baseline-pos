@@ -169,7 +169,7 @@ def train_main(raw_hparams, model_class):
     # Added below if/printout
     if hparams.do_test:
         print('Will not perform testing, as this script does not test.')
-
+    
 def add_training_arguments(parser):
     # Changed below exp_name -> name to match the wandb scheme
     parser.add_argument("--name", default="", type=str)
