@@ -8,27 +8,27 @@ parameters:
     val_langs:
         value: ["English"]
     default_save_path:
-        value: "./experiments/sweeps/subset"
+        value: "./experiments/sweeps/subset_number"
     group:
         value: "subset"
     job_type:
         value: "sweep"
     latent_size:
         value: 64
-    subset_ratio:
-        values: [0.2, 0.05, 0.01]
+    subset_number:
+        values: [1, 10, 50, 1000]
     seed:
         value: 42
     subset_seed:
         value: 42
     hyperparameter_names:
-        value: "mse_weight subset_ratio"
+        value: "mse_weight subset_number"
     prep_termination:
         value: no
     batch_size:
         value: 32
     max_epochs:
-        value: 4
+        value: 20
     weight_decay:
         value: 0.01
     mbert_learning_rate:
@@ -43,6 +43,8 @@ parameters:
         value: "linear"
     gpus:
         value: 1
+    use_rest_unsupervised:
+        value: yes
     freeze_mbert:
         value: no
     mse_weight:

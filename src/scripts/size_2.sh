@@ -12,7 +12,7 @@
 
 save_path=${1:-"./experiments/size_2"}
 train_languages="English"
-val_languages="English Dutch"
+val_languages="English"
 data_path=${2:-"../../ud-treebanks-v1.4"}
 
 bs=32

@@ -360,7 +360,9 @@ class Model(pl.LightningModule):
             #     self.custom_logs[phase][lang].append(custom_log_dict)
         
         for key, vals in aver_metric.items():
-            self.log(f"{phase}_all_{key}_epoch", torch.stack(vals).mean())
+            try:
+                self.log(f"{phase}_all_{key}_epoch", torch.stack(vals).mean())
+            except: import pdb; pdb.set_trace()
         for key, vals in unsupervised_aver_metric.items():
             self.log(f"{phase}_unsupervised_all_{key}_epoch", torch.stack(vals).mean())
 
