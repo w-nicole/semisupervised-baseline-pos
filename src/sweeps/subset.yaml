@@ -8,25 +8,25 @@ parameters:
     val_langs:
         value: ["English"]
     default_save_path:
-        value: "./experiments/sweeps/subset_number"
+        value: "./experiments/sweeps/subset_number_mse_0"
     group:
-        value: "subset"
+        value: "subset_mse_0"
     job_type:
         value: "sweep"
     latent_size:
         value: 64
-    subset_number:
+    subset_count:
         values: [1, 10, 50, 1000]
     seed:
         value: 42
     subset_seed:
         value: 42
     hyperparameter_names:
-        value: "mse_weight subset_number"
+        value: "mse_weight subset_count"
     prep_termination:
         value: no
     batch_size:
-        value: 32
+        value: 1
     max_epochs:
         value: 20
     weight_decay:
@@ -44,11 +44,11 @@ parameters:
     gpus:
         value: 1
     use_rest_unsupervised:
-        value: yes
+        value: no
     freeze_mbert:
         value: no
     mse_weight:
-        values: [0, 1e-6, 1e-5]
+        values: [0]
 command:
     - ${env}
     - "python3"

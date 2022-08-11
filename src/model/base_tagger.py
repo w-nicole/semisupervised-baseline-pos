@@ -35,6 +35,7 @@ from torch.utils.data import DataLoader
 class BaseTagger(Model):
     def __init__(self, hparams):
         super(BaseTagger, self).__init__(hparams)
+        self.data_class_dict = { 'supervised' : SupervisedUdPOS, 'unsupervised' : UnsupervisedUdPOS }
         self._nb_labels: Optional[int] = None
         self._nb_labels = UdPOS.nb_labels()
         
@@ -53,11 +54,10 @@ class BaseTagger(Model):
         assert self._nb_labels is not None
         return self._nb_labels
 
-    # Moved training_step to base.py.
-    
-    # Removed loss logging in original evaluation_step_helper
-    # because handled in event and not checkpointing on it.
-
+    def get_data_class(self, lang):
+        key = 'supervised' if lang == constant.SUPERVISED_LANGUAGE else 'unsupervised'
+        return self.data_class_dict[key]
+        
     def prepare_datasets(self, split: str) -> List[Dataset]:
         hparams = self.hparams
         data_class_dict = { 'supervised' : SupervisedUdPOS, 'unsupervised' : UnsupervisedUdPOS }
@@ -99,13 +99,16 @@ class BaseTagger(Model):
         params["lang"] = lang
         params["split"] = split
         params["max_len"] = self.hparams.max_trn_len
-        params["subset_ratio"] = self.hparams.subset_ratio
-        params["subset_count"] = self.hparams.subset_count
-        params["subset_seed"] = self.hparams.subset_seed
-        return tagging.UdPOS(**params)
+        if split == Split.train:
+            params["subset_ratio"] = self.hparams.subset_ratio
+            params["subset_count"] = self.hparams.subset_count
+            params["subset_seed"] = self.hparams.subset_seed
+        
+        dataset_args = (params, self.hparams.use_rest_unsupervised) if lang == constant.SUPERVISED_LANGUAGE else (params,)
+        return self.get_data_class(lang)(*dataset_args)
         # end taken
         
-    def get_dataloader(self, lang, split):
+    def get_unshuffled_dataloader(self, lang, split):
         # Adapted from model/base.py
         collate_fn = partial(util.default_collate, padding=self.padding)
         return DataLoader(
