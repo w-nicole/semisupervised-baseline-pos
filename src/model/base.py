@@ -271,7 +271,7 @@ class Model(pl.LightningModule):
             if metric_key in 'lang': continue
             value = loss_dict[metric_key]
             number_of_labels = number_of_supervised_labels if 'supervised' in metric_key else number_of_true_labels
-            self.metrics[prefix][lang][metric_key].add(value, 1)#number_of_labels)
+            self.metrics[prefix][lang][metric_key].add(value, number_of_labels)
             
         return loss_dict
     
@@ -372,7 +372,6 @@ class Model(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         if self.trainer.sanity_checking: return
         self.aggregate_metrics(self.hparams.val_langs, 'val')
-        import pdb; pdb.set_trace()
 
     def test_epoch_end(self, outputs):
         self.aggregate_metrics(self.hparams.tst_langs, Split.test)
