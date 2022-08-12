@@ -21,8 +21,7 @@ import torch.nn.functional as F
 from functools import partial # added this from model/base.py
 
 import util
-from metric import LABEL_PAD_ID # changed this from dataset import
-from dataset import Dataset, UdPOS, SupervisedUdPOS, UnsupervisedUdPOS
+from dataset import Dataset, UdPOS, LABEL_PAD_ID
 from enumeration import Split, Task
 from model.base import Model
 
@@ -35,18 +34,13 @@ from torch.utils.data import DataLoader
 class BaseTagger(Model):
     def __init__(self, hparams):
         super(BaseTagger, self).__init__(hparams)
-        self.data_class_dict = { 'supervised' : SupervisedUdPOS, 'unsupervised' : UnsupervisedUdPOS }
         self._nb_labels: Optional[int] = None
         self._nb_labels = UdPOS.nb_labels()
         
-        # Added/edited
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
             "pos_labels": LABEL_PAD_ID,
-            "token_labels" : LABEL_PAD_ID,
-            "is_supervised" : LABEL_PAD_ID,
-            # end changes
         }
 
     @property
@@ -54,24 +48,20 @@ class BaseTagger(Model):
         assert self._nb_labels is not None
         return self._nb_labels
 
-    def get_data_class(self, lang):
-        key = 'supervised' if lang == constant.SUPERVISED_LANGUAGE else 'unsupervised'
-        return self.data_class_dict[key]
-        
     def prepare_datasets(self, split: str) -> List[Dataset]:
         hparams = self.hparams
-        data_class_dict = { 'supervised' : SupervisedUdPOS, 'unsupervised' : UnsupervisedUdPOS }
+        data_class = UdPOS
         if split == Split.train:
             return self.prepare_datasets_helper(
-                data_class_dict, hparams.trn_langs, Split.train, hparams.max_trn_len
+                data_class, hparams.trn_langs, Split.train, hparams.max_trn_len
             )
         elif split == Split.dev:
             return self.prepare_datasets_helper(
-                data_class_dict, hparams.val_langs, Split.dev, hparams.max_tst_len
+                data_class, hparams.val_langs, Split.dev, hparams.max_tst_len
             )
         elif split == Split.test:
             return self.prepare_datasets_helper(
-                data_class_dict, hparams.tst_langs, Split.test, hparams.max_tst_len
+                data_class, hparams.tst_langs, Split.test, hparams.max_tst_len
             )
         else:
             raise ValueError(f"Unsupported split: {hparams.split}")
@@ -103,22 +93,20 @@ class BaseTagger(Model):
             params["subset_ratio"] = self.hparams.subset_ratio
             params["subset_count"] = self.hparams.subset_count
             params["subset_seed"] = self.hparams.subset_seed
-        
-        dataset_args = (params, self.hparams.use_rest_unsupervised) if lang == constant.SUPERVISED_LANGUAGE else (params,)
-        return self.get_data_class(lang)(*dataset_args)
+        return UdPOS(**params)
         # end taken
         
     def get_unshuffled_dataloader(self, lang, split):
         # Adapted from model/base.py
         collate_fn = partial(util.default_collate, padding=self.padding)
         return DataLoader(
-                self.get_dataset(lang, split),
-                batch_size=self.hparams.eval_batch_size,
-                shuffle=False,
-                pin_memory=True,
-                drop_last=False,
-                collate_fn=collate_fn,
-                num_workers=1,
+            self.get_dataset(lang, split),
+            batch_size=self.hparams.eval_batch_size,
+            shuffle=False,
+            pin_memory=True,
+            drop_last=False,
+            collate_fn=collate_fn,
+            num_workers=1,
         )
         # end adapted
         

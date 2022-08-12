@@ -9,7 +9,7 @@ import torch
 import constant
 import util
 
-LABEL_PAD_ID = -1
+from dataset.base import LABEL_PAD_ID
 
 def to_tensor(wrapped_func):
     def func(*args, **kwargs):

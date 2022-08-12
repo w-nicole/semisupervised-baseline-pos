@@ -181,8 +181,6 @@ def add_training_arguments(parser):
     # Below: changed do_test to False as this script doesn't support testing.
     parser.add_argument("--do_test", default=False, type=str2bool)
     parser.add_argument("--checkpoint", default="", type=str)
-    parser.add_argument("--cache_dataset", default=False, type=str2bool)
-    parser.add_argument("--cache_path", default="", type=str)
     ############################################################################
     parser.add_argument("--default_save_path", default="./", type=str)
     parser.add_argument("--gradient_clip_val", default=0, type=float)
@@ -192,7 +190,6 @@ def add_training_arguments(parser):
     parser.add_argument("--track_grad_norm", default=-1, type=int)
     parser.add_argument("--check_val_every_n_epoch", default=1, type=int)
     # added below line
-    parser.add_argument("--target_language", default="", type=str)
     parser.add_argument("--fast_dev_run", default=False, type=str2bool)
     parser.add_argument("--accumulate_grad_batches", default=1, type=int)
     parser.add_argument("--max_epochs", default=1000, type=int)

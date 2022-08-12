@@ -23,8 +23,7 @@ import torch.nn.functional as F
 from functools import partial # added this from model/base.py
 
 import util
-from metric import LABEL_PAD_ID # changed this from dataset import
-from dataset import Dataset, UdPOS
+from dataset import Dataset, UdPOS, LABEL_PAD_ID
 from enumeration import Split, Task
 from model.base import Model
 from model.base_tagger import BaseTagger
@@ -39,7 +38,6 @@ from torch.utils.data import DataLoader
 class Tagger(BaseTagger):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
-        assert not self.hparams.use_rest_unsupervised, "If this is true, then requires special check to forward on supervised only."
         self._comparison_mode = 'max'
         self._selection_criterion = f'val_{constant.SUPERVISED_LANGUAGE}_pos_acc_epoch'
 

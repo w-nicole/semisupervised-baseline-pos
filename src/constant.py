@@ -2,15 +2,7 @@
 # Taken from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
 
-# Changes made relative to original:
-# Changed label name to get labels to run with older UD.
-# Added constant for start/end index logic.
-
-# Added the below. This MUST be zero, or the averaging logic is incorrect.
-START_END_INDEX_PADDING = 0
-PACK_PADDING = 0
 SUPERVISED_LANGUAGE = "English"
-# end added
 
 LANGUAGE_TO_ISO639 = {
     # NER

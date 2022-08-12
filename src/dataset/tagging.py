@@ -1,7 +1,3 @@
-
-# Taken from Shijie Wu's crosslingual-nlp repository.
-# See LICENSE in this codebase for license information.
-
 import glob
 from collections import defaultdict
 from copy import deepcopy
@@ -10,12 +6,9 @@ from typing import Dict, Iterator, List, Optional, Tuple
 import numpy as np
 
 import constant
-from dataset.base import DUMMY_LABEL, Dataset
+from dataset.base import DUMMY_LABEL, LABEL_PAD_ID, Dataset
 from enumeration import Split
-from metric import LABEL_PAD_ID
-from collections import defaultdict
 
-import torch
 
 class TaggingDataset(Dataset):
     def before_load(self):
@@ -33,38 +26,24 @@ class TaggingDataset(Dataset):
     def get_labels(cls) -> List[str]:
         raise NotImplementedError
 
-    # Changed this function to not consider labels.
-    def add_special_tokens(self, sent):
+    def add_special_tokens(self, sent, labels):
         sent = self.tokenizer.build_inputs_with_special_tokens(sent)
-        return np.array(sent)
-    # end changes
-    
-    def process_labels_for_return(self, raw_labels, mask):
-        labels = np.array(self.tokenizer.build_inputs_with_special_tokens(raw_labels))
-        masked_labels = labels * (1 - mask) + LABEL_PAD_ID * mask
-        return masked_labels
-    
-    def process_example_for_return(self, sent, all_label_ids):
-        sent = self.tokenizer.build_inputs_with_special_tokens(sent)
-        mask = np.array(self.tokenizer.get_special_tokens_mask(
+        labels = self.tokenizer.build_inputs_with_special_tokens(labels)
+        mask = self.tokenizer.get_special_tokens_mask(
             sent, already_has_special_tokens=True
-        ))
-        sent = np.array(sent)
-        process_with_mask = lambda labels : self.process_labels_for_return(labels, mask)
-        masked_labels_dict = {
-            label_type : process_with_mask(labels)
-            for label_type, labels in all_label_ids.items()
-        } 
-        masked_labels = tuple(masked_labels_dict[k] for k in sorted(masked_labels_dict.keys()))
-        return (sent,) + masked_labels
+        )
+        sent, labels, mask = np.array(sent), np.array(labels), np.array(mask)
+        label = labels * (1 - mask) + LABEL_PAD_ID * mask
+        return sent, label
 
-    def _process_example_helper(self, sent, labels, is_supervised):
-        
-        yield_example = lambda token_ids, all_label_ids, is_supervised : self.process_example_for_return(token_ids, all_label_ids) + (is_supervised,)
+    def _process_example_helper(
+        self, sent: List, labels: List
+    ) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
+
         token_ids: List[int] = []
-        all_label_ids = {'pos' : [], 'token' : [] }
+        label_ids: List[int] = []
 
-        for idx, (token, label) in enumerate(zip(sent, labels)):
+        for token, label in zip(sent, labels):
             sub_tokens = self.tokenize(token)
             if not sub_tokens:
                 continue
@@ -72,32 +51,27 @@ class TaggingDataset(Dataset):
 
             if len(token_ids) + len(sub_tokens) >= self.max_len:
                 # don't add more token
-                yield yield_example(token_ids, all_label_ids, is_supervised)
+                yield self.add_special_tokens(token_ids, label_ids)
+
                 token_ids = token_ids[-self.shift :]
-                all_label_ids = { k : [LABEL_PAD_ID] * len(token_ids) for k, v in all_label_ids.items() }
+                label_ids = [LABEL_PAD_ID] * len(token_ids)
 
             for i, sub_token in enumerate(sub_tokens):
                 token_ids.append(sub_token)
-                raw_single_token = sub_tokens[0] if len(sub_tokens) == 1 else LABEL_PAD_ID
-                mask_not_first = lambda label : label if i == 0 else LABEL_PAD_ID
-                all_label_ids['pos'].append(mask_not_first(self.label2id[label]))
-                all_label_ids['token'].append(mask_not_first(raw_single_token))
-  
-        yield yield_example(token_ids, all_label_ids, is_supervised)
-        
-    def process_example(self, example, is_supervised):
+                label_id = self.label2id[label] if i == 0 else LABEL_PAD_ID
+                label_ids.append(label_id)
+
+        yield self.add_special_tokens(token_ids, label_ids)
+
+    def process_example(self, example: Dict) -> List[Dict]:
         sent: List = example["sent"]
         labels: List = example["labels"]
 
         data: List[Dict] = []
         if not sent:
             return data
-        for src, tgt, token_labels, is_supervised in self._process_example_helper(sent, labels, is_supervised):
-            data.append({
-                "sent": src, "pos_labels": tgt, "lang": self.lang,
-                "token_labels" : token_labels, "is_supervised" : 1 if is_supervised else 0
-            })
-        # end changes
+        for src, tgt in self._process_example_helper(sent, labels):
+            data.append({"sent": src, "pos_labels": tgt, "lang": self.lang})
         return data
 
 
