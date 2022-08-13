@@ -3,11 +3,13 @@ This codebase was first built off a copy of Shijie Wu's crosslingual-nlp reposit
 
 https://github.com/shijie-wu/crosslingual-nlp
 
+As such, much code was taken/rearranged/changed from that base.
+
 # Added text
 
 # Setup
 
-`conda install transformers conllu datasets pandas matplotlib scikit-learn`
+`conda install transformers datasets pandas matplotlib scikit-learn`
 
 `pip install wandb`
 
@@ -39,8 +41,6 @@ Note the following: do NOT ever use strings as booleans in sweeps. Instead, use 
 
 # Added text: as of semisupervised-baseline-pos repository
 
-Edits are described in their individual files.
-
 Note that notes on license were not yet added to every file from original repository as many files will be deleted before final state. Ones that are retained are marked as project progresses.
 
 For license information of original repository please see LICENSE file as directed in the leading comments of each file taken from the original. For brevity the entire LICENSE is reproduced only there.
@@ -69,24 +69,7 @@ For the state of the repository before changes, see commit c029e10e909039946a755
 
 For the state of the repository used for replication numbers before UD change, see commit b1a9af51796f62b9436f2860e44b86891b77be5b in that repository.
 
-# Original text
-
-## Crosslingual NLP
-
-This repo supports various cross-lingual transfer learning & multilingual NLP models. It powers the following papars.
-
-- Mahsa Yarmohammadi*, Shijie Wu*, Marc Marone, Haoran Xu, Seth Ebner, Guanghui Qin, Yunmo Chen, Jialiang Guo, Craig Harman, Kenton Murray, Aaron Steven White, Mark Dredze, and Benjamin Van Durme. [*Everything Is All It Takes: A Multipronged Strategy for Zero-Shot Cross-Lingual Information Extraction*](https://arxiv.org/abs/2109.06798). EMNLP. 2021. ([Experiments Detail](example/data-projection))
-- Shijie Wu and Mark Dredze. [*Do Explicit Alignments Robustly Improve Multilingual Encoders?*](https://arxiv.org/abs/2010.02537) EMNLP. 2020. ([Experiments Detail](example/contrastive-alignment))
-- Shijie Wu and Mark Dredze. [*Are All Languages Created Equal in Multilingual BERT?*](https://arxiv.org/abs/2005.09093) RepL4NLP. 2020. ([Experiments Detail](example/low-resource-in-mbert))
-- Shijie Wu*, Alexis Conneau*, Haoran Li, Luke Zettlemoyer, and Veselin Stoyanov. [*Emerging Cross-lingual Structure in Pretrained Language Models*](https://arxiv.org/abs/1911.01464). ACL. 2020. ([Experiments Detail](example/emerging-crossling-struct))
-- Shijie Wu and Mark Dredze. [*Beto, Bentz, Becas: The Surprising Cross-Lingual Effectiveness of BERT*](https://arxiv.org/abs/1904.09077). EMNLP. 2019. ([Experiments Detail](example/surprising-mbert))
-
-
-
-## Miscellaneous
-
-- Environment (conda): `environment.yml`
-- Pre-commit check: `pre-commit run --all-files`
+(Removed original codebase README, except for license subsection below)
 
 ## License
 
