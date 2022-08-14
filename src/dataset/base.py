@@ -25,12 +25,14 @@ class Dataset(TorchDataset):
         tokenizer: Tokenizer,
         filepath: str,
         lang: str,
+        masked: bool,
         split: Optional[str] = None,
         max_len: Optional[int] = None,
         subset_ratio: float = 1,
         subset_count: int = -1,
         subset_seed: int = 42,
     ):
+        self.masked = masked
         self.tokenizer = tokenizer
         self.filepath = filepath
         self.lang = self.unpack_language(lang)
@@ -105,9 +107,6 @@ class Dataset(TorchDataset):
         for example in tqdm(examples, desc="parse data"):
             data.extend(self.process_example(example))
             
-        # import torch; import os
-        # if not os.path.exists('../scratchwork'): os.makedirs('../scratchwork')
-        # torch.save(data, f'../scratchwork/theirs_{self.lang}_{self.split}_{self.subset_ratio}.pt')
         self.data = data
 
     @classmethod

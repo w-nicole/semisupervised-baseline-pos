@@ -35,6 +35,27 @@ class TaggingDataset(Dataset):
         sent, labels, mask = np.array(sent), np.array(labels), np.array(mask)
         label = labels * (1 - mask) + LABEL_PAD_ID * mask
         return sent, label
+        
+    def postprocess_outputs(self, raw_token_ids, raw_label_ids):
+        token_ids, label_ids = self.add_special_tokens(raw_token_ids, raw_label_ids)
+        if not self.masked:
+            return token_ids, label_ids
+        assert token_ids.shape[0] == label_ids.shape[0], f"{token_ids.shape}, {label_ids.shape}"
+        masked_indices = []
+        masked_token_ids = []
+        for index, label in enumerate(label_ids):
+            if label == LABEL_PAD_ID: continue
+            # below is true because of guarantee of [SEP], which has -1 as its label id
+            assert index != label_ids.shape[0] - 1, label_ids.shape[0]
+            # concat will copy, so this is safe
+            current_masked_token_ids = np.concatenate([
+                token_ids[:index],
+                np.array([self.tokenizer.mask_token_id]),
+                token_ids[index+1:]]
+            )
+            masked_token_ids.append(current_masked_token_ids)
+            masked_indices.append(index)
+        return np.stack(masked_token_ids, axis = 0), label_ids, np.array(masked_indices)
 
     def _process_example_helper(
         self, sent: List, labels: List
@@ -51,7 +72,7 @@ class TaggingDataset(Dataset):
 
             if len(token_ids) + len(sub_tokens) >= self.max_len:
                 # don't add more token
-                yield self.add_special_tokens(token_ids, label_ids)
+                yield self.postprocess_outputs(token_ids, label_ids)
 
                 token_ids = token_ids[-self.shift :]
                 label_ids = [LABEL_PAD_ID] * len(token_ids)
@@ -61,17 +82,22 @@ class TaggingDataset(Dataset):
                 label_id = self.label2id[label] if i == 0 else LABEL_PAD_ID
                 label_ids.append(label_id)
 
-        yield self.add_special_tokens(token_ids, label_ids)
+        yield self.postprocess_outputs(token_ids, label_ids)
 
     def process_example(self, example: Dict) -> List[Dict]:
         sent: List = example["sent"]
         labels: List = example["labels"]
-
         data: List[Dict] = []
+        
         if not sent:
             return data
-        for src, tgt in self._process_example_helper(sent, labels):
-            data.append({"sent": src, "pos_labels": tgt, "lang": self.lang})
+        output_keys = ['sent', 'pos_labels']
+        if self.masked:
+            output_keys.append('mask_indices')
+        for raw_example in self._process_example_helper(sent, labels):
+            example = { key : output for key, output in zip(output_keys, raw_example)}
+            example['lang'] = self.lang
+            data.append(example)
         return data
 
 

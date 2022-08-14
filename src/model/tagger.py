@@ -62,22 +62,36 @@ class Tagger(BaseTagger):
             'pos_acc'
         ]
         self.setup_metrics()
-    
+        
+    def extract_masked_representations(self, hs, raw_mask_indices):
+        flat_mask_indices = raw_mask_indices.flatten()
+        mask_indices = flat_mask_indices[flat_mask_indices != self.padding['mask_indices']]
+        return torch.gather(hs, 1, mask_indices.reshape(-1, 1, 1).repeat(1, 1, hs.shape[-1])).squeeze()
+        
     def __call__(self, batch):
         if self.hparams.freeze_mbert:
             self.encoder_mbert.eval()
         # Updated call arguments
-        hs = self.encode_sent(self.encoder_mbert, batch["sent"], batch["lang"])
+        raw_hs = self.encode_sent(self.encoder_mbert, batch["sent"], batch["lang"])
+        if self.hparams.masked:
+            hs = self.extract_masked_representations(raw_hs, batch['mask_indices'])
+            flat_padded_labels = batch['pos_labels'].flatten()
+            labels = flat_padded_labels[flat_padded_labels != self.padding['pos_labels']]
+            assert hs.shape[0] == labels.shape[0], f"hidden states: {hs.shape}, labels: {labels.shape}"
+            assert len(hs.shape) == 2, hs.shape
+            assert len(labels.shape) == 1, labels.shape
+        else:
+            hs, labels = raw_hs, batch['pos_labels']
         # end updates
         # removed use_crf
         logits = self.classifier(hs)
         log_probs = F.log_softmax(logits, dim=-1)
 
-        loss = self.calculate_encoder_loss(batch['pos_labels'], log_probs)
+        loss = self.calculate_encoder_loss(labels, log_probs)
         # Changed below to be compatible with later models' loss_dict and added assert.
         loss_dict = {self.optimization_loss : loss}
         self.add_language_to_batch_output(loss_dict, batch)
-        return loss_dict, { 'pos' : log_probs }, None
+        return loss_dict, { 'pos' : (log_probs, labels) }, None
         
     @classmethod
     def add_model_specific_args(cls, parser):

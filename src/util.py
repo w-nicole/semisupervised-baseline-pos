@@ -348,10 +348,8 @@ def default_collate(batch, padding):
             numel = sum([x.numel() for x in batch])
             storage = elem.storage()._new_shared(numel)
             out = elem.new(storage)
-        # Added assert and cast
         assert all([ torch.all(elem.long() == elem) for elem in batch ])
         return torch.stack([ elem.long() for elem in batch ] , 0, out=out)
-        # end additions
     elif (
         elem_type.__module__ == "numpy"
         and elem_type.__name__ != "str_"
@@ -362,7 +360,11 @@ def default_collate(batch, padding):
             # array of string classes and object
             if np_str_obj_array_pattern.search(elem.dtype.str) is not None:
                 raise TypeError(default_collate_err_msg_format.format(elem.dtype))
-
+            assert len(elem.shape) <= 2, f"Only conceptually supports 1d and 2d arrays. Current element shape: {elem.shape}"
+            if len(elem.shape) == 2:
+                # Take the max seq length over the final dimension and treat as one batch
+                assert all(map(lambda example : len(example.shape) == 2, batch))
+                batch = [ single_sent for example in batch for single_sent in list(example) ]
             return default_collate(
                 [torch.as_tensor(b) for b in pad_batch(batch, padding)], padding
             )  # auto padding
@@ -370,7 +372,7 @@ def default_collate(batch, padding):
             return torch.as_tensor(batch)
     elif isinstance(elem, float):
         return torch.tensor(batch, dtype=torch.float32)
-    elif isinstance(elem, int): # Changed this line as well
+    elif isinstance(elem, int):
         return torch.tensor(batch)
     elif isinstance(elem, string_classes):
         return batch

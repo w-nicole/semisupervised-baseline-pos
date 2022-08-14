@@ -205,14 +205,17 @@ class Model(pl.LightningModule):
             len(set(batch["lang"])) == 1
         ), "batch should contain only one language"
         lang = batch["lang"][0]
-
-        for acc_key, current_encoder_outputs in encoder_outputs.items():
-            labels_key = f'{acc_key}_labels'
-            accuracy_type_metric_args = (batch[labels_key], current_encoder_outputs)
-            pos_metric_args = (batch[labels_key], current_encoder_outputs)
-            self.metrics[prefix][lang][f'{acc_key}_acc'].add(*accuracy_type_metric_args)
-            
         number_of_labels = (batch['pos_labels'] != LABEL_PAD_ID).sum()
+            
+        for acc_key, (current_encoder_outputs, current_labels) in encoder_outputs.items():
+            labels_key = f'{acc_key}_labels'
+            accuracy_type_metric_args = (current_labels, current_encoder_outputs)
+            pos_metric_args = (current_labels, current_encoder_outputs)
+            self.metrics[prefix][lang][f'{acc_key}_acc'].add(*accuracy_type_metric_args)
+            if self.hparams.masked and 'pos' in acc_key:
+                assert number_of_labels == current_labels.shape[0]\
+                    and len(current_labels.shape) == 1\
+                    and not torch.any(current_labels == LABEL_PAD_ID)
         
         assert all(map(lambda s : 'acc' not in s, loss_dict.keys())), loss_dict.keys()
         for metric_key in loss_dict:
@@ -416,47 +419,40 @@ class Model(pl.LightningModule):
             scheduler_dict["monitor"] = f"val_all_{self.optimization_loss}_epoch"
         return [optimizer], [scheduler_dict]
         
-
-    def _get_signature(self, params: Dict):
-        def md5_helper(obj):
-            return hashlib.md5(str(obj).encode()).hexdigest()
-
-        signature = dict()
-        for key, val in params.items():
-            if key == "tokenizer" and isinstance(val, transformers.PreTrainedTokenizer):
-                signature[key] = md5_helper(list(val.get_vocab().items()))
-            else:
-                signature[key] = str(val)
-
-        md5 = md5_helper(list(signature.items()))
-        return md5, signature
-
     def prepare_datasets(self, split: str) -> List[Dataset]:
         raise NotImplementedError
 
-    def prepare_datasets_helper(self, data_class, langs, split, max_len, **kwargs):
+    def get_dataset(self, data_class, lang, split, max_len):
+        filepath = data_class.get_file(self.hparams.data_dir, lang, split)
+        if filepath is None:
+            print(f"ignoring, no file found, for {split} language: {lang}")
+            return
+        params = {}
+        params["task"] = self.hparams.task
+        params["tokenizer"] = self.tokenizer
+        params["filepath"] = filepath
+        params["lang"] = lang
+        params["split"] = split
+        params["max_len"] = max_len
+        params['masked'] = self.hparams.masked
+        if split == Split.train:
+            params["subset_ratio"] = self.hparams.subset_ratio
+            params["subset_count"] = self.hparams.subset_count
+            params["subset_seed"] = self.hparams.subset_seed
+        del params["task"]
+        dataset = data_class(**params)
+        return dataset
+        
+    def get_dataset_by_lang_split(self, data_class, lang, split):
+        max_len = hparams.max_trn_len if split == Split.train else hparams.max_tst_len
+        return self.get_dataset(data_class, lang, split, max_len)
+        
+    def prepare_datasets_helper(self, data_class, langs, split, max_len):
         datasets = []
-
         for lang in langs:
-            filepath = data_class.get_file(self.hparams.data_dir, lang, split)
-            if filepath is None:
-                print(f"skipping {split} language: {lang}")
+            dataset = self.get_dataset(data_class, lang, split, max_len)
+            if dataset is None:
                 continue
-            params = {}
-            params["task"] = self.hparams.task
-            params["tokenizer"] = self.tokenizer
-            params["filepath"] = filepath
-            params["lang"] = lang
-            params["split"] = split
-            params["max_len"] = max_len
-            if split == Split.train:
-                params["subset_ratio"] = self.hparams.subset_ratio
-                params["subset_count"] = self.hparams.subset_count
-                params["subset_seed"] = self.hparams.subset_seed
-            params.update(kwargs)
-            md5, signature = self._get_signature(params)
-            del params["task"]
-            dataset = data_class(**params)
             datasets.append(dataset)
         return datasets
 
@@ -568,4 +564,5 @@ class Model(pl.LightningModule):
         # fmt: on
         parser.add_argument("--number_of_workers", default=1, type=int)
         parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
+        parser.add_argument("--masked", default=False, type=util.str2bool)
         return parser

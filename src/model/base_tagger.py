@@ -41,6 +41,7 @@ class BaseTagger(Model):
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
             "pos_labels": LABEL_PAD_ID,
+            'mask_indices' : LABEL_PAD_ID,
         }
 
     @property
@@ -68,11 +69,8 @@ class BaseTagger(Model):
         
     # Below: added
     def get_labels(self, lang, split):
-        dataset = self.get_dataset(lang, split)
-        train_data = dataset.read_file(dataset.filepath, dataset.lang, dataset.split)
-        labels = []
-        for data in train_data:
-            labels.extend(data['labels'])
+        dataset = self.get_dataset_by_lang_split(UdPOS, lang, split)
+        labels = [example['labels'] for example in dataset]
         numerical_labels = torch.Tensor(list(map(lambda label : dataset.label2id[label], labels))).int()
         return numerical_labels
 
@@ -81,26 +79,11 @@ class BaseTagger(Model):
         counts = torch.bincount(numerical_labels, minlength = self.nb_labels)
         return counts
         
-    def get_dataset(self, lang, split):
-        # From model/base.py, adapted to simplify and get English dataset
-        params = {}
-        params["tokenizer"] = self.tokenizer
-        params["filepath"] = tagging.UdPOS.get_file(self.hparams.data_dir, lang, split)
-        params["lang"] = lang
-        params["split"] = split
-        params["max_len"] = self.hparams.max_trn_len
-        if split == Split.train:
-            params["subset_ratio"] = self.hparams.subset_ratio
-            params["subset_count"] = self.hparams.subset_count
-            params["subset_seed"] = self.hparams.subset_seed
-        return UdPOS(**params)
-        # end taken
-        
     def get_unshuffled_dataloader(self, lang, split):
         # Adapted from model/base.py
         collate_fn = partial(util.default_collate, padding=self.padding)
         return DataLoader(
-            self.get_dataset(lang, split),
+            self.get_dataset_by_lang_split(UdPOS, lang, split),
             batch_size=self.hparams.eval_batch_size,
             shuffle=False,
             pin_memory=True,
@@ -114,7 +97,7 @@ class BaseTagger(Model):
         encoder_loss = F.nll_loss(
             log_probs.view(-1, self.nb_labels),
             pos_labels.view(-1),
-            ignore_index=LABEL_PAD_ID,
+            ignore_index=self.padding['pos_labels'],
         )
         return encoder_loss
         
