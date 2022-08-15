@@ -40,8 +40,7 @@ class BaseTagger(Model):
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
-            "pos_labels": LABEL_PAD_ID,
-            'mask_indices' : LABEL_PAD_ID,
+            "pos_labels": LABEL_PAD_ID
         }
 
     @property

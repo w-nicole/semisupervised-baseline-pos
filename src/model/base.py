@@ -166,7 +166,8 @@ class Model(pl.LightningModule):
                 self.metrics[phase][lang] = {}
                 self.custom_logs[phase][lang] = []
                 for metric_key in self.metric_names:
-                    metric = deepcopy(self.name_to_metric[metric_key]) if metric_key in self.name_to_metric else AverageMetric(metric_key)
+                    metric = deepcopy(self.name_to_metric[metric_key])\
+                        if metric_key in self.name_to_metric else AverageMetric(metric_key)
                     self.metrics[phase][lang][metric_key] = metric 
 
     def reset_metrics(self, phase):
@@ -210,13 +211,8 @@ class Model(pl.LightningModule):
         for acc_key, (current_encoder_outputs, current_labels) in encoder_outputs.items():
             labels_key = f'{acc_key}_labels'
             accuracy_type_metric_args = (current_labels, current_encoder_outputs)
-            pos_metric_args = (current_labels, current_encoder_outputs)
             self.metrics[prefix][lang][f'{acc_key}_acc'].add(*accuracy_type_metric_args)
-            if self.hparams.masked and 'pos' in acc_key:
-                assert number_of_labels == current_labels.shape[0]\
-                    and len(current_labels.shape) == 1\
-                    and not torch.any(current_labels == LABEL_PAD_ID)
-        
+            
         assert all(map(lambda s : 'acc' not in s, loss_dict.keys())), loss_dict.keys()
         for metric_key in loss_dict:
             if metric_key in 'lang': continue
