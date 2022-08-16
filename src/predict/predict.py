@@ -16,7 +16,7 @@ def get_all_predictions(model, langs, phase):
     for lang in langs:
         trainer = pl.Trainer(gpus = 1 if torch.cuda.is_available() else 0)
         model.reset_metrics('val')
-        dataloader = model.get_dataloader(lang, phase if phase != 'val' else Split.dev)
+        dataloader = model.get_unshuffled_dataloader(lang, phase if phase != 'val' else Split.dev)
         predictions[lang] = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
         try:
             predictions[lang] = [output[1]['pos'].exp() for output in predictions[lang]]

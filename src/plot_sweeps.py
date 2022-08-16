@@ -76,9 +76,9 @@ def heatmap_matches(template, searched_hparams, analysis_path, cast_as, langs):
     
 if __name__ == '__main__':
     
-    sweep_id, sweep_name = 'vhl60shd', 'subset'
-    grid_hparams = ['subset_ratio', 'mse_weight']
-    cast_as = [float, float]
+    sweep_name = 'subset_number_mse_0'
+    grid_hparams = ['subset_count']
+    cast_as = [int]
     langs = ['English']
    
     sweep_path = f'./experiments/sweeps/{sweep_name}'

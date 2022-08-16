@@ -181,8 +181,6 @@ def add_training_arguments(parser):
     # Below: changed do_test to False as this script doesn't support testing.
     parser.add_argument("--do_test", default=False, type=str2bool)
     parser.add_argument("--checkpoint", default="", type=str)
-    parser.add_argument("--cache_dataset", default=False, type=str2bool)
-    parser.add_argument("--cache_path", default="", type=str)
     ############################################################################
     parser.add_argument("--default_save_path", default="./", type=str)
     parser.add_argument("--gradient_clip_val", default=0, type=float)
@@ -192,7 +190,6 @@ def add_training_arguments(parser):
     parser.add_argument("--track_grad_norm", default=-1, type=int)
     parser.add_argument("--check_val_every_n_epoch", default=1, type=int)
     # added below line
-    parser.add_argument("--target_language", default="", type=str)
     parser.add_argument("--fast_dev_run", default=False, type=str2bool)
     parser.add_argument("--accumulate_grad_batches", default=1, type=int)
     parser.add_argument("--max_epochs", default=1000, type=int)
@@ -351,10 +348,8 @@ def default_collate(batch, padding):
             numel = sum([x.numel() for x in batch])
             storage = elem.storage()._new_shared(numel)
             out = elem.new(storage)
-        # Added assert and cast
         assert all([ torch.all(elem.long() == elem) for elem in batch ])
         return torch.stack([ elem.long() for elem in batch ] , 0, out=out)
-        # end additions
     elif (
         elem_type.__module__ == "numpy"
         and elem_type.__name__ != "str_"
@@ -365,7 +360,7 @@ def default_collate(batch, padding):
             # array of string classes and object
             if np_str_obj_array_pattern.search(elem.dtype.str) is not None:
                 raise TypeError(default_collate_err_msg_format.format(elem.dtype))
-
+            assert len(elem.shape) == 1, f"Only conceptually supports 1d arrays. Current element shape: {elem.shape}"
             return default_collate(
                 [torch.as_tensor(b) for b in pad_batch(batch, padding)], padding
             )  # auto padding
@@ -373,7 +368,7 @@ def default_collate(batch, padding):
             return torch.as_tensor(batch)
     elif isinstance(elem, float):
         return torch.tensor(batch, dtype=torch.float32)
-    elif isinstance(elem, int): # Changed this line as well
+    elif isinstance(elem, int):
         return torch.tensor(batch)
     elif isinstance(elem, string_classes):
         return batch
@@ -432,50 +427,3 @@ class ConcatSampler(Sampler):
         n = self.samples_per_dataset
         return sum([len(d) // n * n for d in self.concat_dataset.datasets])
         
-
-def masked_log_softmax(
-    vector: torch.Tensor, mask: torch.Tensor, dim: int = -1
-) -> torch.Tensor:
-    """
-    ``torch.nn.functional.log_softmax(vector)`` does not work if some elements of
-    ``vector`` should be masked.  This performs a log_softmax on just the non-masked
-    portions of ``vector``.  Passing ``None`` in for the mask is also acceptable; you'll
-    just get a regular log_softmax.
-
-    ``vector`` can have an arbitrary number of dimensions; the only requirement is that
-    ``mask`` is broadcastable to ``vector's`` shape.  If ``mask`` has fewer dimensions
-    than ``vector``, we will unsqueeze on dimension 1 until they match.  If you need a
-    different unsqueezing of your mask, do it yourself before passing the mask into this
-    function.
-
-    In the case that the input vector is completely masked, the return value of this
-    function is arbitrary, but not ``nan``.  You should be masking the result of whatever
-    computation comes out of this in that case, anyway, so the specific values returned
-    shouldn't matter.  Also, the way that we deal with this case relies on having
-    single-precision floats; mixing half-precision floats with fully-masked vectors will
-    likely give you ``nans``.
-
-    If your logits are all extremely negative (i.e., the max value in your logit vector
-    is -50 or lower), the way we handle masking here could mess you up.  But if you've
-    got logit values that extreme, you've got bigger problems than this.
-    """
-    if mask is not None:
-        mask = mask.float()
-        while mask.dim() < vector.dim():
-            mask = mask.unsqueeze(1)
-        # vector + mask.log() is an easy way to zero out masked elements in logspace, but
-        # it results in nans when the whole vector is masked.  We need a very small value
-        # instead of a zero in the mask for these cases.  log(1 + 1e-45) is still
-        # basically 0, so we can safely just add 1e-45 before calling mask.log().  We use
-        # 1e-45 because 1e-46 is so small it becomes 0 - this is just the smallest value
-        # we can actually use.
-        vector = vector + (mask + 1e-45).log()
-    return F.log_softmax(vector, dim=dim)
-    
-    
-# Added the below
-def get_folder_from_checkpoint_path(checkpoint_path):
-    path_components = checkpoint_path.split('/')
-    folder = '/'.join(path_components[:-2])
-    return folder
-# end additions

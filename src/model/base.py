@@ -1,24 +1,6 @@
 
-# Taken from Shijie Wu's crosslingual-nlp repository.
+# Adapted from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
-
-# Changes made relative to original include:
-# Changed hyperparameters to match those in the paper,
-# Added averaging behavior.
-# Changed to not support weighted features, but instead a concatenation of all hidden representations.
-# Changed to support single hidden layer MLP.
-# Changed `comparsion` to `comparison_mode`
-# Added support for logging train metrics and non-accuracy metrics.
-# Changed forward to __call__.
-# Changed logging methodology, added train logging, and moved to wandb.
-# Removed epochwise train metrics.
-# Changed checkpointing metric for compatibility with wandb logging.
-# Removed ._metric
-# Added manual dump of yaml.
-# Plateau monitor changed to be epoch, on target language.
-# Added extra custom logging maintenance and logic
-# Added third return for __call__ for compatibility.
-# Removed dropout
 
 import hashlib
 import json
@@ -41,15 +23,13 @@ from transformers import AutoConfig, AutoModel, AutoTokenizer
 
 import constant
 import util
-from dataset.base import Dataset
+from dataset.base import Dataset, LABEL_PAD_ID
 from enumeration import Schedule, Split, Task
-from metric import Metric, POSMetric, AverageMetric, LABEL_PAD_ID
+from metric import Metric, POSMetric, AverageMetric
 
 import wandb
 import math
 import yaml
-import plotly.express as px
-    
 
 class Model(pl.LightningModule):
     def __init__(self, hparams):
@@ -57,7 +37,6 @@ class Model(pl.LightningModule):
         self.optimizer = None
         self.scheduler = None
         self.metric_names = None
-        # Changed below to account for train and other metrics.
         self.metrics: Dict[str, Dict[str, Dict[str, Metric]]] = defaultdict(dict)
         self.trn_datasets: List[Dataset] = None
         self.val_datasets: List[Dataset] = None
@@ -65,7 +44,6 @@ class Model(pl.LightningModule):
         self.padding: Dict[str, int] = {}
         self.base_dir: str = ""
         
-        # below line: added
         self.optimization_loss = None
 
         self._batch_per_epoch: int = -1
@@ -77,35 +55,24 @@ class Model(pl.LightningModule):
         self.save_hyperparameters(hparams)
         pl.seed_everything(hparams.seed)
         
-        # Added the following
         self.run_phases = [Split.train, 'val', Split.test]
         self.concat_all_hidden_states = self.hparams.concat_all_hidden_states
-        self.losses = []
         
-        # end additions
-
         self.tokenizer = AutoTokenizer.from_pretrained(hparams.pretrain)
-        # Changed below to correspond to classmethod
         self.encoder_mbert = self.build_model(self.hparams.pretrain)
         self.freeze_layers()
          # Override layer specification if instead should freeze the whole thing
         if self.hparams.freeze_mbert:
             self.freeze_bert(self)
 
-        # Removed dropout
-        
-        # Added below
         self.name_to_metric = {
-            'pos_acc' : POSMetric('pos'),
-            'token_acc' : POSMetric('token'),
-            'pmi_pos_acc' : POSMetric('pmi_pos')
+            'pos_acc' : POSMetric('pos')
         }
         self.monitor_acc_key = 'pos'
         
         # Structure: dict[phase][lang] = [{metric_key : value}]
         self.custom_logs = defaultdict(dict)
 
-    # Changed below to accept pretrain as argument so classmethod works.
     @classmethod
     def build_model(self, pretrain):
         config = AutoConfig.from_pretrained(
@@ -149,12 +116,9 @@ class Model(pl.LightningModule):
         util.freeze(self.encoder_mbert.embeddings)
             
     def freeze_bert(self, encoder):
-        # Adapted from model/base.py by taking the logic to freeze up to and including a certain layer
-        # Doesn't freeze the pooler, but encode_sent excludes pooler correctly.
         encoder.freeze_embeddings()
         for index in range(encoder.encoder_mbert.config.num_hidden_layers + 1):
             encoder.freeze_layer(index)
-        # end adapted
    
     def freeze_layer(self, layer):
         util.freeze(self.encoder_mbert.encoder.layer[layer - 1])
@@ -162,13 +126,11 @@ class Model(pl.LightningModule):
     @property
     def mbert_output_size(self):
         # hidden_size = the input to the classifier
-        # Added logic for concatenated embeddings
         single_layer_size = self.encoder_mbert.config.hidden_size
         if not self.concat_all_hidden_states:
             return single_layer_size
         else:
             return single_layer_size * (self.encoder_mbert.config.num_hidden_layers + 1)
-        # end added
         
     @property
     def batch_per_epoch(self):
@@ -191,8 +153,6 @@ class Model(pl.LightningModule):
         assert self._comparison_mode is not None
         return self._comparison_mode
 
-    # Below: changes due to 3d metric dict and no ._metric,
-    # limited metric initialization to match dataloader metrics
     def setup_metrics(self):
         langs = self.hparams.trn_langs + self.hparams.val_langs + self.hparams.tst_langs
         langs = sorted(list(set(langs)))
@@ -206,10 +166,10 @@ class Model(pl.LightningModule):
                 self.metrics[phase][lang] = {}
                 self.custom_logs[phase][lang] = []
                 for metric_key in self.metric_names:
-                    metric = deepcopy(self.name_to_metric[metric_key]) if metric_key in self.name_to_metric else AverageMetric(metric_key)
+                    metric = deepcopy(self.name_to_metric[metric_key])\
+                        if metric_key in self.name_to_metric else AverageMetric(metric_key)
                     self.metrics[phase][lang][metric_key] = metric 
 
-    # Below: changed to permit train logging
     def reset_metrics(self, phase):
         for all_metrics in self.metrics[phase].values():
             for metric in all_metrics.values():
@@ -219,7 +179,6 @@ class Model(pl.LightningModule):
         mask = (sent != self.tokenizer.pad_token_id).long()
         return mask
     
-    # Changed below to make the model explicitly specified.
     def encode_sent(
         self,
         mbert: transformers.PreTrainedModel,
@@ -241,36 +200,23 @@ class Model(pl.LightningModule):
             hs = hidden_states[self.hparams.feature_layer]
         return hs
         
-    def number_of_supervised_labels(self, batch):
-        assert len(batch['pos_labels'].shape) == 2
-        labeled_mask = batch['is_supervised'].unsqueeze(1).repeat(1, batch['pos_labels'].shape[1])
-        is_supervised_mask = (batch['pos_labels'] != LABEL_PAD_ID) & (labeled_mask == 1)
-        return is_supervised_mask.sum()
-        
     def step_helper(self, batch, prefix):
         loss_dict, encoder_outputs, _ = self.__call__(batch)
         assert (
             len(set(batch["lang"])) == 1
         ), "batch should contain only one language"
         lang = batch["lang"][0]
-        
-        # World model assumption, is not required by number_of_supervised_labels or latent_base/mask_tensor_to_supervised
-        assert torch.all((batch['is_supervised'] == 0) | (batch['is_supervised'] == 1)), torch.unique(batch['is_supervised'])
-        
-        for acc_key, current_encoder_outputs in encoder_outputs.items():
+        number_of_labels = (batch['pos_labels'] != LABEL_PAD_ID).sum()
+            
+        for acc_key, (current_encoder_outputs, current_labels) in encoder_outputs.items():
             labels_key = f'{acc_key}_labels'
-            accuracy_type_metric_args = (batch[labels_key], current_encoder_outputs)
-            pos_metric_args = (batch[labels_key], current_encoder_outputs)
+            accuracy_type_metric_args = (current_labels, current_encoder_outputs)
             self.metrics[prefix][lang][f'{acc_key}_acc'].add(*accuracy_type_metric_args)
             
-        number_of_true_labels = (batch['pos_labels'] != LABEL_PAD_ID).sum()
-        number_of_supervised_labels = self.number_of_supervised_labels(batch)
-        
         assert all(map(lambda s : 'acc' not in s, loss_dict.keys())), loss_dict.keys()
         for metric_key in loss_dict:
             if metric_key in 'lang': continue
             value = loss_dict[metric_key]
-            number_of_labels = number_of_supervised_labels if 'supervised' in metric_key else number_of_true_labels
             self.metrics[prefix][lang][metric_key].add(value, number_of_labels)
             
         return loss_dict
@@ -304,10 +250,6 @@ class Model(pl.LightningModule):
             for metric_key, metric_value in modified_loss_dict.items():
                 self.log(metric_key, metric_value)
 
-    # Moved from model/tagger.py.    
-    # Changed below to be compatible with later models' loss_dict
-    # and to do accuracy updates and wandb logging
-    # Removed train self.log of loss
     def training_step(self, batch, batch_idx):
         loss_dict = self.step_helper(batch, 'train')
         loss_dict['loss'] = loss_dict[self.optimization_loss]
@@ -332,14 +274,8 @@ class Model(pl.LightningModule):
         assert all(batch['lang'][0] == elem for elem in batch['lang']), set(batch['lang'])
         loss_dict.update({'lang' : batch['lang'][0]})
 
-    # Changed training_epoch_end
-    # Removed aggregate_outputs and moved logic to be weighted losses on aggregate_metrics.
-
-    # Changed prefix to phase to mark meaning
-    # Added global train step
     def aggregate_metrics(self, langs: List[str], phase: str):
         aver_metric = defaultdict(list)
-        unsupervised_aver_metric = defaultdict(list)
         for lang in langs:
             current_metrics = { 'trainer/global_step' : self.global_step }
             for metric_key in self.metric_names:
@@ -348,8 +284,6 @@ class Model(pl.LightningModule):
                     logging_key = f"{phase}_{lang}_{key}_epoch"
                     current_metrics.update({logging_key : val})
                     aver_metric[key].append(val)
-                    if lang != constant.SUPERVISED_LANGUAGE:
-                        unsupervised_aver_metric[key].append(val)
                     self.log(logging_key, val)
                     if f'{self.monitor_acc_key}_acc' in logging_key:
                         best_key = f'best_{logging_key}'
@@ -360,25 +294,17 @@ class Model(pl.LightningModule):
             #     self.custom_logs[phase][lang].append(custom_log_dict)
         
         for key, vals in aver_metric.items():
-            try:
-                self.log(f"{phase}_all_{key}_epoch", torch.stack(vals).mean())
-            except: import pdb; pdb.set_trace()
-        for key, vals in unsupervised_aver_metric.items():
-            self.log(f"{phase}_unsupervised_all_{key}_epoch", torch.stack(vals).mean())
+            self.log(f"{phase}_all_{key}_epoch", torch.stack(vals).mean())
 
     def training_epoch_end(self, outputs):
         self.aggregate_metrics(self.hparams.trn_langs, 'train')
         
-    # Added skip sanity check in logging
-    # Below functions: fixed strings to phase names
     def validation_epoch_end(self, outputs):
         if self.trainer.sanity_checking: return
         self.aggregate_metrics(self.hparams.val_langs, 'val')
 
     def test_epoch_end(self, outputs):
         self.aggregate_metrics(self.hparams.tst_langs, Split.test)
-        return
-    # end changes
 
     def get_warmup_and_total_steps(self):
         if self.hparams.max_steps is not None:
@@ -397,10 +323,6 @@ class Model(pl.LightningModule):
         else:
             warmup_steps = 1
         return warmup_steps, max_steps
-        
-    # Split configure_optimizers to add two different learning rates
-    # but preserve no decay on certain parameters.
-    # Split logic to reuse it by moving into split_parameters.
     
     def split_parameters(self, named_parameters, match_templates):
         assert isinstance(match_templates, list), f"Check if {match_templates} is a string."
@@ -431,7 +353,7 @@ class Model(pl.LightningModule):
         }
         return with_weight_decay, no_weight_decay
 
-    # Split up the learning rates and optimization of bert vs not below
+    
     def configure_optimizers(self):
         named_optimizer_grouped_parameters = []
         other_split_hparams = {
@@ -493,63 +415,40 @@ class Model(pl.LightningModule):
             scheduler_dict["monitor"] = f"val_all_{self.optimization_loss}_epoch"
         return [optimizer], [scheduler_dict]
         
-
-    def _get_signature(self, params: Dict):
-        def md5_helper(obj):
-            return hashlib.md5(str(obj).encode()).hexdigest()
-
-        signature = dict()
-        for key, val in params.items():
-            if key == "tokenizer" and isinstance(val, transformers.PreTrainedTokenizer):
-                signature[key] = md5_helper(list(val.get_vocab().items()))
-            else:
-                signature[key] = str(val)
-
-        md5 = md5_helper(list(signature.items()))
-        return md5, signature
-
     def prepare_datasets(self, split: str) -> List[Dataset]:
         raise NotImplementedError
 
-    def prepare_datasets_helper(self, data_class_dict, langs, split, max_len, **kwargs):
+    def get_dataset(self, data_class, lang, split, max_len):
+        filepath = data_class.get_file(self.hparams.data_dir, lang, split)
+        if filepath is None:
+            print(f"ignoring, no file found, for {split} language: {lang}")
+            return
+        params = {}
+        params["task"] = self.hparams.task
+        params["tokenizer"] = self.tokenizer
+        params["filepath"] = filepath
+        params["lang"] = lang
+        params["split"] = split
+        params["max_len"] = max_len
+        params['masked'] = self.hparams.masked
+        if split == Split.train:
+            params["subset_ratio"] = self.hparams.subset_ratio
+            params["subset_count"] = self.hparams.subset_count
+            params["subset_seed"] = self.hparams.subset_seed
+        del params["task"]
+        dataset = data_class(**params)
+        return dataset
+        
+    def get_dataset_by_lang_split(self, data_class, lang, split):
+        max_len = hparams.max_trn_len if split == Split.train else hparams.max_tst_len
+        return self.get_dataset(data_class, lang, split, max_len)
+        
+    def prepare_datasets_helper(self, data_class, langs, split, max_len):
         datasets = []
-
         for lang in langs:
-            is_supervised_language = lang == constant.SUPERVISED_LANGUAGE
-            key = 'supervised' if is_supervised_language else 'unsupervised'
-            data_class = data_class_dict[key]
-            filepath = data_class.get_file(self.hparams.data_dir, lang, split)
-            if filepath is None:
-                print(f"skipping {split} language: {lang}")
+            dataset = self.get_dataset(data_class, lang, split, max_len)
+            if dataset is None:
                 continue
-            params = {}
-            params["task"] = self.hparams.task
-            params["tokenizer"] = self.tokenizer
-            params["filepath"] = filepath
-            params["lang"] = lang
-            params["split"] = split
-            params["max_len"] = max_len
-            if split == Split.train:
-                params["subset_ratio"] = self.hparams.subset_ratio
-                params["subset_count"] = self.hparams.subset_count
-                params["subset_seed"] = self.hparams.subset_seed
-            params.update(kwargs)
-            md5, signature = self._get_signature(params)
-            del params["task"]
-            cache_file = f"{self.hparams.cache_path}/{md5}"
-            if self.hparams.cache_dataset and os.path.isfile(cache_file):
-                print(f"load from cache {filepath} with {self.hparams.pretrain}")
-                dataset = torch.load(cache_file)
-            else:
-                args = (params,)
-                if is_supervised_language:
-                    args += (self.hparams.use_rest_unsupervised,)
-                dataset = data_class(*args)
-                if self.hparams.cache_dataset:
-                    print(f"save to cache {filepath} with {self.hparams.pretrain}")
-                    torch.save(dataset, cache_file)
-                    with open(f"{cache_file}.json", "w") as fp:
-                        json.dump(signature, fp)
             datasets.append(dataset)
         return datasets
 
@@ -557,14 +456,12 @@ class Model(pl.LightningModule):
         if self.trn_datasets is None:
             self.trn_datasets = self.prepare_datasets(Split.train)
 
-        # Renamed collate to collate_fn due to import
         collate_fn = partial(util.default_collate, padding=self.padding)
         if len(self.trn_datasets) == 1:
             dataset = self.trn_datasets[0]
             sampler = RandomSampler(dataset)
         else:
             dataset = ConcatDataset(self.trn_datasets)
-            # Removed mix_sampling logic.
             sampler = util.ConcatSampler(dataset, self.hparams.batch_size)
 
         return DataLoader(
@@ -582,7 +479,6 @@ class Model(pl.LightningModule):
         if self.val_datasets is None:
             self.val_datasets = self.prepare_datasets(Split.dev)
 
-        # Renamed collate to collate_fn due to import
         collate_fn = partial(util.default_collate, padding=self.padding)
         return [
             DataLoader(
@@ -601,7 +497,6 @@ class Model(pl.LightningModule):
         if self.tst_datasets is None:
             self.tst_datasets = self.prepare_datasets(Split.test)
 
-        # Renamed collate to collate_fn due to import
         collate_fn = partial(util.default_collate, padding=self.padding)
         return [
             DataLoader(
@@ -618,7 +513,6 @@ class Model(pl.LightningModule):
         
     @classmethod
     def add_layer_stack_args(cls, parser, modifier):
-        # Manually made these the same as default latent.
         parser.add_argument(f"--{modifier}_hidden_layers", default=1, type=int)
         parser.add_argument(f"--{modifier}_hidden_size", default=64, type=int)
         parser.add_argument(f"--{modifier}_model_type", default='linear', type=str)
@@ -626,11 +520,9 @@ class Model(pl.LightningModule):
 
     @classmethod
     def add_model_specific_args(cls, parent_parser):
-        # Changes: Removed irrelevant arguments generally here.
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
         # fmt: off
         # shared
-        # below: changed to default
         parser.add_argument("--task", default="udpos", type=str)
         parser.add_argument("--data_dir", required=True, type=str)
         parser.add_argument("--trn_langs", required=True, nargs="+", type=str)
@@ -641,19 +533,14 @@ class Model(pl.LightningModule):
         parser.add_argument("--subset_ratio", default=1.0, type=float)
         parser.add_argument("--subset_count", default=-1, type=int)
         parser.add_argument("--subset_seed", default=42, type=int)
-        # Removed mix_sampling.
         # encoder
         # Changed pretrain to be set to default.
         parser.add_argument("--pretrain", default="bert-base-multilingual-cased", type=str)
         parser.add_argument("--freeze_layer", default=-1, type=int)
         parser.add_argument("--feature_layer", default=-1, type=int)
-        # Below additions
         parser.add_argument("--use_hidden_layer", default=False, type=util.str2bool)
         parser.add_argument("--hidden_layer_size", default=-1, type=int)
-        # end additions
-        # Below line: changed from providing weighted features to a concatenated all hidden states
         parser.add_argument("--concat_all_hidden_states", default=False, type=util.str2bool)
-        # Changed to remove all types of dropout
         # misc
         parser.add_argument("--seed", default=42, type=int)
         # Split the learning rates below
@@ -671,8 +558,7 @@ class Model(pl.LightningModule):
         # Changed below warmup portion to match the paper.
         parser.add_argument("--warmup_portion", default=0.1, type=float)
         # fmt: on
-        # Added below
         parser.add_argument("--number_of_workers", default=1, type=int)
         parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
-        parser.add_argument("--use_rest_unsupervised", default=False, type=util.str2bool)
+        parser.add_argument("--masked", default=False, type=util.str2bool)
         return parser

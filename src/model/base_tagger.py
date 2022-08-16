@@ -21,8 +21,7 @@ import torch.nn.functional as F
 from functools import partial # added this from model/base.py
 
 import util
-from metric import LABEL_PAD_ID # changed this from dataset import
-from dataset import Dataset, UdPOS, SupervisedUdPOS, UnsupervisedUdPOS
+from dataset import Dataset, UdPOS, LABEL_PAD_ID
 from enumeration import Split, Task
 from model.base import Model
 
@@ -38,14 +37,10 @@ class BaseTagger(Model):
         self._nb_labels: Optional[int] = None
         self._nb_labels = UdPOS.nb_labels()
         
-        # Added/edited
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
             "lang": 0,
-            "pos_labels": LABEL_PAD_ID,
-            "token_labels" : LABEL_PAD_ID,
-            "is_supervised" : LABEL_PAD_ID,
-            # end changes
+            "pos_labels": LABEL_PAD_ID
         }
 
     @property
@@ -53,36 +48,28 @@ class BaseTagger(Model):
         assert self._nb_labels is not None
         return self._nb_labels
 
-    # Moved training_step to base.py.
-    
-    # Removed loss logging in original evaluation_step_helper
-    # because handled in event and not checkpointing on it.
-
     def prepare_datasets(self, split: str) -> List[Dataset]:
         hparams = self.hparams
-        data_class_dict = { 'supervised' : SupervisedUdPOS, 'unsupervised' : UnsupervisedUdPOS }
+        data_class = UdPOS
         if split == Split.train:
             return self.prepare_datasets_helper(
-                data_class_dict, hparams.trn_langs, Split.train, hparams.max_trn_len
+                data_class, hparams.trn_langs, Split.train, hparams.max_trn_len
             )
         elif split == Split.dev:
             return self.prepare_datasets_helper(
-                data_class_dict, hparams.val_langs, Split.dev, hparams.max_tst_len
+                data_class, hparams.val_langs, Split.dev, hparams.max_tst_len
             )
         elif split == Split.test:
             return self.prepare_datasets_helper(
-                data_class_dict, hparams.tst_langs, Split.test, hparams.max_tst_len
+                data_class, hparams.tst_langs, Split.test, hparams.max_tst_len
             )
         else:
             raise ValueError(f"Unsupported split: {hparams.split}")
         
     # Below: added
     def get_labels(self, lang, split):
-        dataset = self.get_dataset(lang, split)
-        train_data = dataset.read_file(dataset.filepath, dataset.lang, dataset.split)
-        labels = []
-        for data in train_data:
-            labels.extend(data['labels'])
+        dataset = self.get_dataset_by_lang_split(UdPOS, lang, split)
+        labels = [example['labels'] for example in dataset]
         numerical_labels = torch.Tensor(list(map(lambda label : dataset.label2id[label], labels))).int()
         return numerical_labels
 
@@ -91,31 +78,17 @@ class BaseTagger(Model):
         counts = torch.bincount(numerical_labels, minlength = self.nb_labels)
         return counts
         
-    def get_dataset(self, lang, split):
-        # From model/base.py, adapted to simplify and get English dataset
-        params = {}
-        params["tokenizer"] = self.tokenizer
-        params["filepath"] = tagging.UdPOS.get_file(self.hparams.data_dir, lang, split)
-        params["lang"] = lang
-        params["split"] = split
-        params["max_len"] = self.hparams.max_trn_len
-        params["subset_ratio"] = self.hparams.subset_ratio
-        params["subset_count"] = self.hparams.subset_count
-        params["subset_seed"] = self.hparams.subset_seed
-        return tagging.UdPOS(**params)
-        # end taken
-        
-    def get_dataloader(self, lang, split):
+    def get_unshuffled_dataloader(self, lang, split):
         # Adapted from model/base.py
         collate_fn = partial(util.default_collate, padding=self.padding)
         return DataLoader(
-                self.get_dataset(lang, split),
-                batch_size=self.hparams.eval_batch_size,
-                shuffle=False,
-                pin_memory=True,
-                drop_last=False,
-                collate_fn=collate_fn,
-                num_workers=1,
+            self.get_dataset_by_lang_split(UdPOS, lang, split),
+            batch_size=self.hparams.eval_batch_size,
+            shuffle=False,
+            pin_memory=True,
+            drop_last=False,
+            collate_fn=collate_fn,
+            num_workers=1,
         )
         # end adapted
         
@@ -123,7 +96,7 @@ class BaseTagger(Model):
         encoder_loss = F.nll_loss(
             log_probs.view(-1, self.nb_labels),
             pos_labels.view(-1),
-            ignore_index=LABEL_PAD_ID,
+            ignore_index=self.padding['pos_labels'],
         )
         return encoder_loss
         
