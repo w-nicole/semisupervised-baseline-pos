@@ -8,11 +8,11 @@ parameters:
     val_langs:
         value: ["English"]
     default_save_path:
-        value: "./experiments/subset/masked"
+        value: "./experiments/subset/unmasked"
     group:
         value: "subset"
     job_type:
-        value: "true_masked"
+        value: "unmasked"
     subset_count:
         values: [1, 2, 5, 10, 50, 100, 500, 1000, 1500]
     seed:
@@ -41,8 +41,6 @@ parameters:
         value: 1
     freeze_mbert:
         value: no
-    masked:
-        value: yes
 command:
     - ${env}
     - "python3"
