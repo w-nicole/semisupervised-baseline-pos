@@ -23,8 +23,8 @@ from torch._six import string_classes
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import ConcatDataset, RandomSampler, Sampler
 
-from enumeration import Task
 import wandb
+from enumeration import Task
 
 apply_gpu = lambda item : item.cuda() if torch.cuda.is_available() else item
 remove_from_gpu = lambda tensor : tensor.detach().cpu() if torch.cuda.is_available() else tensor.detach()
@@ -33,6 +33,32 @@ def get_folder_from_checkpoint_path(checkpoint_path):
     path_components = checkpoint_path.split('/')
     folder = '/'.join(path_components[:-2])
     return folder
+    
+def get_full_set_model(model_class, is_masked):
+    full_set_model_args = {
+        'data_dir' : "../../ud-treebanks-v1.4",
+        'trn_langs' : 'English',
+        'val_langs' : 'English',
+        'masked' : 'y' if is_masked else 'n'
+    }
+    parser = model_class.add_model_specific_args(ArgumentParser())
+    args = [ arg for arg_name, arg_value in full_set_model_args.items() for arg in [f'--{arg_name}', arg_value] ]
+    full_set_model_args = parser.parse_args(args)
+    model = model_class(full_set_model_args)
+    return model
+    
+def assert_full_set_model(full_set_model):
+    assert full_set_model.hparams.subset_ratio == 1 and full_set_model.hparams.subset_count == -1,\
+        "model provided will not provide entire train set. Is this delieberate?"
+    
+def get_full_set_dataloader(full_set_model, lang, split):
+    assert_full_set_model(full_set_model)
+    return full_set_model.get_unshuffled_dataloader(lang, split)
+    
+def get_full_set_labels(full_set_model, lang, split):
+    assert_full_set_model(full_set_model)
+    return full_set_model.get_flat_labels(lang, split)
+    
     
 def train_call(model_class):
     parser = ArgumentParser()
