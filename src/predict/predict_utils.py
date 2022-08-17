@@ -7,7 +7,7 @@ import util
 import metric
 
 def get_padded_labels(model, lang, phase):
-    dataloader = model.get_dataloader(lang, Split.dev if phase == 'val' else phase)
+    dataloader = model.get_unshuffled_dataloader(lang, Split.dev if phase == 'val' else phase)
     raw_labels = []
     for batch in dataloader:
         raw_labels.append(batch['pos_labels'].flatten())

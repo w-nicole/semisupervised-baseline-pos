@@ -440,7 +440,7 @@ class Model(pl.LightningModule):
         return dataset
         
     def get_dataset_by_lang_split(self, data_class, lang, split):
-        max_len = hparams.max_trn_len if split == Split.train else hparams.max_tst_len
+        max_len = self.hparams.max_trn_len if split == Split.train else self.hparams.max_tst_len
         return self.get_dataset(data_class, lang, split, max_len)
         
     def prepare_datasets_helper(self, data_class, langs, split, max_len):

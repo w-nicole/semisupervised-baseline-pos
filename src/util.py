@@ -1,21 +1,12 @@
 
-# Taken from Shijie Wu's crosslingual-nlp repository.
+# Adapted from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
 
-# Changes made relative to original:
-# Changed some types to fix compile/inability to run errors.
-# Added cast and assert to avoid runtime error regarding type casting.
-# Removed irrelevant code,
-# Added logging and metrics reset for train, changed reset logic.
-# Merged imports from train.py, added new imports
-
 import argparse
-# added below line
 from argparse import ArgumentParser, Namespace
 import json
 import os
 import re
-# added below line
 import yaml
 from typing import Dict
 
@@ -23,46 +14,29 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# added below line
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.base import Callback
 
-# Changed the lines below
 import collections.abc as container_abcs 
 from torch._six import string_classes
-# end changes
 
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import ConcatDataset, RandomSampler, Sampler
 
-# added below
 from enumeration import Task
 import wandb
 
-# added below
 apply_gpu = lambda item : item.cuda() if torch.cuda.is_available() else item
 remove_from_gpu = lambda tensor : tensor.detach().cpu() if torch.cuda.is_available() else tensor.detach()
-# end additions
 
-# Reorganized below from the train file in original.
-# Below two functions taken/reorganized from Shijie Wu's crosslingual-nlp repository.
-# See LICENSE in this codebase for license information.
-
-# Changes made relative to original:
-# Changed amp_level to be dependent on CPU to permit running on CPU.
-# Removed testing and irrelevant code (such as unsupported methods from the previous codebase)
-# Removed resume training, caching.
-# Added wandb code, removed Tensorboard.
-# Added imports as needed
-# Added explicit model directory creation code and removed previous version
-# Changed comparsion -> comparison_mode
-# Added manual hparam to yaml save
-
+def get_folder_from_checkpoint_path(checkpoint_path):
+    path_components = checkpoint_path.split('/')
+    folder = '/'.join(path_components[:-2])
+    return folder
+    
 def train_call(model_class):
     parser = ArgumentParser()
-    # Moved below logic to separate function
     parser = add_training_arguments(parser)
-    # Moved argument adding logic to model-internal
     parser = model_class.add_model_specific_args(parser)
     hparams = parser.parse_args()
     train_main(hparams, model_class)
@@ -171,7 +145,6 @@ def train_main(raw_hparams, model_class):
         print('Will not perform testing, as this script does not test.')
     
 def add_training_arguments(parser):
-    # Changed below exp_name -> name to match the wandb scheme
     parser.add_argument("--name", default="", type=str)
     parser.add_argument("--min_delta", default=1e-3, type=float)
     parser.add_argument("--patience", default=10, type=int)
@@ -189,7 +162,6 @@ def add_training_arguments(parser):
     parser.add_argument("--overfit_batches", default=0.0, type=float)
     parser.add_argument("--track_grad_norm", default=-1, type=int)
     parser.add_argument("--check_val_every_n_epoch", default=1, type=int)
-    # added below line
     parser.add_argument("--fast_dev_run", default=False, type=str2bool)
     parser.add_argument("--accumulate_grad_batches", default=1, type=int)
     parser.add_argument("--max_epochs", default=1000, type=int)
@@ -197,26 +169,21 @@ def add_training_arguments(parser):
     parser.add_argument("--max_steps", default=None, type=int)
     parser.add_argument("--min_steps", default=None, type=int)
     parser.add_argument("--val_check_interval", default=1.0, type=float)
-    # changed below default value
     parser.add_argument("--log_every_n_steps", default=1, type=int)
     parser.add_argument("--accelerator", default=None, type=str)
     parser.add_argument("--precision", default=32, type=int)
     parser.add_argument("--resume_from_checkpoint", default=None, type=str)
     parser.add_argument("--amp_backend", default="native", type=str)
     # only used for non-native amp
-    # Changed to below to permit running on CPU
     parser.add_argument("--amp_level", default="01" if torch.cuda.is_available() else None, type=str)
-    # below: added
     parser.add_argument("--log_wandb", default=True, type=str2bool)
     parser.add_argument("--log_frequency", default=1, type=int)
     parser.add_argument("--group", default="", type=str)
     parser.add_argument("--job_type", default="", type=str)
     parser.add_argument("--hyperparameter_names", default="", type=str)
     parser.add_argument("--prep_termination", default=False, type=str2bool)
-    # end added
     return parser
     
-# end added methods
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -234,8 +201,6 @@ class Logging(Callback):
         super().__init__()
         self.filename = os.path.join(save_dir, "results.jsonl")
 
-    # Added helper function and train methods, simplified val to helper.
-    # Changes to reset_metrics propagate here.
     def on_run_end(self, trainer, pl_module, phase):
         """Called when the validation loop ends."""
         with open(self.filename, "a") as fp:
@@ -264,7 +229,6 @@ class Logging(Callback):
     def on_test_start(self, trainer, pl_module):
         """Called when the test begins."""
         pl_module.reset_metrics('tst')
-    # end changes
 
     def on_test_end(self, trainer, pl_module):
         """Called when the test ends."""
@@ -275,7 +239,6 @@ class Logging(Callback):
                     if isinstance(v, torch.Tensor):
                         v = v.item()
                     logs[k] = v
-            # assert "select" in logs
             print(json.dumps(logs), file=fp)
 
 def freeze(module):
@@ -426,4 +389,5 @@ class ConcatSampler(Sampler):
     def __len__(self):
         n = self.samples_per_dataset
         return sum([len(d) // n * n for d in self.concat_dataset.datasets])
+    
         

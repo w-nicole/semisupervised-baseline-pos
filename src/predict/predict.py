@@ -19,25 +19,23 @@ def get_all_predictions(model, langs, phase):
         dataloader = model.get_unshuffled_dataloader(lang, phase if phase != 'val' else Split.dev)
         predictions[lang] = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
         try:
-            predictions[lang] = [output[1]['pos'].exp() for output in predictions[lang]]
+            predictions[lang] = [output[1]['pos'][0].exp() for output in predictions[lang]]
         except: import pdb; pdb.set_trace()
     return predictions
 
     
-def prediction_to_accuracy(model, predictions, checkpoint_path, phase):
-    """predictions: {lang : (batch, position, class)}"""
-    
-    analysis_path = predict_utils.get_analysis_path(checkpoint_path)
-    if not os.path.exists(analysis_path):
-        os.makedirs(analysis_path)
-    
-    for lang, raw_logits in predictions.items():
-        logits = torch.cat(list(map(lambda tensor : tensor.reshape(-1, tensor.shape[-1]), raw_logits)), dim = 0)
-        flat_predicted_labels = torch.argmax(logits.softmax(dim=-1), dim=-1)
+def softmax_to_accuracy(model, softmaxes, phase):
+    for lang, softmax in softmaxes.items():
+        logits = torch.cat(list(map(lambda tensor : tensor.reshape(-1, tensor.shape[-1]), softmax)), dim = 0)
+        flat_predicted_labels = torch.argmax(softmax, dim=-1)
         outputs, labels = predict_utils.clean_padded_labels_and_predictions(model, lang, flat_predicted_labels, phase)
         accuracy = (torch.sum(outputs == labels) / outputs.shape[0]).item()
-    
     return accuracy
+    
+def prediction_to_accuracy(model, predictions, phase):
+    """predictions: {lang : (batch, position, class)}"""
+    softmax_dict = { lang : raw_logits.softmax(dim=-1)  for lang, raw_logits in predictions.items() }
+    return softmax_to_accuracy(model, predictions, phase):
     
 def get_predictions(model, language, analysis_path, phase):
     if not os.path.exists(analysis_path): os.makedirs(analysis_path)
