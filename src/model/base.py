@@ -419,6 +419,7 @@ class Model(pl.LightningModule):
         raise NotImplementedError
 
     def get_dataset(self, data_class, lang, split, max_len):
+        split = split if split != 'val' else Split.dev
         filepath = data_class.get_file(self.hparams.data_dir, lang, split)
         if filepath is None:
             print(f"ignoring, no file found, for {split} language: {lang}")

@@ -1,16 +1,5 @@
-# Taken from Shijie Wu's crosslingual-nlp repository.
+# Adapted from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
-
-# Changes made relative to original:
-# Changed forward to __call__.
-# Added one layer MLP.
-# Removed irrelevant code, such as outdated classes, imports, etc.
-# and simplified to remove unused parameter choices.
-# Added support for mBERT initialization for upper baselines.
-# Changed to consider epoch metrics instead for equivalent checkpointing.
-# Changed checkpointing metric for compatibility with wandb logging.
-# Removed _metric.
-# Split logic into `base_tagger` and `tagger` files.
 
 from copy import deepcopy
 from typing import List, Optional, Type
@@ -18,18 +7,15 @@ from typing import List, Optional, Type
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from functools import partial # added this from model/base.py
+from functools import partial
+from torch.utils.data import DataLoader
+import numpy as np
 
 import util
 from dataset import Dataset, UdPOS, LABEL_PAD_ID
 from enumeration import Split, Task
 from model.base import Model
-
-# added below
 import constant
-from dataset import tagging
-from torch.utils.data import DataLoader
-# end added
 
 class BaseTagger(Model):
     def __init__(self, hparams):
@@ -67,22 +53,22 @@ class BaseTagger(Model):
             raise ValueError(f"Unsupported split: {hparams.split}")
         
     # Below: added
-    def get_labels(self, lang, split):
+    def get_flat_labels(self, lang, split):
         dataset = self.get_dataset_by_lang_split(UdPOS, lang, split)
-        labels = [example['labels'] for example in dataset]
-        numerical_labels = torch.Tensor(list(map(lambda label : dataset.label2id[label], labels))).int()
-        return numerical_labels
+        labels = torch.Tensor(np.concatenate([example['pos_labels'] for example in dataset], axis = 0)).int()
+        return labels
 
     def get_label_counts(self, lang, split):
-        numerical_labels = self.get_labels(lang, split)    
-        counts = torch.bincount(numerical_labels, minlength = self.nb_labels)
+        numerical_labels = self.get_flat_labels(lang, split)
+        clean_numerical_labels = numerical_labels[numerical_labels != LABEL_PAD_ID]
+        counts = torch.bincount(clean_numerical_labels, minlength = self.nb_labels)
         return counts
         
     def get_unshuffled_dataloader(self, lang, split):
         # Adapted from model/base.py
         collate_fn = partial(util.default_collate, padding=self.padding)
         return DataLoader(
-            self.get_dataset_by_lang_split(UdPOS, lang, split),
+            self.get_dataset_by_lang_split(UdPOS, lang, split if split != 'val' else Split.dev),
             batch_size=self.hparams.eval_batch_size,
             shuffle=False,
             pin_memory=True,

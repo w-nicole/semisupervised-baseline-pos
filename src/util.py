@@ -59,7 +59,6 @@ def get_full_set_labels(full_set_model, lang, split):
     assert_full_set_model(full_set_model)
     return full_set_model.get_flat_labels(lang, split)
     
-    
 def train_call(model_class):
     parser = ArgumentParser()
     parser = add_training_arguments(parser)
