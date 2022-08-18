@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 import predict.predict as predict
+import predict.predict_utils as predict_utils
 from model import Tagger
 import util
 from enumeration import Split
@@ -70,7 +71,7 @@ def compute_all_ensemble_grids(languages, base_path, weights, subsets, args_1, a
     print(f'processing {modifier}')
     phase = Split.dev
     get_padded_labels_dict = lambda loading_model, languages, phase : {
-        lang : util.get_full_set_labels(loading_model, lang, phase)
+        lang : predict_utils.get_batch_padded_flat_labels(loading_model, lang, phase)
         for lang in languages
     }
     labels_args = (languages, phase)
@@ -87,13 +88,12 @@ if __name__ == '__main__':
     # Assumes that single_predict has been run for the relevant baselines
     
     base_path = '../../alt/semisupervised-baseline-pos'
-    sweep_base_path = os.path.join(base_path, 'experiments', 'subset')
     
     languages = ['English', 'Dutch', 'Turkish', 'Irish']
     subsets = [1, 2, 5, 10, 50, 100, 500, 1000, 1500]
     weights = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]
     
-    args = (languages, sweep_base_path, weights, subsets)
+    args = (languages, base_path, weights, subsets)
     
     masked_loading_model = util.get_full_set_model(Tagger, True)
     unmasked_loading_model = util.get_full_set_model(Tagger, False)
