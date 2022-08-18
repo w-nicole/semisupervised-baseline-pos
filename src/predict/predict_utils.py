@@ -13,6 +13,11 @@ def clean_padded_labels_and_predictions(padded_labels, padded_predictions):
     outputs = padded_predictions[mask_for_non_pad]
     return outputs.cpu(), labels.cpu()
     
+def get_batch_padded_flat_labels(loading_model, lang, split):
+    dataloader = loading_model.get_unshuffled_dataloader(lang, split)
+    all_labels_dataloader = list(map(lambda example : example['pos_labels'], dataloader))
+    return torch.cat(list(map(lambda tensor : tensor.flatten(), all_labels_dataloader)))
+
 def get_analysis_path(checkpoint_path):
     path_components = checkpoint_path.split('/')
     decoder_folder = util.get_folder_from_checkpoint_path(checkpoint_path)

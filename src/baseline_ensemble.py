@@ -12,16 +12,16 @@ from enumeration import Split
 from analysis import sweeps
 from dataset import LABEL_PAD_ID
 
-def get_lang_path(sweep_name, subset, lang):
-    get_subset_template = lambda sweep_name, subset : os.path.join(
+def get_lang_path(base_path, sweep_name, subset, lang):
+    get_subset_template = lambda base_path, sweep_name, subset : os.path.join(
         base_path, 'experiments', 'subset', sweep_name, f'subset_count={subset}',
         'version_*/ckpts_epoch*/val_predictions'
     )
-    get_lang_template = lambda sweep_name, subset, lang : os.path.join(
-        get_subset_template(sweep_name, subset), 
+    get_lang_template = lambda base_path, sweep_name, subset, lang : os.path.join(
+        get_subset_template(base_path, sweep_name, subset), 
         lang, 'val_predictions.pt'
     )
-    template = get_lang_template(sweep_name, subset, lang)
+    template = get_lang_template(base_path, sweep_name, subset, lang)
     path = glob.glob(template)
     assert len(path) == 1, path
     return path[0]
@@ -42,8 +42,8 @@ def compute_ensemble_df(lang, base_path, weights, subsets, args_1, args_2):
     padded_labels_1, padded_labels_2 = args_1['padded_labels_dict'][lang], args_2['padded_labels_dict'][lang]
     all_results = []
     for subset in subsets:
-        path_1 = get_lang_path(args_1['sweep_name'], subset, lang)
-        path_2 = get_lang_path(args_2['sweep_name'], subset, lang)
+        path_1 = get_lang_path(base_path, args_1['sweep_name'], subset, lang)
+        path_2 = get_lang_path(base_path, args_2['sweep_name'], subset, lang)
         # Below is probably temporary indexing into torch.load dict
         # -- remove when you regen all predictions
         softmaxes_1 = clean_for_ensemble_softmax(args_1['is_masked'], torch.load(path_1)[lang], padded_labels_1)
