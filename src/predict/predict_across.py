@@ -1,13 +1,12 @@
+
 import os
 import pandas as pd
 import glob
-import json
-import torch
 
-from model import LatentBase, Tagger
-from predict import predict_utils, predict
+import predict.predict as predict
+import predict.predict_utils as predict_utils
 
-def predict_over_languages(checkpoint_path, model_class, phase, languages):
+def predict_over_languages(checkpoint_path, model_class, phase, languages, dataloaders_dict, padded_labels_dict):
     
     model = model_class.load_from_checkpoint(checkpoint_path)
     
@@ -15,17 +14,18 @@ def predict_over_languages(checkpoint_path, model_class, phase, languages):
     accuracies = {}
     for language in languages:
         print(language)
+        padded_labels = padded_labels_dict[language]
+        dataloader = dataloaders_dict[language]
         analysis_path = os.path.join(analysis_parent_path, language)
-        raw_predictions = predict.get_predictions(model, language, analysis_path, phase)
-        accuracy = predict.prediction_to_accuracy(model, raw_predictions, checkpoint_path, phase)
+        raw_predictions = predict.get_softmaxes(model, dataloader, analysis_path, phase)
+        accuracy = predict.softmax_to_accuracy(raw_predictions, padded_labels)
         accuracies[language] = accuracy
     
     df = pd.DataFrame.from_records([accuracies])
     df.to_csv(os.path.join(analysis_parent_path, f'{phase}_accuracies.csv'))
     return df
     
-def get_sweep_matches(sweep_folder):
-    hparams_template = os.path.join(sweep_folder, '*')
+def get_sweep_matches(sweep_folder, hparams_template):
     hparams_path_matches = glob.glob(hparams_template)
     assert len(set(hparams_path_matches)) == len(hparams_path_matches), hparams_path_matches
     
@@ -39,19 +39,3 @@ def get_sweep_matches(sweep_folder):
         assert len(matches) == 1, f'{template}, {matches}'
         paths.append(matches[0])
     return paths
-    
-    
-if __name__ == '__main__':
-    
-    phase = 'val'
-    languages = ['English', 'Dutch', 'Turkish', 'Irish']
-    folder = './experiments/sweeps/subset_number_mse_0/'
-
-    hparams_template = os.path.join(folder, '*')
-    hparams_path_matches = glob.glob(hparams_template)
-    assert len(set(hparams_path_matches)) == len(hparams_path_matches), hparams_path_matches
-    
-    for checkpoint_path in get_sweep_matches(folder)
-        df = predict_over_languages(checkpoint_path, LatentBase, phase, languages)
-        
-   

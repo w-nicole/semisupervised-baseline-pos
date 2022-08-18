@@ -419,6 +419,7 @@ class Model(pl.LightningModule):
         raise NotImplementedError
 
     def get_dataset(self, data_class, lang, split, max_len):
+        split = split if split != 'val' else Split.dev
         filepath = data_class.get_file(self.hparams.data_dir, lang, split)
         if filepath is None:
             print(f"ignoring, no file found, for {split} language: {lang}")
@@ -440,7 +441,7 @@ class Model(pl.LightningModule):
         return dataset
         
     def get_dataset_by_lang_split(self, data_class, lang, split):
-        max_len = hparams.max_trn_len if split == Split.train else hparams.max_tst_len
+        max_len = self.hparams.max_trn_len if split == Split.train else self.hparams.max_tst_len
         return self.get_dataset(data_class, lang, split, max_len)
         
     def prepare_datasets_helper(self, data_class, langs, split, max_len):

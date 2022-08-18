@@ -6,21 +6,18 @@ from enumeration import Split
 import util
 import metric
 
-def get_padded_labels(model, lang, phase):
-    dataloader = model.get_dataloader(lang, Split.dev if phase == 'val' else phase)
-    raw_labels = []
-    for batch in dataloader:
-        raw_labels.append(batch['pos_labels'].flatten())
-    labels = torch.cat([batch['pos_labels'].flatten() for batch in dataloader])
-    return labels
-
-def clean_padded_labels_and_predictions(model, lang, padded_predictions, phase):
-    padded_labels = util.remove_from_gpu(get_padded_labels(model, lang, phase))
+def clean_padded_labels_and_predictions(padded_labels, padded_predictions):
+    padded_labels = util.remove_from_gpu(padded_labels)
     mask_for_non_pad = (padded_labels != metric.LABEL_PAD_ID)
     labels = padded_labels[mask_for_non_pad]
     outputs = padded_predictions[mask_for_non_pad]
     return outputs.cpu(), labels.cpu()
     
+def get_batch_padded_flat_labels(loading_model, lang, split):
+    dataloader = loading_model.get_unshuffled_dataloader(lang, split)
+    all_labels_dataloader = list(map(lambda example : example['pos_labels'], dataloader))
+    return torch.cat(list(map(lambda tensor : tensor.flatten(), all_labels_dataloader)))
+
 def get_analysis_path(checkpoint_path):
     path_components = checkpoint_path.split('/')
     decoder_folder = util.get_folder_from_checkpoint_path(checkpoint_path)
