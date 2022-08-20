@@ -16,11 +16,11 @@ from dataset import LABEL_PAD_ID
 def get_lang_path(base_path, sweep_name, subset, lang):
     get_subset_template = lambda base_path, sweep_name, subset : os.path.join(
         base_path, sweep_name, f'subset_count={subset}',
-        'version_*/ckpts_epoch*/dev_predictions'
+        'version_*/ckpts_epoch*/val_predictions'
     )
     get_lang_template = lambda base_path, sweep_name, subset, lang : os.path.join(
         get_subset_template(base_path, sweep_name, subset), 
-        lang, 'dev_predictions.pt'
+        lang, 'val_predictions.pt'
     )
     template = get_lang_template(base_path, sweep_name, subset, lang)
     path = glob.glob(template)

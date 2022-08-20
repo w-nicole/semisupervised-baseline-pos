@@ -39,7 +39,9 @@ def get_by_class_accuracies(base_path, sweep_name, subset, lang, loading_model, 
         class_accuracies[constant.UD_POS_LABELS[class_index]] = get_accuracy(class_matches, class_label_mask)
     class_accuracies['all'] = ((clean_predictions == clean_labels).sum().item() / clean_labels.shape[0]) * 100.0
     df = pd.DataFrame.from_records([class_accuracies])
-    df_path = os.path.join(predict_utils.get_analysis_path(checkpoint_path), 'class_accuracies', f'{lang}.csv')
+    df_folder = os.path.join(predict_utils.get_analysis_path(checkpoint_path), 'class_accuracies')
+    if not os.path.exists(df_folder): os.makedirs(df_folder)
+    df_path = os.path.join(df_folder, f'{lang}.csv')
     df.to_csv(df_path)
     print(f'Written to: {df_path}')
     return df
@@ -49,7 +51,7 @@ if __name__ == '__main__':
     unmasked_loading_model = util.get_full_set_model(Tagger, False)
     
     subset = 10
-    languages = ['English', 'Dutch', 'Spanish', 'Portuguese', 'Uyghur', 'Turkish', 'Irish']
+    languages = ['English', 'Dutch']
     
     base_path = '../../alt/semisupervised-baseline-pos/'
     sweep_path = os.path.join(base_path, 'experiments/subset')
@@ -60,20 +62,16 @@ if __name__ == '__main__':
     
     language_results = defaultdict(list)
     for lang in languages:    
-        masked_df = get_by_class_accuracies(base_path, 'masked', subset, lang, masked_loading_model, masked_checkpoint_path)
-        unmasked_df = get_by_class_accuracies(base_path, 'unmasked', subset, lang, unmasked_loading_model, unmasked_checkpoint_path)
+        masked_df = get_by_class_accuracies(sweep_path, 'masked', subset, lang, masked_loading_model, masked_checkpoint_path)
+        unmasked_df = get_by_class_accuracies(sweep_path, 'unmasked', subset, lang, unmasked_loading_model, unmasked_checkpoint_path)
         difference_df = (unmasked_df - masked_df)
         
-        difference_df.to_csv(os.path.join(comparison_path, 'class_accuracies', f'{lang}_difference.csv'))
-        language_results['masked'].append(masked_df)
-        language_results['unmasked'].append(unmasked_df)
-        language_results['difference'].append(difference_df)
-        
-    for name in language_results:
-        all_df = pd.concat()
-        all_df['language'] = languages
-        'all_{}.csv':
-        
-    import pdb; pdb.set_trace()
-    
+        difference_folder = os.path.join(comparison_path, 'class_accuracies')
+        if not os.path.exists(difference_folder): os.makedirs(difference_folder)
+        difference_df.to_csv(os.path.join(difference_folder, f'{lang}_difference.csv'))
+        masked_df.to_csv(os.path.join(difference_folder, f'{lang}_masked.csv'))
+        unmasked_df.to_csv(os.path.join(difference_folder, f'{lang}_unmasked.csv'))
+        # language_results['masked'].append(masked_df)
+        # language_results['unmasked'].append(unmasked_df)
+        # language_results['difference'].append(difference_df)
     

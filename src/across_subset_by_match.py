@@ -69,7 +69,7 @@ def get_path_match(sweep_name, sweep_folder, template):
         
 
 if __name__ == "__main__":
-    lang = 'English'
+    lang = 'Dutch'
     subset_counts = [1, 2, 5, 10, 50, 100, 500, 1000, 1500]
     
     sweep_folder = '../../alt/semisupervised-baseline-pos/experiments/subset'
@@ -94,7 +94,7 @@ if __name__ == "__main__":
             sweep_name : sweep_metrics
             for sweep_name, sweep_metrics in zip(['mixed', 'pure'], [mixed_metrics, pure_metrics])
         })
-        analysis_folder = os.path.join(sweep_folder, 'ensemble', f'subset_count={count}')
+        analysis_folder = os.path.join(sweep_folder, 'ensemble', lang, f'subset_count={count}')
         if not os.path.exists(analysis_folder): os.makedirs(analysis_folder)
         ensemble_df_path = os.path.join(analysis_folder, 'ensemble_subset_accuracies.csv')
         ensemble_metrics.to_csv(ensemble_df_path)
@@ -102,5 +102,7 @@ if __name__ == "__main__":
         non_ensemble_accuracies[count] = get_single_to_ensembled_metrics(args['unmasked'], mixed_metrics['matched_labels_count'])
     
     non_ensemble_df = pd.DataFrame.from_records([non_ensemble_accuracies])
-    non_ensemble_df.to_csv(os.path.join(sweep_folder, 'non_ensemble_accuracies.csv'))
+    non_ensemble_folder = os.path.join(sweep_folder, lang)
+    if not os.path.exists(non_ensemble_folder): os.makedirs(non_ensemble_folder)
+    non_ensemble_df.to_csv(os.path.join(non_ensemble_folder, 'non_ensemble_accuracies.csv'))
         
