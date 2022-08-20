@@ -13,7 +13,6 @@ from predict import predict_utils
 def get_all_softmaxes(model, dataloader):
     model.eval()
     trainer = pl.Trainer(gpus = 1 if torch.cuda.is_available() else 0)
-    dataloader = model.get_unshuffled_dataloader(lang, phase if phase != 'val' else Split.dev)
     raw_predictions = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
     softmaxes = [output[1]['pos'][0].exp() for output in raw_predictions]
     return softmaxes

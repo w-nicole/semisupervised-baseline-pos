@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import torch
 import numpy as np
-
+from collections import defaultdict
 from model import Tagger
 from dataset import LABEL_PAD_ID
 
@@ -39,7 +39,7 @@ def get_by_class_accuracies(base_path, sweep_name, subset, lang, loading_model, 
         class_accuracies[constant.UD_POS_LABELS[class_index]] = get_accuracy(class_matches, class_label_mask)
     class_accuracies['all'] = ((clean_predictions == clean_labels).sum().item() / clean_labels.shape[0]) * 100.0
     df = pd.DataFrame.from_records([class_accuracies])
-    df_path = os.path.join(predict_utils.get_analysis_path(checkpoint_path), 'class_accuracies.csv')
+    df_path = os.path.join(predict_utils.get_analysis_path(checkpoint_path), 'class_accuracies', f'{lang}.csv')
     df.to_csv(df_path)
     print(f'Written to: {df_path}')
     return df
@@ -48,20 +48,32 @@ if __name__ == '__main__':
     masked_loading_model = util.get_full_set_model(Tagger, True)
     unmasked_loading_model = util.get_full_set_model(Tagger, False)
     
-    subset = 1000
-    lang = 'English'
+    subset = 10
+    languages = ['English', 'Dutch', 'Spanish', 'Portuguese', 'Uyghur', 'Turkish', 'Irish']
     
     base_path = '../../alt/semisupervised-baseline-pos/'
     sweep_path = os.path.join(base_path, 'experiments/subset')
-    masked_checkpoint_path = os.path.join(sweep_path, 'masked/subset_count=1000/version_l6q0hkqs/ckpts/ckpts_epoch=6-val_English_pos_acc_epoch=76.730.ckpt')
-    unmasked_checkpoint_path = os.path.join(sweep_path, 'unmasked/subset_count=1000/version_ftgxwvip/ckpts/ckpts_epoch=7-val_English_pos_acc_epoch=95.367.ckpt')
+    comparison_path = os.path.join(sweep_path, f'masked_unmasked/subset_count={subset}')
     
-    masked_df = get_by_class_accuracies(base_path, 'masked', subset, lang, masked_loading_model, masked_checkpoint_path)
-    unmasked_df = get_by_class_accuracies(base_path, 'unmasked', subset, lang, unmasked_loading_model, unmasked_checkpoint_path)
+    masked_checkpoint_path = os.path.join(sweep_path, 'masked/subset_count=10/version_x3do118v/ckpts/ckpts_epoch=1-val_English_pos_acc_epoch=65.902.ckpt')
+    unmasked_checkpoint_path = os.path.join(sweep_path, 'unmasked/subset_count=10/version_3xr3fjl9/ckpts/ckpts_epoch=15-val_English_pos_acc_epoch=81.096.ckpt')
     
-    comparison_path = os.path.join(sweep_path, 'masked_unmasked/subset_count=1000')
-    (unmasked_df - masked_df).to_csv(os.path.join(comparison_path, 'class_accuracies_difference.csv'))
-    
+    language_results = defaultdict(list)
+    for lang in languages:    
+        masked_df = get_by_class_accuracies(base_path, 'masked', subset, lang, masked_loading_model, masked_checkpoint_path)
+        unmasked_df = get_by_class_accuracies(base_path, 'unmasked', subset, lang, unmasked_loading_model, unmasked_checkpoint_path)
+        difference_df = (unmasked_df - masked_df)
+        
+        difference_df.to_csv(os.path.join(comparison_path, 'class_accuracies', f'{lang}_difference.csv'))
+        language_results['masked'].append(masked_df)
+        language_results['unmasked'].append(unmasked_df)
+        language_results['difference'].append(difference_df)
+        
+    for name in language_results:
+        all_df = pd.concat()
+        all_df['language'] = languages
+        'all_{}.csv':
+        
     import pdb; pdb.set_trace()
     
     
