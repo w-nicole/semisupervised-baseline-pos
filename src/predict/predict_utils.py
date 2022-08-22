@@ -6,6 +6,10 @@ from enumeration import Split
 import util
 import metric
 
+
+def get_phase_predictions_path(checkpoint_path, phase):
+    return os.path.join(predict_utils.get_analysis_path(checkpoint_path), f'{phase}_predictions')
+
 def clean_padded_labels_and_predictions(padded_labels, padded_predictions):
     padded_labels = util.remove_from_gpu(padded_labels)
     mask_for_non_pad = (padded_labels != metric.LABEL_PAD_ID)

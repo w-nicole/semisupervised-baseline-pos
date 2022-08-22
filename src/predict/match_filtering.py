@@ -1,6 +1,6 @@
 
 import util
-from dataset import LABEL_PAD_ID
+from constant import LABEL_PAD_ID
 import predict.predict_utils as predict_utils
 
 import numpy as np

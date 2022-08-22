@@ -9,7 +9,7 @@ import torch
 import constant
 import util
 
-from dataset.base import LABEL_PAD_ID
+from constant import LABEL_PAD_ID
 
 def to_tensor(wrapped_func):
     def func(*args, **kwargs):

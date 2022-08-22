@@ -2,6 +2,7 @@
 # Taken from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
 
+LABEL_PAD_ID = -1
 SUPERVISED_LANGUAGE = "English"
 
 LANGUAGE_TO_ISO639 = {

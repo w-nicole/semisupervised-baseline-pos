@@ -11,7 +11,8 @@ import torch.nn.functional as F
 from functools import partial # added this from model/base.py
 
 import util
-from dataset import Dataset, UdPOS, LABEL_PAD_ID
+from dataset import Dataset, UdPOS
+from constant import LABEL_PAD_ID
 from enumeration import Split, Task
 from model.base import Model
 from model.base_tagger import BaseTagger

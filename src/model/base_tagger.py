@@ -12,7 +12,8 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 import util
-from dataset import Dataset, UdPOS, LABEL_PAD_ID
+from dataset import Dataset, UdPOS
+from constant import LABEL_PAD_ID
 from enumeration import Split, Task
 from model.base import Model
 import constant

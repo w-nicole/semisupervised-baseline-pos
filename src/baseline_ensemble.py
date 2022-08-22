@@ -11,7 +11,7 @@ from model import Tagger
 import util
 from enumeration import Split
 from analysis import sweeps
-from dataset import LABEL_PAD_ID
+from constant import LABEL_PAD_ID
 
 def get_lang_path(base_path, sweep_name, subset, lang):
     get_subset_template = lambda base_path, sweep_name, subset : os.path.join(

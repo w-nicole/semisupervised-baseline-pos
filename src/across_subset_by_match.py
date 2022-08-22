@@ -1,6 +1,6 @@
 
 from predict import match_filtering
-from dataset import LABEL_PAD_ID
+from constant import LABEL_PAD_ID
 from enumeration import Split
 from model import Tagger
 import predict.predict_utils as predict_utils

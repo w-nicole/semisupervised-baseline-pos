@@ -10,7 +10,7 @@ from model import Tagger
 import util
 from enumeration import Split
 import constant
-from dataset import LABEL_PAD_ID
+from constant import LABEL_PAD_ID
 import predict.match_filtering as match_filtering
 import predict.predict_utils as predict_utils
 

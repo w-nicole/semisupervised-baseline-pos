@@ -5,7 +5,7 @@ import torch
 import numpy as np
 from collections import defaultdict
 from model import Tagger
-from dataset import LABEL_PAD_ID
+from constant import LABEL_PAD_ID
 
 import baseline_ensemble
 import constant
