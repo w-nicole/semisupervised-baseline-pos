@@ -12,7 +12,8 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 import util
-from dataset import Dataset, UdPOS
+from dataset.base import Dataset
+from dataset.tagging import UdPOS
 from constant import LABEL_PAD_ID
 from enumeration import Split, Task
 from model.base import Model
@@ -37,25 +38,24 @@ class BaseTagger(Model):
 
     def prepare_datasets(self, split: str) -> List[Dataset]:
         hparams = self.hparams
-        data_class = UdPOS
         if split == Split.train:
             return self.prepare_datasets_helper(
-                data_class, hparams.trn_langs, Split.train, hparams.max_trn_len
+                hparams.trn_langs, Split.train, hparams.max_trn_len
             )
         elif split == Split.dev:
             return self.prepare_datasets_helper(
-                data_class, hparams.val_langs, Split.dev, hparams.max_tst_len
+                hparams.val_langs, Split.dev, hparams.max_tst_len
             )
         elif split == Split.test:
             return self.prepare_datasets_helper(
-                data_class, hparams.tst_langs, Split.test, hparams.max_tst_len
+                hparams.tst_langs, Split.test, hparams.max_tst_len
             )
         else:
             raise ValueError(f"Unsupported split: {hparams.split}")
         
     # Below: added
     def get_flat_labels(self, lang, split):
-        dataset = self.get_dataset_by_lang_split(UdPOS, lang, split)
+        dataset = self.get_dataset_by_lang_split(lang, split)
         labels = torch.Tensor(np.concatenate([example['pos_labels'] for example in dataset], axis = 0)).int()
         return labels
 
@@ -69,7 +69,7 @@ class BaseTagger(Model):
         # Adapted from model/base.py
         collate_fn = partial(util.default_collate, padding=self.padding)
         return DataLoader(
-            self.get_dataset_by_lang_split(UdPOS, lang, split if split != 'val' else Split.dev),
+            self.get_dataset_by_lang_split(lang, split if split != 'val' else Split.dev),
             batch_size=self.hparams.eval_batch_size,
             shuffle=False,
             pin_memory=True,

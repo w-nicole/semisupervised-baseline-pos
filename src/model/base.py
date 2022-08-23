@@ -36,10 +36,6 @@ class Model(pl.LightningModule):
     def __init__(self, hparams):
         super(Model, self).__init__()
         
-        Model.check_self_training_args(hparams)
-        self.is_self_training = self.hparams.view_checkpoint_1\
-            and self.hparams.view_checkpoint_2
-        
         self.optimizer = None
         self.scheduler = None
         self.metric_names = None
@@ -58,6 +54,7 @@ class Model(pl.LightningModule):
         
         if isinstance(hparams, dict):
             hparams = Namespace(**hparams)
+        
         self.save_hyperparameters(hparams)
         pl.seed_everything(hparams.seed)
         
@@ -149,6 +146,11 @@ class Model(pl.LightningModule):
 
         return self._batch_per_epoch
 
+    @property
+    def data_class(self):
+        assert self._data_class is not None
+        return self._data_class
+        
     @property
     def selection_criterion(self):
         assert self._selection_criterion is not None
@@ -424,9 +426,9 @@ class Model(pl.LightningModule):
     def prepare_datasets(self, split: str) -> List[Dataset]:
         raise NotImplementedError
 
-    def get_dataset(self, data_class, lang, split, max_len):
+    def get_dataset(self, lang, split, max_len):
         split = split if split != 'val' else Split.dev
-        filepath = data_class.get_file(self.hparams.data_dir, lang, split)
+        filepath = self.data_class.get_file(self.hparams.data_dir, lang, split)
         if filepath is None:
             print(f"ignoring, no file found, for {split} language: {lang}")
             return
@@ -442,25 +444,25 @@ class Model(pl.LightningModule):
             params["subset_ratio"] = self.hparams.subset_ratio
             params["subset_count"] = self.hparams.subset_count
             params["subset_seed"] = self.hparams.subset_seed
-        params['self_training_args'] = dict() if not self.is_self_training else {
-            'view_checkpoint_1' : self.hparams.view_checkpoint_1,
-            'view_checkpoint_2' : self.hparams.view_checkpoint_2,
-            'is_masked_view_1' : self.hparams.is_masked_view_1,
-            'is_masked_view_2' : self.hparams.is_masked_view_2,
-            'use_subset_complement' : self.use_subset_complement
-        }
+        params['use_subset_complement'] = self.hparams.use_subset_complement
+        params['self_training_args'] = dict() if not 'view_checkpoint_1' in dict(self.hparams) else {
+                'view_checkpoint_1' : self.hparams.view_checkpoint_1,
+                'view_checkpoint_2' : self.hparams.view_checkpoint_2,
+                'is_masked_view_1' : self.hparams.is_masked_view_1,
+                'is_masked_view_2' : self.hparams.is_masked_view_2,
+            }
         del params["task"]
-        dataset = data_class(**params)
+        dataset = self.data_class(**params)
         return dataset
         
-    def get_dataset_by_lang_split(self, data_class, lang, split):
+    def get_dataset_by_lang_split(self, lang, split):
         max_len = self.hparams.max_trn_len if split == Split.train else self.hparams.max_tst_len
-        return self.get_dataset(data_class, lang, split, max_len)
+        return self.get_dataset(self.data_class, lang, split, max_len)
         
-    def prepare_datasets_helper(self, data_class, langs, split, max_len):
+    def prepare_datasets_helper(self, langs, split, max_len):
         datasets = []
         for lang in langs:
-            dataset = self.get_dataset(data_class, lang, split, max_len)
+            dataset = self.get_dataset(lang, split, max_len)
             if dataset is None:
                 continue
             datasets.append(dataset)
@@ -525,36 +527,7 @@ class Model(pl.LightningModule):
             for tst_dataset in self.tst_datasets
         ]
     
-    @classmethod
-    def check_self_training_args(cls, hparams):
-        is_self_training = hparams.view_checkpoint_1 and hparams.view_checkpoint_2
-        is_regular = not (hparams.view_checkpoint_1 or hparams.view_checkpoint_2)
-        assert is_self_training or is_regular, f"{hparams.view_checkpoint_1}, {hparams.view_checkpoint_2}"
-        if is_regular:
-            is_unspecified = lambda item : bool(item)
-            assert not any(map(is_unspecified, [
-                    hparams.view_checkpoint_1,
-                    hparams.view_checkpoint_2,
-                    hparams.is_masked_view_1,
-                    hparams.is_masked_view_2,
-                    hparams.use_subset_complement,
-                ]))
-        is_masked_paths = {}
-        # Below: temp checks for masked argument specification.
-        # Below don't necessarily need to hold, but in the present setup, they do.
-        is_masked_list = []
-        for path, specified_masked in zip(
-                [hparams.view_checkpoint_1, hparams.view_checkpoint_2],
-                [hparams.is_masked_view_1, hparams.is_masked_view_2]
-            ):
-            is_unmasked = 'unmasked' in path
-            if not is_unmasked: assert 'masked' in path, path
-            assert is_unmasked == specified_masked,\
-                f'path: {path}, specified: {specified_unmasked}, actual: {is_unmasked}'
-            is_masked_list.append(is_unmasked)
-        # Below: this is only designed for mixed and pure_unmasked for now
-        assert is_masked_list[0] ^ is_masked_list[1] or not any(is_masked_list), is_masked_list
-        
+    
     @classmethod
     def add_layer_stack_args(cls, parser, modifier):
         parser.add_argument(f"--{modifier}_hidden_layers", default=1, type=int)
@@ -605,11 +578,5 @@ class Model(pl.LightningModule):
         parser.add_argument("--number_of_workers", default=1, type=int)
         parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
         parser.add_argument("--masked", default=False, type=util.str2bool)
-        # self-training arguments
-        parser.add_argument("--view_checkpoint_1", default="", type=str)
-        parser.add_argument("--view_checkpoint_2", default="", type=str)
-        # TODO: replace below with a hparam read
-        parser.add_argument("--is_masked_view_1", default=False, type=util.str2bool)
-        parser.add_argument("--is_masked_view_2", default=False, type=util.str2bool)
         parser.add_argument("--use_subset_complement", default=False, type=util.str2bool)
         return parser

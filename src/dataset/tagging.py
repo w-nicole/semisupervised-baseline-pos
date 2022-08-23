@@ -1,3 +1,7 @@
+
+# Adapted from Shijie Wu's crosslingual-nlp repository.
+# For LICENSE, see LICENSE.txt.
+
 import glob
 from collections import defaultdict
 from copy import deepcopy

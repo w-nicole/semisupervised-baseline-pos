@@ -48,17 +48,17 @@ def get_subset_model(model_class, is_masked, subset_count = -1):
     model = model_class(model_args)
     return model
     
-def assert_if_validation_is_full(phase, subset_model):
-    if phase not in {'val', 'dev'}: return
+def assert_if_is_full(phase, subset_model):
+    if phase != 'train': return
     assert subset_model.hparams.subset_ratio == 1 and subset_model.hparams.subset_count == -1,\
-        "model provided will not provide entire val set. Is this deliberate?"
+        "model provided will not provide entire train set. Is this deliberate?"
         
-def get_subset_dataloader(subset_model, lang, split, subset_count = -1):
-    assert_if_validation_is_full(phase, subset_model)
-    return subset_model.get_unshuffled_dataloader(lang, split, subset_count)
+def get_subset_dataloader(subset_model, lang, split):
+    assert_if_is_full(split, subset_model)
+    return subset_model.get_unshuffled_dataloader(lang, split)
     
-def get_subset_labels(subset_model, lang, split, subset_count = -1):
-    return subset_model.get_flat_labels(lang, split, subset_count)
+def get_subset_labels(subset_model, lang, split):
+    return subset_model.get_flat_labels(lang, split)
     
 def train_call(model_class):
     parser = ArgumentParser()
