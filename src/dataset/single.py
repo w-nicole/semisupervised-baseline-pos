@@ -20,6 +20,6 @@ class SingleDataset(UdPOS):
         data = self.process_examples(subset_examples)
         self.data = data
         
-        import torch; import os
-        if not os.path.exists('../../scratchwork'): os.makedirs('../../scratchwork')
-        torch.save(data, f'../../scratchwork/ours_{self.lang}_{self.split}_{self.subset_ratio}.pt')
+        # import torch; import os
+        # if not os.path.exists('../../scratchwork'): os.makedirs('../../scratchwork')
+        # torch.save(data, f'../../scratchwork/ours_{self.lang}_{self.split}_{self.subset_ratio}.pt')

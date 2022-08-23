@@ -28,7 +28,6 @@ class SelfTrainingDataset(UdPOS):
                 max_len, subset_ratio, subset_count, subset_seed,
                 self_training_args
             )
-        import pdb; pdb.set_trace()
     
     def prep_view_components(self):
         view_components = {}
@@ -40,16 +39,17 @@ class SelfTrainingDataset(UdPOS):
             components['softmax_folder'] = predict_utils.get_phase_predictions_path(components['checkpoint_path'], self.split)
             softmax_path = os.path.join(components['softmax_folder'], f'{self.split}_predictions.pt')
             if os.path.exists(softmax_path):
-                softmax = torch.load(softmax_path)[self.lang]
+                softmax = torch.load(softmax_path)
             else:
                 model = Single.load_from_checkpoint(components['checkpoint_path'])
                 dataloader = util.get_subset_dataloader(self.loading_models[components['masked']], self.lang, self.split)
-                softmax = softmaxes.get_softmaxes(model, dataloader, softmax_path, self.split)
-            components['predictions'] = match_filtering.get_clean_matching_predictions(
-                    softmax, self.loading_models[components['masked']]
-                )
+                softmax = softmaxes.get_softmaxes(model, dataloader, components['softmax_folder'], self.split)
+            loading_model = self.loading_models[components['masked']]
             components['labels'] = predict_utils.get_batch_padded_flat_labels(
                     self.loading_models[components['masked']], self.lang, self.split
+                )
+            components['predictions'] = match_filtering.get_clean_matching_predictions(
+                    softmax, components['labels']
                 )
             view_components[view_name] = components
         return view_components
@@ -61,7 +61,7 @@ class SelfTrainingDataset(UdPOS):
         # Initial sanity checks
         # The number of predictable positions total matches the number of dense predictions
         get_non_pad_count = lambda examples : sum([
-                np.sum(example['labels'] != LABEL_PAD_ID)
+                np.sum(example['pos_labels'] != LABEL_PAD_ID)
                 for example in examples
             ])
         assert len(predictions.shape) == 1, predictions.shape
@@ -71,19 +71,19 @@ class SelfTrainingDataset(UdPOS):
 
         matches_skipped = 0
         updated_examples = []
+        clean_ensemble_index = 0
         for sentence_index, example in enumerate(processed_full_examples):
-            clean_ensemble_index = 0
             # Consider if not part of subset
             if sentence_index not in subset_indices:
                 # Need to account for skipping all legitimate positions
-                valid_prediction_positions = np.sum(example['labels'] != LABEL_PAD_ID)
-                current_matches_skipped = clean_mask[ensemble_index:ensemble_index + valid_prediction_positions]
-                matches_skipped += current_matches_skipped
+                valid_prediction_positions = np.sum(example['pos_labels'] != LABEL_PAD_ID)
+                current_matches_skipped = clean_mask[clean_ensemble_index:clean_ensemble_index + valid_prediction_positions].sum()
+                matches_skipped += current_matches_skipped.item()
                 clean_ensemble_index += valid_prediction_positions
                 continue
             # Process single example
             new_labels = []
-            raw_labels = example['labels']
+            raw_labels = example['pos_labels']
             for raw_label in raw_labels:
                 # Padding in the original
                 if raw_label == LABEL_PAD_ID:
@@ -108,15 +108,16 @@ class SelfTrainingDataset(UdPOS):
             # All padded positions in the original correspond to padding in the present labels
             assert len(updated_labels.shape) == 1, updated_labels.shape
             get_all_invalid_positions = lambda labels : set(np.where(labels == LABEL_PAD_ID)[0])
-            if not get_all_invalid_positions(updated_labels).issubset(get_all_invalid_positions(raw_labels)):
+            # i.e. the updated_labels may only have >= positions invalid than the raw.
+            if not get_all_invalid_positions(raw_labels).issubset(get_all_invalid_positions(updated_labels)):
                 import pdb; pdb.set_trace()
-            updated_examples.append( { 'sent' : example['sent'], 'labels' : updated_labels } )
+            updated_examples.append( { 'sent' : example['sent'], 'pos_labels' : updated_labels, 'lang' : example['lang'] } )
         
         # Overall sanity checks
         # The number of subsetted examples is the same as the number in the index
         assert len(updated_examples) == len(subset_indices)
         # The number of final predictable positions is the same as the number of matched positions
-        subset_matched_positions = clean_mask.sum() - matches_skipped
+        subset_matched_positions = (clean_mask.sum() - matches_skipped).item()
         final_valid_positions = get_non_pad_count(updated_examples)
         if not final_valid_positions == subset_matched_positions:
             import pdb; pdb.set_trace()

@@ -22,8 +22,8 @@ if __name__ == '__main__':
     #     print()
     
     folder = '../../scratchwork'
-    #for phase, ratio in zip(['train', 'dev'], [0.01, 1.0]):
-    for phase, ratio in zip(['dev'], [1]):
+    for phase, ratio in zip(['train', 'dev'], [0.01, 1]):
+    #for phase, ratio in zip(['dev'], [1]):
         lang = 'English'
         theirs = torch.load(os.path.join(folder, f'theirs_{lang}_{phase}_{ratio}.pt'))
         mine_to_theirs = lambda entry : { 'sent' : entry['sent'], 'labels' : entry['pos_labels'], 'lang' : entry['lang'] }
