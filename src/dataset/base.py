@@ -98,7 +98,7 @@ class Dataset(TorchDataset):
                 raise ValueError("subset_ratio and subset_count is mutally exclusive")
 
             print(
-                f"taking {subset_size} subset (total {len(raw_full_examples)}) from {self.filepath}"
+                f"calculating {subset_size} subset (total {len(raw_full_examples)}) from {self.filepath}"
             )
 
             seed = np.random.RandomState(self.subset_seed)

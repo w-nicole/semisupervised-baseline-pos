@@ -33,10 +33,14 @@ class SelfTrainingDataset(UdPOS):
         view_components = {}
         for view_name in ['1', '2']:
             components = {
-                'masked' : self.self_training_args[f'is_masked_view_{view_name}'],
-                'checkpoint_path' : self.self_training_args[f'view_checkpoint_{view_name}']
-            }
-            components['softmax_folder'] = predict_utils.get_phase_predictions_path(components['checkpoint_path'], self.split)
+                    'masked' : self.self_training_args[f'is_masked_view_{view_name}'],
+                    'checkpoint_path' : self.self_training_args[f'view_checkpoint_{view_name}']
+                }
+            components['softmax_folder'] = predict_utils.get_phase_predictions_path(
+                    components['checkpoint_path'], os.path.join(
+                            f"masked={components['masked']}", self.lang
+                        )
+                )
             softmax_path = os.path.join(components['softmax_folder'], f'{self.split}_predictions.pt')
             if os.path.exists(softmax_path):
                 softmax = torch.load(softmax_path)
