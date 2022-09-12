@@ -6,7 +6,7 @@ from transformers import BertTokenizer
 import pandas as pd
 import itertools
 
-from model import Tagger
+from model import Single
 import util
 from enumeration import Split
 import constant
@@ -113,23 +113,27 @@ if __name__ == '__main__':
     
     subset = 10
     base_path = '../../alt/semisupervised-baseline-pos/'
-    sweep_path = os.path.join(base_path, 'experiments/subset')
-    comparison_path = os.path.join(sweep_path, f'masked_unmasked/subset_count={subset}')
+    sweep_path = os.path.join(base_path, 'experiments/self_train/english')
+    comparison_path = os.path.join(sweep_path, f'cross_data/subset_count={subset}')
     
-    loading_models = { is_masked : util.get_full_set_model(Tagger, is_masked) for is_masked in [True, False] }
+    loading_models = { is_masked : util.get_subset_model(Single, is_masked) for is_masked in [True, False] }
     
-    masked_folder = 'masked/subset_count=10/version_x3do118v/ckpts_epoch=1-val_English_pos_acc_epoch=65.902'
-    unmasked_folder = 'unmasked/subset_count=10/version_3xr3fjl9/ckpts_epoch=15-val_English_pos_acc_epoch=81.096'
-    softmax_path = f'val_predictions/{lang}/val_predictions.pt'
+    base_folder = '../../alt/semisupervised-baseline-pos/experiments/self_train'
+    masked_folder = 'english/mixed/mixed/version_38g602fp/ckpts/ckpts_epoch=3-val_English_pos_acc_epoch=98.615.ckpt'
+    unmasked_folder = 'english/pure/pure/version_295owqwl/ckpts/ckpts_epoch=3-val_English_pos_acc_epoch=98.047.ckpt'
+    
+    flip_labels = True
+    softmax_path = f'flipped_true_labels/val_predictions/{lang}/dev_predictions.pt'
+    
     masked_args = {
         'softmax' : torch.load(os.path.join(sweep_path, masked_folder, softmax_path))[lang],
         'flat_labels' : predict_utils.get_batch_padded_flat_labels(loading_models[True], lang, Split.dev).cpu(),
-        'dataloader' : util.get_full_set_dataloader(loading_models[True], lang, Split.dev)
+        'dataloader' : util.get_subet_dataloader(loading_models[False if flip_labels else True], lang, Split.dev)
     }
     unmasked_args = {
         'softmax' : torch.load(os.path.join(sweep_path, unmasked_folder, softmax_path))[lang],
         'flat_labels' : predict_utils.get_batch_padded_flat_labels(loading_models[False], lang, Split.dev).cpu(),
-        'dataloader' : util.get_full_set_dataloader(loading_models[False], lang, Split.dev)
+        'dataloader' : util.get_subset_dataloader(loading_models[True if flip_labels else False], lang, Split.dev)
     }
     masked_right_df = generate_sentence_df(masked_args, unmasked_args, True, tokenizer)
     unmasked_right_df = generate_sentence_df(unmasked_args, masked_args, False, tokenizer)

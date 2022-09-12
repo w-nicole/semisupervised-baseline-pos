@@ -25,7 +25,7 @@ class Tagger(BaseTagger):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
         self._comparison_mode = 'max'
-        self._selection_criterion = f'val_{constant.SUPERVISED_LANGUAGE}_pos_acc_epoch'
+        self._selection_criterion = f'val_{self.hparams.target_language}_pos_acc_epoch'
 
         if self.hparams.freeze_mbert:
             self.freeze_bert(self)

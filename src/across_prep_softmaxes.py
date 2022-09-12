@@ -1,10 +1,7 @@
 
 import os
-import glob
-
-from model import Tagger
-import predict.predict_across as predict_across
-import predict.predict_utils as predict_utils
+from model import Single
+from predict import across, predict_utils
 import util
 
 if __name__ == '__main__':
@@ -12,26 +9,25 @@ if __name__ == '__main__':
     phase = 'dev'
     languages = ['English', 'Dutch']
     
-    checkpoint_path = ""
-    model = Tagger.load_from_checkpoint(components['checkpoint_path'])
-    dataloader = util.get_subset_dataloader(loading_model[components['masked']], self.lang, self.split)
+    loading_models = { is_masked : util.get_subset_model(Single, is_masked) for is_masked in [True, False] }
+    dataloaders_dict, padded_labels_dict = {}, {}
+    for is_masked, loading_model in loading_models.items():
+        dataloaders_dict[is_masked] = {
+            lang : util.get_subset_dataloader(loading_models[is_masked], lang, phase)
+            for lang in languages
+        } 
+        padded_labels_dict[is_masked] = {
+            lang : predict_utils.get_batch_padded_flat_labels(loading_models[is_masked], lang, phase)
+            for lang in languages
+        }
     
-    
-    loading_model = util.get_full_set_model(Tagger, is_masked)
-    dataloaders_dict = { lang : util.get_full_set_dataloader(loading_model, lang, phase) for lang in languages }
-    padded_labels_dict = { lang : predict_utils.get_batch_padded_flat_labels(loading_model, lang, phase) for lang in languages }
-        
-    for sweep_name, is_masked in zip(['masked', 'unmasked', 'unmasked_alt_seed'], [True, False, False]):
-    
-        folder = os.path.join(folder_base, sweep_name)
-        hparams_template = os.path.join(folder, '*')
-        hparams_path_matches = glob.glob(hparams_template)
-        assert len(set(hparams_path_matches)) == len(hparams_path_matches), hparams_path_matches
-        
-        checkpoint_paths = predict_across.get_sweep_matches(folder, hparams_template)
-        # Below is acceptable for dev.
-        
-        for checkpoint_path in checkpoint_paths:
-            df = predict_across.predict_over_languages(checkpoint_path, Tagger, phase, languages, dataloaders_dict, padded_labels_dict)
-        
+    base_folder = '../../alt/semisupervised-baseline-pos/experiments/self_train'
+    checkpoint_paths = [
+        'english/mixed/mixed/version_38g602fp/ckpts/ckpts_epoch=3-val_English_pos_acc_epoch=98.615.ckpt',
+        'english/pure/pure/version_295owqwl/ckpts/ckpts_epoch=3-val_English_pos_acc_epoch=98.047.ckpt'
+    ]
+    for checkpoint_tail, is_masked in zip(checkpoint_paths, [False, True]):
+        checkpoint_path = os.path.join(base_folder, checkpoint_tail)
+        df = across.predict_over_languages(checkpoint_path, Single, phase, languages, dataloaders_dict[is_masked], padded_labels_dict[is_masked], 'flipped_true_labels')
+            
    

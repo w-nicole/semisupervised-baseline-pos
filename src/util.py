@@ -50,8 +50,8 @@ def get_subset_model(model_class, is_masked, subset_count = -1):
     
 def assert_if_is_full(phase, subset_model):
     if phase != 'train': return
-    assert subset_model.hparams.subset_ratio == 1 and subset_model.hparams.subset_count == -1,\
-        "model provided will not provide entire train set. Is this deliberate?"
+    if not subset_model.hparams.subset_ratio == 1 and subset_model.hparams.subset_count == -1:
+        print("model provided will not provide entire train set. Is this deliberate?")
         
 def get_subset_dataloader(subset_model, lang, split):
     assert_if_is_full(split, subset_model)

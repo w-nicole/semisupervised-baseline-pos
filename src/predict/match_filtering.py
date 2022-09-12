@@ -14,9 +14,7 @@ def clean_for_ensemble_softmax(softmax, flat_labels_by_dataloader):
     assert len(flat_softmax.shape) == 2, flat_softmax.shape
     assert len(flat_labels_by_dataloader.shape) == 1, flat_labels_by_dataloader.shape
     not_padding_indices = np.where(flat_labels_by_dataloader != LABEL_PAD_ID)[0]
-    try:
-        clean_softmax = np.take(flat_softmax, not_padding_indices, axis = 0)
-    except: import pdb; pdb.set_trace()
+    clean_softmax = np.take(flat_softmax, not_padding_indices, axis = 0)
     
     return torch.from_numpy(clean_softmax)
 

@@ -579,4 +579,5 @@ class Model(pl.LightningModule):
         parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
         parser.add_argument("--masked", default=False, type=util.str2bool)
         parser.add_argument("--use_subset_complement", default=False, type=util.str2bool)
+        parser.add_argument("--target_language", default="English", type=str)
         return parser
