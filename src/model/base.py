@@ -23,7 +23,8 @@ from transformers import AutoConfig, AutoModel, AutoTokenizer
 
 import constant
 import util
-from dataset.base import Dataset, LABEL_PAD_ID
+from dataset.base import Dataset
+from constant import LABEL_PAD_ID
 from enumeration import Schedule, Split, Task
 from metric import Metric, POSMetric, AverageMetric
 
@@ -34,6 +35,7 @@ import yaml
 class Model(pl.LightningModule):
     def __init__(self, hparams):
         super(Model, self).__init__()
+        
         self.optimizer = None
         self.scheduler = None
         self.metric_names = None
@@ -52,6 +54,7 @@ class Model(pl.LightningModule):
         
         if isinstance(hparams, dict):
             hparams = Namespace(**hparams)
+        
         self.save_hyperparameters(hparams)
         pl.seed_everything(hparams.seed)
         
@@ -143,6 +146,11 @@ class Model(pl.LightningModule):
 
         return self._batch_per_epoch
 
+    @property
+    def data_class(self):
+        assert self._data_class is not None
+        return self._data_class
+        
     @property
     def selection_criterion(self):
         assert self._selection_criterion is not None
@@ -418,9 +426,9 @@ class Model(pl.LightningModule):
     def prepare_datasets(self, split: str) -> List[Dataset]:
         raise NotImplementedError
 
-    def get_dataset(self, data_class, lang, split, max_len):
+    def get_dataset(self, lang, split, max_len):
         split = split if split != 'val' else Split.dev
-        filepath = data_class.get_file(self.hparams.data_dir, lang, split)
+        filepath = self.data_class.get_file(self.hparams.data_dir, lang, split)
         if filepath is None:
             print(f"ignoring, no file found, for {split} language: {lang}")
             return
@@ -436,18 +444,25 @@ class Model(pl.LightningModule):
             params["subset_ratio"] = self.hparams.subset_ratio
             params["subset_count"] = self.hparams.subset_count
             params["subset_seed"] = self.hparams.subset_seed
+        params['use_subset_complement'] = self.hparams.use_subset_complement
+        params['self_training_args'] = dict() if not 'view_checkpoint_1' in dict(self.hparams) else {
+                'view_checkpoint_1' : self.hparams.view_checkpoint_1,
+                'view_checkpoint_2' : self.hparams.view_checkpoint_2,
+                'is_masked_view_1' : self.hparams.is_masked_view_1,
+                'is_masked_view_2' : self.hparams.is_masked_view_2,
+            }
         del params["task"]
-        dataset = data_class(**params)
+        dataset = self.data_class(**params)
         return dataset
         
-    def get_dataset_by_lang_split(self, data_class, lang, split):
+    def get_dataset_by_lang_split(self, lang, split):
         max_len = self.hparams.max_trn_len if split == Split.train else self.hparams.max_tst_len
-        return self.get_dataset(data_class, lang, split, max_len)
+        return self.get_dataset(lang, split, max_len)
         
-    def prepare_datasets_helper(self, data_class, langs, split, max_len):
+    def prepare_datasets_helper(self, langs, split, max_len):
         datasets = []
         for lang in langs:
-            dataset = self.get_dataset(data_class, lang, split, max_len)
+            dataset = self.get_dataset(lang, split, max_len)
             if dataset is None:
                 continue
             datasets.append(dataset)
@@ -511,7 +526,8 @@ class Model(pl.LightningModule):
             )
             for tst_dataset in self.tst_datasets
         ]
-        
+    
+    
     @classmethod
     def add_layer_stack_args(cls, parser, modifier):
         parser.add_argument(f"--{modifier}_hidden_layers", default=1, type=int)
@@ -562,4 +578,6 @@ class Model(pl.LightningModule):
         parser.add_argument("--number_of_workers", default=1, type=int)
         parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
         parser.add_argument("--masked", default=False, type=util.str2bool)
+        parser.add_argument("--use_subset_complement", default=False, type=util.str2bool)
+        parser.add_argument("--target_language", default="English", type=str)
         return parser

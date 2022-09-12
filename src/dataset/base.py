@@ -1,16 +1,19 @@
 from functools import partial
 from typing import Dict, Iterator, List, Optional, Tuple
 
+import torch
+from predict import match_filtering, predict_utils, softmaxes
 import numpy as np
 import transformers
 from torch.utils.data import Dataset as TorchDataset
 from tqdm import tqdm
 
+import util
+
 tqdm.monitor_interval = 0
 tqdm = partial(tqdm, bar_format="{l_bar}{r_bar}")
 
-
-LABEL_PAD_ID = -1
+from constant import LABEL_PAD_ID
 DUMMY_LABEL = "DUMMY_LABEL"
 
 
@@ -20,18 +23,13 @@ class Tokenizer(transformers.PreTrainedTokenizer):
 
 class Dataset(TorchDataset):
     def __init__(
-        self,
-        *,
-        tokenizer: Tokenizer,
-        filepath: str,
-        lang: str,
-        masked: bool,
-        split: Optional[str] = None,
-        max_len: Optional[int] = None,
-        subset_ratio: float = 1,
-        subset_count: int = -1,
-        subset_seed: int = 42,
+        self, use_subset_complement, tokenizer,
+        filepath, lang, masked, split = None,
+        max_len = None, subset_ratio = 1, subset_count = -1, subset_seed = 42,
+        self_training_args = {}
     ):
+        self.use_subset_complement = use_subset_complement
+        self.self_training_args = self_training_args
         self.masked = masked
         self.tokenizer = tokenizer
         self.filepath = filepath
@@ -79,35 +77,48 @@ class Dataset(TorchDataset):
     def before_load(self):
         pass
 
-    def load(self):
-        assert self.data == []
-
+    def load_all_predictions(self):
         examples = []
-        for ex in tqdm(
+        for index, ex in enumerate(tqdm(
             self.read_file(self.filepath, self.lang, self.split), desc="read data"
-        ):
+        )):
+            ex['ud_entry_index'] = index
             examples.append(ex)
-
+                
+        return examples
+    
+    def get_subset_indices(self, raw_full_examples):
+        get_indices = lambda examples : [ example['ud_entry_index'] for example in examples ]
         if self.subset_count > 0 or self.subset_ratio < 1:
             if self.subset_count > 0:
                 subset_size = self.subset_count
             elif self.subset_ratio < 1:
-                subset_size = int(len(examples) * self.subset_ratio)
+                subset_size = int(len(raw_full_examples) * self.subset_ratio)
             else:
                 raise ValueError("subset_ratio and subset_count is mutally exclusive")
 
             print(
-                f"taking {subset_size} subset (total {len(examples)}) from {self.filepath}"
+                f"calculating {subset_size} subset (total {len(raw_full_examples)}) from {self.filepath}"
             )
 
             seed = np.random.RandomState(self.subset_seed)
-            examples = seed.permutation(examples)[:subset_size]
-
+            shuffled_examples = seed.permutation(raw_full_examples)
+            if not self.use_subset_complement:
+                subset_examples = shuffled_examples[:subset_size]
+            else:
+                subset_examples = shuffled_examples[subset_size:]
+            return get_indices(subset_examples)
+        else:
+            return get_indices(raw_full_examples)
+        
+    def process_examples(self, examples):
         data = []
         for example in tqdm(examples, desc="parse data"):
             data.extend(self.process_example(example))
-            
-        self.data = data
+        return data
+        
+    def load(self):
+        raise NotImplementedError
 
     @classmethod
     def get_file(cls, path: str, lang: str, split: str) -> Optional[str]:

@@ -11,13 +11,13 @@ import torch.nn.functional as F
 from functools import partial # added this from model/base.py
 
 import util
-from dataset import Dataset, UdPOS, LABEL_PAD_ID
+from dataset.tagging import UdPOS
+from constant import LABEL_PAD_ID
 from enumeration import Split, Task
 from model.base import Model
 from model.base_tagger import BaseTagger
 
 import constant
-from dataset import tagging
 from torch.utils.data import DataLoader
 
 
@@ -25,7 +25,7 @@ class Tagger(BaseTagger):
     def __init__(self, hparams):
         super(Tagger, self).__init__(hparams)
         self._comparison_mode = 'max'
-        self._selection_criterion = f'val_{constant.SUPERVISED_LANGUAGE}_pos_acc_epoch'
+        self._selection_criterion = f'val_{self.hparams.target_language}_pos_acc_epoch'
 
         if self.hparams.freeze_mbert:
             self.freeze_bert(self)

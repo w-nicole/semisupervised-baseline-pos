@@ -11,11 +11,11 @@ from model import Tagger
 import util
 from enumeration import Split
 from analysis import sweeps
-from dataset import LABEL_PAD_ID
+from constant import LABEL_PAD_ID
 
 def get_lang_path(base_path, sweep_name, subset, lang):
     get_subset_template = lambda base_path, sweep_name, subset : os.path.join(
-        base_path, 'experiments', 'heatmaps', 'subset', sweep_name, f'subset_count={subset}',
+        base_path, sweep_name, f'subset_count={subset}',
         'version_*/ckpts_epoch*/val_predictions'
     )
     get_lang_template = lambda base_path, sweep_name, subset, lang : os.path.join(
@@ -24,6 +24,7 @@ def get_lang_path(base_path, sweep_name, subset, lang):
     )
     template = get_lang_template(base_path, sweep_name, subset, lang)
     path = glob.glob(template)
+    if len(path) != 1: import pdb; pdb.set_trace()
     assert len(path) == 1, path
     return path[0]
     
@@ -45,10 +46,8 @@ def compute_ensemble_df(lang, base_path, weights, subsets, args_1, args_2):
     for subset in subsets:
         path_1 = get_lang_path(base_path, args_1['sweep_name'], subset, lang)
         path_2 = get_lang_path(base_path, args_2['sweep_name'], subset, lang)
-        # Below is probably temporary indexing into torch.load dict
-        # -- remove when you regen all predictions
-        softmaxes_1 = clean_for_ensemble_softmax(args_1['is_masked'], torch.load(path_1)[lang], padded_labels_1)
-        softmaxes_2 = clean_for_ensemble_softmax(args_2['is_masked'], torch.load(path_2)[lang], padded_labels_2)
+        softmaxes_1 = clean_for_ensemble_softmax(args_1['is_masked'], torch.load(path_1), padded_labels_1)
+        softmaxes_2 = clean_for_ensemble_softmax(args_2['is_masked'], torch.load(path_2), padded_labels_2)
         if not softmaxes_1.shape == softmaxes_2.shape:
             import pdb; pdb.set_trace()
         for weight in weights:
@@ -87,10 +86,10 @@ if __name__ == '__main__':
     
     # Assumes that single_predict has been run for the relevant baselines
     
-    base_path = '../../alt/semisupervised-baseline-pos'
+    base_path = '../../alt/semisupervised-baseline-pos/experiments/subset_explore/long_single'
     
-    languages = ['English', 'Dutch', 'Turkish', 'Irish']
-    subsets = [1, 2, 5, 10, 50, 100, 500, 1000, 1500]
+    languages = ['English', 'Dutch', 'Spanish', 'Portuguese', 'Uyghur', 'Turkish', 'Irish']
+    subsets = [1, 5]
     weights = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]
     
     args = (languages, base_path, weights, subsets)

@@ -1,6 +1,6 @@
 
 import util
-from model import Tagger
+from model import Single
 
 if __name__ == "__main__":
-    util.train_call(Tagger)
+    util.train_call(Single)

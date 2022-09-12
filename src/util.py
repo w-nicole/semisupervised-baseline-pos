@@ -34,30 +34,31 @@ def get_folder_from_checkpoint_path(checkpoint_path):
     folder = '/'.join(path_components[:-2])
     return folder
     
-def get_full_set_model(model_class, is_masked):
-    full_set_model_args = {
+def get_subset_model(model_class, is_masked, subset_count = -1):
+    model_args_dict = {
         'data_dir' : "../../ud-treebanks-v1.4",
         'trn_langs' : 'English',
         'val_langs' : 'English',
-        'masked' : 'y' if is_masked else 'n'
+        'masked' : 'y' if is_masked else 'n',
+        'subset_count' : str(subset_count)
     }
     parser = model_class.add_model_specific_args(ArgumentParser())
-    args = [ arg for arg_name, arg_value in full_set_model_args.items() for arg in [f'--{arg_name}', arg_value] ]
-    full_set_model_args = parser.parse_args(args)
-    model = model_class(full_set_model_args)
+    args = [ arg for arg_name, arg_value in model_args_dict.items() for arg in [f'--{arg_name}', arg_value] ]
+    model_args = parser.parse_args(args)
+    model = model_class(model_args)
     return model
     
-def assert_full_set_model(full_set_model):
-    assert full_set_model.hparams.subset_ratio == 1 and full_set_model.hparams.subset_count == -1,\
-        "model provided will not provide entire train set. Is this delieberate?"
+def assert_if_is_full(phase, subset_model):
+    if phase != 'train': return
+    if not subset_model.hparams.subset_ratio == 1 and subset_model.hparams.subset_count == -1:
+        print("model provided will not provide entire train set. Is this deliberate?")
+        
+def get_subset_dataloader(subset_model, lang, split):
+    assert_if_is_full(split, subset_model)
+    return subset_model.get_unshuffled_dataloader(lang, split)
     
-def get_full_set_dataloader(full_set_model, lang, split):
-    assert_full_set_model(full_set_model)
-    return full_set_model.get_unshuffled_dataloader(lang, split)
-    
-def get_full_set_labels(full_set_model, lang, split):
-    assert_full_set_model(full_set_model)
-    return full_set_model.get_flat_labels(lang, split)
+def get_subset_labels(subset_model, lang, split):
+    return subset_model.get_flat_labels(lang, split)
     
 def train_call(model_class):
     parser = ArgumentParser()

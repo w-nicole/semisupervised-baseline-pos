@@ -1,3 +1,7 @@
+
+# Adapted from Shijie Wu's crosslingual-nlp repository.
+# For LICENSE, see LICENSE.txt.
+
 import glob
 from collections import defaultdict
 from copy import deepcopy
@@ -6,7 +10,8 @@ from typing import Dict, Iterator, List, Optional, Tuple
 import numpy as np
 
 import constant
-from dataset.base import DUMMY_LABEL, LABEL_PAD_ID, Dataset
+from dataset.base import DUMMY_LABEL, Dataset
+from constant import LABEL_PAD_ID
 from enumeration import Split
 
 
