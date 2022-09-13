@@ -1,15 +1,15 @@
 
 from model.tagger import Tagger
-from dataset.self_training import SelfTrainingDataset
+from dataset.split_ensemble import SplitEnsembleDataset
 
 import util
 
-class SelfTraining(Tagger):
+class SplitEnsemble(Tagger):
     
     def __init__(self, hparams):
-        super(SelfTraining, self).__init__(hparams)
-        self._data_class = SelfTrainingDataset
-        SelfTraining.check_self_training_args(hparams)
+        super(SplitEnsemble, self).__init__(hparams)
+        self._data_class = SplitEnsembleDataset
+        SplitEnsemble.check_self_training_args(hparams)
         
     @classmethod
     def check_self_training_args(cls, hparams):

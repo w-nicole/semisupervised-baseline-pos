@@ -439,7 +439,6 @@ class Model(pl.LightningModule):
         params["lang"] = lang
         params["split"] = split
         params["max_len"] = max_len
-        params['masked'] = self.hparams.masked
         if split == Split.train:
             params["subset_ratio"] = self.hparams.subset_ratio
             params["subset_count"] = self.hparams.subset_count
@@ -451,6 +450,11 @@ class Model(pl.LightningModule):
                 'is_masked_view_1' : self.hparams.is_masked_view_1,
                 'is_masked_view_2' : self.hparams.is_masked_view_2,
             }
+        params['prediction_format_args'] = {
+            'unraveled_predictions' : self.hparams.unraveled_predictions,
+            'mask_probability' : self.hparams.mask_probability,
+            'double_pass' : self.hparams.double_pass
+        }
         del params["task"]
         dataset = self.data_class(**params)
         return dataset
@@ -577,7 +581,9 @@ class Model(pl.LightningModule):
         # fmt: on
         parser.add_argument("--number_of_workers", default=1, type=int)
         parser.add_argument("--freeze_mbert", default=False, type=util.str2bool)
-        parser.add_argument("--masked", default=False, type=util.str2bool)
+        parser.add_argument("--unraveled_predictions", default=False, type=util.str2bool)
+        parser.add_argument("--mask_probability", default=0, type=float)
+        parser.add_argument("--double_pass", default=False, type=util.str2bool)
         parser.add_argument("--use_subset_complement", default=False, type=util.str2bool)
         parser.add_argument("--target_language", default="English", type=str)
         return parser

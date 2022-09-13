@@ -27,6 +27,8 @@ class BaseTagger(Model):
         
         self.padding = {
             "sent": self.tokenizer.pad_token_id,
+            "sent_1": self.tokenizer.pad_token_id,
+            "sent_2" : self.tokenizer.pad_token_id,
             "lang": 0,
             "pos_labels": LABEL_PAD_ID
         }

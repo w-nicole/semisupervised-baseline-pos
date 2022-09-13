@@ -10,7 +10,7 @@ from predict import predict_utils, softmaxes, match_filtering
 from constant import LABEL_PAD_ID
 from model.single import Single
 
-class SelfTrainingDataset(UdPOS):
+class SplitEnsembleDataset(UdPOS):
     
     def __init__(
         self, use_subset_complement, tokenizer,
@@ -22,7 +22,7 @@ class SelfTrainingDataset(UdPOS):
                 is_masked : util.get_subset_model(Single, is_masked)
                 for is_masked in [True, False]
             }
-        super(SelfTrainingDataset, self).__init__(
+        super(SplitEnsembleDataset, self).__init__(
                 use_subset_complement, tokenizer,
                 filepath, lang, masked, split,
                 max_len, subset_ratio, subset_count, subset_seed,
