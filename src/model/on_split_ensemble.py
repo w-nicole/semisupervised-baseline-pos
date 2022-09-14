@@ -1,15 +1,15 @@
 
 from model.tagger import Tagger
-from dataset.split_ensemble import SplitEnsembleDataset
+from dataset.uniform_view import UniformViewDataset
 
 import util
 
-class SplitEnsemble(Tagger):
+class OnSplitEnsemble(Tagger):
     
     def __init__(self, hparams):
-        super(SplitEnsemble, self).__init__(hparams)
-        self._data_class = SplitEnsembleDataset
-        SplitEnsemble.check_self_training_args(hparams)
+        super(OnSplitEnsemble, self).__init__(hparams)
+        self._data_class = UniformViewDataset
+        OnSplitEnsemble.check_self_training_args(hparams)
         
     @classmethod
     def check_self_training_args(cls, hparams):
@@ -40,7 +40,15 @@ class SplitEnsemble(Tagger):
             is_unmasked_list.append(is_unmasked)
         # Below: this is only designed for mixed and pure_unmasked for now
         assert (is_unmasked_list[0] ^ is_unmasked_list[1]) or all(is_unmasked_list), is_unmasked_list
-
+        
+    def get_self_training_args(self):
+        return {
+            'view_checkpoint_1' : self.hparams.view_checkpoint_1,
+            'view_checkpoint_2' : self.hparams.view_checkpoint_2,
+            'is_masked_view_1' : self.hparams.is_masked_view_1,
+            'is_masked_view_2' : self.hparams.is_masked_view_2,
+        }
+        
     @classmethod
     def add_model_specific_args(cls, parser):
         # self-training arguments

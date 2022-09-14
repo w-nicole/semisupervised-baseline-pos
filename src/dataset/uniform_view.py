@@ -10,19 +10,19 @@ from predict import predict_utils, softmaxes, match_filtering
 from constant import LABEL_PAD_ID
 from model.single import Single
 
-class SplitEnsembleDataset(UdPOS):
+class UniformViewDataset(UdPOS):
     
     def __init__(
         self, use_subset_complement, tokenizer,
-        filepath, lang, masked, split = None,
+        filepath, lang, self_training_args, prediction_format_args,
+        split = None,
         max_len = None, subset_ratio = 1, subset_count = -1, subset_seed = 42,
-        self_training_args = {}
     ):
         self.loading_models = {
                 is_masked : util.get_subset_model(Single, is_masked)
                 for is_masked in [True, False]
             }
-        super(SplitEnsembleDataset, self).__init__(
+        super(UniformViewDataset, self).__init__(
                 use_subset_complement, tokenizer,
                 filepath, lang, masked, split,
                 max_len, subset_ratio, subset_count, subset_seed,

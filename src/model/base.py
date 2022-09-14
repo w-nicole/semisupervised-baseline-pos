@@ -447,24 +447,7 @@ class Model(pl.LightningModule):
             params["subset_count"] = self.hparams.subset_count
             params["subset_seed"] = self.hparams.subset_seed
         params['use_subset_complement'] = self.hparams.use_subset_complement
-        hparams_dict = dict(self.hparams)
-        
-        if 'view_checkpoint_1' in hparams_dict:
-            params['self_training_args'] = {
-                'view_checkpoint_1' : self.hparams.view_checkpoint_1,
-                'view_checkpoint_2' : self.hparams.view_checkpoint_2,
-                'is_masked_view_1' : self.hparams.is_masked_view_1,
-                'is_masked_view_2' : self.hparams.is_masked_view_2,
-            }
-        elif 'joined_view_checkpoint' in hparams_dict:
-            params['self_training_args'] = {
-                'view_checkpoint_1' : self.hparams.joined_view_checkpoint,
-                'view_checkpoint_2' : self.hparams.joined_view_checkpoint,
-                'is_masked_view_1' : False,
-                'is_masked_view_2' : False,
-            }
-        else:
-            params['self_training_args'] = dict()
+        params['self_training_args'] = self.get_self_training_args()
         params['prediction_format_args'] = {
             'unraveled_predictions' : self.hparams.unraveled_predictions,
             'mask_probability' : self.hparams.mask_probability,
