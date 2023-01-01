@@ -24,15 +24,11 @@ class Tokenizer(transformers.PreTrainedTokenizer):
 class Dataset(TorchDataset):
     def __init__(
         self, use_subset_complement, tokenizer,
-        filepath, lang, self_training_args, prediction_format_args,
+        filepath, lang,
         split = None,
         max_len = None, subset_ratio = 1, subset_count = -1, subset_seed = 42,
     ):
         self.use_subset_complement = use_subset_complement
-        self.self_training_args = self_training_args
-        self.unraveled_predictions = prediction_format_args['unraveled_predictions']
-        self.mask_probability = prediction_format_args['mask_probability']
-        self.double_pass = prediction_format_args['double_pass']
         self.tokenizer = tokenizer
         self.filepath = filepath
         self.lang = self.unpack_language(lang)

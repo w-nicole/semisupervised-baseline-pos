@@ -40,7 +40,6 @@ def get_subset_model(model_class, is_masked, subset_count = -1):
         'trn_langs' : 'English',
         'val_langs' : 'English',
         'mask_probability' : 1 if is_masked else 0,
-        'double_pass' : 'n',
         'subset_count' : str(subset_count)
     }
     parser = model_class.add_model_specific_args(ArgumentParser())
