@@ -24,9 +24,9 @@ class Tokenizer(transformers.PreTrainedTokenizer):
 class Dataset(TorchDataset):
     def __init__(
         self, use_subset_complement, tokenizer,
-        filepath, lang,
+        filepath, lang, subset_seed,
         split = None,
-        max_len = None, subset_ratio = 1, subset_count = -1, subset_seed = 42,
+        max_len = None, subset_ratio = 1, subset_count = -1,
     ):
         self.use_subset_complement = use_subset_complement
         self.tokenizer = tokenizer

@@ -34,7 +34,7 @@ def softmax_to_accuracy(softmax, padded_labels):
     return accuracy
     
     
-def get_softmaxes(model, dataloader, analysis_path, phase):
+def get_and_save_softmaxes(model, dataloader, analysis_path, phase):
     if not os.path.exists(analysis_path): os.makedirs(analysis_path)
     predictions_path = os.path.join(analysis_path, f'{phase}_predictions.pt')
     if not os.path.exists(predictions_path):

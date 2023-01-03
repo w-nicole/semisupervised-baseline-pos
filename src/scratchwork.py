@@ -41,31 +41,33 @@ if __name__ == '__main__':
     #                 if not np.all(v1 == v2): import pdb; pdb.set_trace()
     #     print('done')
     
-    model = util.get_subset_model(RandomMask, False)
-    #val_dataloader = model.val_dataloader()[0]
+    # model = util.get_subset_model(RandomMask, False)
+    # #val_dataloader = model.val_dataloader()[0]
+    # # import pdb; pdb.set_trace()
+    # #batch = next(val_dataloader.__iter__())
+    
+    # batch = {
+    #     'sent' : torch.Tensor([
+    #             [101, 1, 2, 3, 4, 5, 6, 102, 0, 0, 0],
+    #             [101, 1, 2, 3, 102, 0, 0, 0, 0, 0, 0],
+    #         ]),
+    #     'pos_labels' : torch.Tensor([
+    #             [-1, 8, -1, 3, 4, -1, -1, -1, -1, -1, -1],
+    #             [-1, 7, 8, 9, -1, -1, -1, -1, -1, -1, -1]
+    #         ]),
+    #     'lang' : ['English'] * 11,
+    #     'non_pad_length' : [8, 5],
+    #     'is_mask' : [
+    #             [1, 0, 1],
+    #             [1, 0, 1]
+    #         ]
+    # }
+    
+    # #try:
+    # masked_batch = model.mask_batch(batch)
+    # from pprint import pprint
     # import pdb; pdb.set_trace()
-    #batch = next(val_dataloader.__iter__())
     
-    batch = {
-        'sent' : torch.Tensor([
-                [101, 1, 2, 3, 4, 5, 6, 102, 0, 0, 0],
-                [101, 1, 2, 3, 102, 0, 0, 0, 0, 0, 0],
-            ]),
-        'pos_labels' : torch.Tensor([
-                [-1, 8, -1, 3, 4, -1, -1, -1, -1, -1, -1],
-                [-1, 7, 8, 9, -1, -1, -1, -1, -1, -1, -1]
-            ]),
-        'lang' : ['English'] * 11,
-        'non_pad_length' : [8, 5],
-        'is_mask' : [
-                [1, 0, 1],
-                [1, 0, 1]
-            ]
-    }
     
-    #try:
-    masked_batch = model.mask_batch(batch)
-    from pprint import pprint
-    import pdb; pdb.set_trace()
     
     

@@ -439,10 +439,10 @@ class Model(pl.LightningModule):
         params["lang"] = lang
         params["split"] = split
         params["max_len"] = max_len
+        params["subset_seed"] = self.hparams.subset_seed
         if split == Split.train:
             params["subset_ratio"] = self.hparams.subset_ratio
-            params["subset_count"] = self.hparams.subset_count
-            params["subset_seed"] = self.hparams.subset_seed
+            params["subset_count"] = self.hparams.subset_count    
         params['use_subset_complement'] = self.hparams.use_subset_complement
         del params["task"]
         dataset = self.data_class(**params)

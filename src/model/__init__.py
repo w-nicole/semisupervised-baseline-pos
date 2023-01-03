@@ -6,3 +6,4 @@ from model.base import Model  # noqa: F401
 from model.tagger import Tagger  # noqa: F401
 from model.single import Single
 from model.random_mask import RandomMask
+from model.on_split_ensemble import OnSplitEnsemble

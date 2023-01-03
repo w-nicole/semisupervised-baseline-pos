@@ -34,12 +34,12 @@ def get_folder_from_checkpoint_path(checkpoint_path):
     folder = '/'.join(path_components[:-2])
     return folder
     
-def get_subset_model(model_class, is_masked, subset_count = -1):
+def get_subset_model(model_class, mask_probability, subset_count = -1):
     model_args_dict = {
         'data_dir' : "../../ud-treebanks-v1.4",
         'trn_langs' : 'English',
         'val_langs' : 'English',
-        'mask_probability' : 1 if is_masked else 0,
+        'mask_probability' : mask_probability,
         'subset_count' : str(subset_count)
     }
     parser = model_class.add_model_specific_args(ArgumentParser())
