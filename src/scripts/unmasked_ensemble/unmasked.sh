@@ -11,7 +11,7 @@ data_path=${2:-"../../ud-treebanks-v1.4"}
 bs=32
 ep=20
 
-python3 src/train_encoder.py \
+python3 src/train_random_mask.py \
     --data_dir "$data_path" \
     --trn_langs $train_languages \
     --val_langs $val_languages \
@@ -25,7 +25,7 @@ python3 src/train_encoder.py \
     --mask_probability 0 \
     --group "random_mask" \
     --job_type "unmasked_ensemble" \
-    --name "unmasked" \
+    --name "unmasked_" \
     --default_save_path "$save_path" \
     --freeze_mbert "n" \
     --schedule "reduceOnPlateau" \

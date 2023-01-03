@@ -425,6 +425,9 @@ class Model(pl.LightningModule):
         
     def prepare_datasets(self, split: str) -> List[Dataset]:
         raise NotImplementedError
+        
+    def get_self_training_args(self):
+        return dict()
 
     def get_dataset(self, lang, split, max_len):
         split = split if split != 'val' else Split.dev
@@ -444,6 +447,7 @@ class Model(pl.LightningModule):
             params["subset_ratio"] = self.hparams.subset_ratio
             params["subset_count"] = self.hparams.subset_count    
         params['use_subset_complement'] = self.hparams.use_subset_complement
+        params['self_training_args'] = self.get_self_training_args()
         del params["task"]
         dataset = self.data_class(**params)
         return dataset

@@ -24,7 +24,7 @@ class Tokenizer(transformers.PreTrainedTokenizer):
 class Dataset(TorchDataset):
     def __init__(
         self, use_subset_complement, tokenizer,
-        filepath, lang, subset_seed,
+        filepath, lang, subset_seed, self_training_args,
         split = None,
         max_len = None, subset_ratio = 1, subset_count = -1,
     ):
@@ -32,6 +32,7 @@ class Dataset(TorchDataset):
         self.tokenizer = tokenizer
         self.filepath = filepath
         self.lang = self.unpack_language(lang)
+        self.self_training_args = self_training_args
         self.split = split
         if max_len is not None:
             assert 0 < max_len <= self.tokenizer.max_len_single_sentence

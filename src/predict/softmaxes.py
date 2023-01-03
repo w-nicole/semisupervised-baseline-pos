@@ -16,14 +16,7 @@ def get_all_softmaxes(model, dataloader):
     with torch.no_grad():
         raw_predictions = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
         softmaxes = [output[1]['pos'][0].exp() for output in raw_predictions]
-    if not model.hparams.double_pass:
-        return softmaxes
-    # Format such that you have the two views.
-    assert len(softmaxes) % 2 == 0, len(softmaxes)
-    first_half = softmaxes[:softmaxes // 2]
-    second_half = softmaxes[softmaxes // 2:]
-    return (first_half, second_half)
-
+    return softmaxes
     
 def softmax_to_accuracy(softmax, padded_labels):
     """softmax: {lang : (batch, position, class)}"""
