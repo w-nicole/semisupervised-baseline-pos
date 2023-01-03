@@ -73,16 +73,17 @@ if __name__ == '__main__':
     
     outputs = []
     mask_probability = .5
-    checkpoint_path = './experiments/unmasked_ensemble/unmasked/unmaskedsubset_count=10/version_3v2104nt/ckpts/ckpts_epoch=15-val_English_pos_acc_epoch=81.096.ckpt'
+    checkpoint_path = './experiments/unmasked_ensemble/unmasked/unmasked_subset_count=10/version_26abg0b3/ckpts/ckpts_epoch=15-val_English_pos_acc_epoch=81.096.ckpt'
     for _ in range(2):
         model = RandomMask.load_from_checkpoint(checkpoint_path)
-        model.mask_probability = mask_probability
-        dataloader = util.get_subset_dataloader(model, 'English', 'dev')
+        model.hparams.mask_probability = mask_probability
+        dataloader = util.get_subset_dataloader(model, 'English', 'train')
         model.eval()
         trainer = pl.Trainer(gpus = 1 if torch.cuda.is_available() else 0)
         with torch.no_grad():
             raw_predictions = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
             outputs.append(raw_predictions)
     import pdb; pdb.set_trace()
+    # pprint(outputs[0][0]['sent'] == model.tokenizer.mask_token_id)
         
         

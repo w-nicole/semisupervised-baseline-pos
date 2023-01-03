@@ -14,7 +14,7 @@ class OnSplitEnsembleDataset(UdPOS):
     
     def prep_view_component(self, mask_probability, checkpoint):
         model = RandomMask.load_from_checkpoint(checkpoint)
-        model.mask_probability = mask_probability
+        model.hparams.mask_probability = mask_probability
         dataloader = util.get_subset_dataloader(model, self.lang, self.split)
         softmax = softmaxes.get_all_softmaxes(model, dataloader)
         labels = predict_utils.get_batch_padded_flat_labels(
