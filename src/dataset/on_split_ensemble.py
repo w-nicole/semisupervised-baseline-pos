@@ -12,18 +12,33 @@ from model.random_mask import RandomMask
 
 class OnSplitEnsembleDataset(UdPOS):
     
+    def __init__(
+        self, use_subset_complement, tokenizer,
+        filepath, lang, subset_seed, self_training_args,
+        split = None,
+        max_len = None, subset_ratio = 1, subset_count = -1,
+    ):
+        # model that does not subset train.
+        self.loading_model = util.get_subset_model(RandomMask, 0)
+        super(OnSplitEnsembleDataset, self).__init__(
+            use_subset_complement, tokenizer,
+            filepath, lang, subset_seed, self_training_args,
+            split,
+            max_len, subset_ratio, subset_count
+        )
+
     def prep_view_component(self, mask_probability, checkpoint):
         model = RandomMask.load_from_checkpoint(checkpoint)
         model.hparams.mask_probability = mask_probability
-        dataloader = util.get_subset_dataloader(model, self.lang, self.split)
+        dataloader = util.get_subset_dataloader(self.loading_model, self.lang, self.split)
         softmax = softmaxes.get_all_softmaxes(model, dataloader)
         labels = predict_utils.get_batch_padded_flat_labels(
-            model, self.lang, self.split
+            self.loading_model, self.lang, self.split
         )
         predictions = match_filtering.get_clean_matching_predictions(
             softmax, labels
         )
-        return predictions
+        return predictions, labels
         
     def replace_labels_with_ensemble_match(
             self, processed_full_examples, subset_indices, clean_mask, predictions
@@ -101,15 +116,17 @@ class OnSplitEnsembleDataset(UdPOS):
         # Need to align the view labels and then overwrite the original labels
         # Such that Wu/Dredze structure is returned instead.
         full_data = self.process_examples(raw_full_examples)
-        pseudolabels = self.prep_view_component(0, self.self_training_args['pseudolabel_checkpoint'])
-        predictions_1 = pseudolabels = self.prep_view_component(
+        pseudolabels, pseudolabels_true_labels = self.prep_view_component(0, self.self_training_args['pseudolabel_checkpoint'])
+        predictions_1, labels_1 = self.prep_view_component(
             self.self_training_args['view_mask_probability_1'],
             self.self_training_args['view_checkpoint_1']
         )
-        predictions_1 = pseudolabels = self.prep_view_component(
+        predictions_2, labels_2 = self.prep_view_component(
             self.self_training_args['view_mask_probability_2'],
             self.self_training_args['view_checkpoint_2']
         )
+        if not torch.all(labels_1 == labels_2) and torch.all(pseudolabels_true_labels == labels_1):
+            import pdb; pdb.set_trace()
         clean_mask = (predictions_1 == predictions_2)
             
         data = self.replace_labels_with_ensemble_match(full_data, subset_indices, clean_mask, pseudolabels)
