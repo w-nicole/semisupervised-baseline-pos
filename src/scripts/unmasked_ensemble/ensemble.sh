@@ -4,7 +4,7 @@
 # Adapted from Shijie Wu's crosslingual-nlp repository.
 # See LICENSE in this codebase for license information.
 
-save_path=${1:-"./experiments/debug/unmasked_ensemble/ensemble"}
+save_path=${1:-"./experiments/unmasked_ensemble/ensemble"}
 train_languages="English"
 val_languages="English"
 data_path=${2:-"../../ud-treebanks-v1.4"}
@@ -28,7 +28,7 @@ python3 src/train_on_split_ensemble.py \
     --mask_probability 0 \
     --view_mask_probability_1 0 \
     --view_mask_probability_2 0 \
-    --group "debug_random_mask" \
+    --group "random_mask" \
     --job_type "unmasked_ensemble" \
     --name "ensemble" \
     --default_save_path "$save_path" \

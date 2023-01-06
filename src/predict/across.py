@@ -18,18 +18,8 @@ def predict_over_languages(
         padded_labels = padded_labels_dict[language]
         dataloader = dataloaders_dict[language]
         analysis_path = os.path.join(analysis_parent_path, language)
-        raw_predictions = softmaxes.get_softmaxes(model, dataloader, analysis_path, phase)
-        if isinstance(raw_predictions, tuple):
-            # If it's a joined ensemble, then take the average of the accuracies
-            assert model.hparams.double_pass
-            assert len(raw_predictions) == 2, len(raw_predictions)
-            accuracies = [
-                    softmaxes.softmax_to_accuracy(raw_predictions_half, padded_labels)
-                    for raw_predictions_half in raw_predictions
-                ]
-            accuracy = sum(accuracies) / 2
-        else:
-            accuracy = softmaxes.softmax_to_accuracy(raw_predictions, padded_labels)
+        raw_predictions = softmaxes.get_and_save_softmaxes(model, dataloader, analysis_path, phase)
+        accuracy = softmaxes.softmax_to_accuracy(raw_predictions, padded_labels)
         accuracies[language] = accuracy
     
     df = pd.DataFrame.from_records([accuracies])
