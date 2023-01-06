@@ -70,20 +70,24 @@ if __name__ == '__main__':
     # import pdb; pdb.set_trace()
     
     # Check if the random_mask gives different random maskings for the pass in the dataloader with predict, etc
-    
+    # This works!
     outputs = []
     mask_probability = .5
+    loading_model = util.get_subset_model(RandomMask, 0)
     checkpoint_path = './experiments/unmasked_ensemble/unmasked/unmasked_subset_count=10/version_26abg0b3/ckpts/ckpts_epoch=15-val_English_pos_acc_epoch=81.096.ckpt'
-    for _ in range(2):
+    for seed_shift in range(2):
         model = RandomMask.load_from_checkpoint(checkpoint_path)
         model.hparams.mask_probability = mask_probability
-        dataloader = util.get_subset_dataloader(model, 'English', 'train')
+        dataloader = util.get_subset_dataloader(loading_model, 'English', 'train')
+        np.random.seed(model.hparams.seed + seed_shift)
         model.eval()
         trainer = pl.Trainer(gpus = 1 if torch.cuda.is_available() else 0)
         with torch.no_grad():
             raw_predictions = trainer.predict(model, dataloaders = [dataloader], return_predictions = True)
             outputs.append(raw_predictions)
+        np.random.seed(model.hparams.seed + seed_shift)
     import pdb; pdb.set_trace()
+    # all([torch.all(output1['pos_labels'] == output2['pos_labels']) for output1, output2 in zip(outputs[0], outputs[1])])
     # pprint(outputs[0][0]['sent'] == model.tokenizer.mask_token_id)
         
         

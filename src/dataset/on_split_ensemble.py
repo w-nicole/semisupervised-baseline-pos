@@ -27,11 +27,14 @@ class OnSplitEnsembleDataset(UdPOS):
             max_len, subset_ratio, subset_count
         )
 
-    def prep_view_component(self, mask_probability, checkpoint):
+    def prep_view_component(self, mask_probability, checkpoint, seed_shift):
         model = RandomMask.load_from_checkpoint(checkpoint)
         model.hparams.mask_probability = mask_probability
         dataloader = util.get_subset_dataloader(self.loading_model, self.lang, self.split)
+        # Below is to get different maskings for the different views.
+        np.random.seed(model.hparams.seed + seed_shift)
         softmax = softmaxes.get_all_softmaxes(model, dataloader)
+        np.random.seed(model.hparams.seed)
         labels = predict_utils.get_batch_padded_flat_labels(
             self.loading_model, self.lang, self.split
         )
@@ -116,14 +119,20 @@ class OnSplitEnsembleDataset(UdPOS):
         # Need to align the view labels and then overwrite the original labels
         # Such that Wu/Dredze structure is returned instead.
         full_data = self.process_examples(raw_full_examples)
-        pseudolabels, pseudolabels_true_labels = self.prep_view_component(0, self.self_training_args['pseudolabel_checkpoint'])
+        pseudolabels, pseudolabels_true_labels = self.prep_view_component(
+            0,
+            self.self_training_args['pseudolabel_checkpoint'],
+            0
+        )
         predictions_1, labels_1 = self.prep_view_component(
             self.self_training_args['view_mask_probability_1'],
-            self.self_training_args['view_checkpoint_1']
+            self.self_training_args['view_checkpoint_1'],
+            0
         )
         predictions_2, labels_2 = self.prep_view_component(
             self.self_training_args['view_mask_probability_2'],
-            self.self_training_args['view_checkpoint_2']
+            self.self_training_args['view_checkpoint_2'],
+            1
         )
         if not torch.all(labels_1 == labels_2) and torch.all(pseudolabels_true_labels == labels_1):
             import pdb; pdb.set_trace()

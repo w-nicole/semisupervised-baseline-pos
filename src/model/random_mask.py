@@ -44,6 +44,7 @@ class RandomMask(Single):
         
     def __call__(self, batch):
         modified_batch = self.mask_batch(batch)
-        return super(RandomMask, self).__call__(modified_batch)
+        return modified_batch
+        #return super(RandomMask, self).__call__(modified_batch)
 
 
